@@ -23,6 +23,15 @@ ONLY_RUN=${ONLY_RUN:-}
 MPI_LAUNCH=${MPI_LAUNCH:-"mpirun -np $PROCS"}
 BIN=${BIN_OVERRIDE:-$BIN}
 
+# optional grow-shrink phase scheduling: set BOTH to activate (paper's best = 50 / 200).
+# absent => standard EXAMM (both args default 0 in the binary => feature off).
+GROW_PHASE=${GROW_PHASE:-}
+SHRINK_PHASE=${SHRINK_PHASE:-}
+GS_ARGS=""
+if [ -n "$GROW_PHASE" ] && [ -n "$SHRINK_PHASE" ]; then
+    GS_ARGS="--growth_phase_genomes $GROW_PHASE --reduction_phase_genomes $SHRINK_PHASE"
+fi
+
 INPUTS="RET VOL_CHANGE BA_SPREAD ILLIQUIDITY sprtrn TURNOVER"
 OUTPUTS="RET"
 
@@ -60,6 +69,11 @@ FAIL_LOG=$BASE_OUT/failures.log
 echo "pilot: ${N_TICKERS} stocks x ${RUNS} runs, max_genomes=${MAX_GENOMES}"
 echo "data:    ${DATA}"
 echo "results: ${BASE_OUT}"
+if [ -n "$GS_ARGS" ]; then
+    echo "grow-shrink: ON (growth ${GROW_PHASE} / shrink ${SHRINK_PHASE})"
+else
+    echo "grow-shrink: OFF (standard EXAMM)"
+fi
 echo "###-------------------###"
 
 for S in $TICKERS; do
@@ -96,6 +110,7 @@ for S in $TICKERS; do
             --extinction_event_generation_number 200 \
             --islands_to_exterminate 1 \
             --repopulation_method bestGenome \
+            $GS_ARGS \
             --output_directory "$OUT" \
             --save_genome_option none \
             --std_message_level INFO \
