@@ -3,13 +3,13 @@
 #
 # GROW-SHRINK arm as a job array: 500 jobs, one per stock/run (50 x 10),
 # grow-shrink phase config G:50/S:200 (the paper's best model-reducer:
-# Singh/Lyu/Desell EvoStar 2026). Same EXAMM settings and data as the baseline
-# (test_output/baseline / v2) -- the ONLY difference is the two phase args, so
-# this arm is directly comparable to the existing baseline.
+# Singh/Lyu/Desell EvoStar 2026).
 #
-# Each job calls pilot_train.sh (env-parametrized) with GROW_PHASE/SHRINK_PHASE
-# set. Writes to test_output/growshrink (distinct dir; does NOT touch baseline).
-# Corrupted saves are filtered afterward by sweep_verify.py, same protocol.
+# This is EXACTLY the baseline run (same baseline_train.sh, same EXAMM settings,
+# same data, same per-run genome-verify hook) with grow-shrink turned ON via two
+# env vars. The ONLY difference from the baseline arm is --growth_phase_genomes /
+# --reduction_phase_genomes, so the two arms are directly comparable. Writes to
+# test_output/growshrink (distinct dir; does NOT touch test_output/baseline).
 #
 # REQUIRES the grow-shrink binary: check out branch grow-shrink and rebuild
 # examm_mpi first (the phase args do nothing on the old binary).
@@ -50,8 +50,6 @@ R=$((SLURM_ARRAY_TASK_ID % 10 + 1))
 
 echo "job $SLURM_ARRAY_TASK_ID -> $S run $R (grow-shrink G:50/S:200)"
 GROW_PHASE=50 SHRINK_PHASE=200 \
-    DATA="$SLURM_SUBMIT_DIR/datasets/701515_split" \
     BASE_OUT="$SLURM_SUBMIT_DIR/test_output/growshrink" \
-    RUNS=10 MAX_GENOMES=10000 \
     ONLY_RUN=$R MPI_LAUNCH="srun --kill-on-bad-exit" \
-    sh scripts/stock_run/pilot_train.sh "$S"
+    sh scripts/stock_run/baseline_train.sh "$S"
