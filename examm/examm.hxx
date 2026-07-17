@@ -87,6 +87,14 @@ class EXAMM {
     ofstream* weight_stats_log_file;    // logs mean/max weight stats periodically
     int32_t next_weight_log_at;         // trigger weight logging at this count
 
+    // Grow-shrink phase scheduling (ported from travisdesell/exact @ 16c19994).
+    // Both 0 => feature disabled => standard EXAMM mutation. The in-class
+    // initializers are load-bearing: an unset value > 0 would silently activate
+    // grow-shrink (same failure mode as the uninitialized weight_decay bug), so
+    // these MUST default to 0 regardless of constructor path.
+    int32_t growth_phase_genomes = 0;     // length of each growth window (genomes)
+    int32_t reduction_phase_genomes = 0;  // length of each shrink window (genomes)
+
    public:
     EXAMM(
         int32_t _island_size, int32_t _number_islands, int32_t _max_genomes, SpeciationStrategy* _speciation_strategy,
@@ -94,7 +102,8 @@ class EXAMM {
         string _save_genome_option,
         int32_t _homeostasis_interval = -1, double _homeostasis_factor = 1.0,
         double _homeostasis_adaptive_target = -1.0,
-        int32_t _rng_seed = -1
+        int32_t _rng_seed = -1,
+        int32_t _growth_phase_genomes = 0, int32_t _reduction_phase_genomes = 0
     );
 
     ~EXAMM();

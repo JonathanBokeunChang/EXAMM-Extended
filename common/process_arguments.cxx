@@ -86,9 +86,29 @@ EXAMM* generate_examm_from_arguments(
         Log::info("SHY Homeostasis disabled (baseline mode)\n");
     }
 
+    // Grow-shrink phase scheduling (optional — both default 0 => disabled => standard EXAMM)
+    int32_t growth_phase_genomes = 0;
+    get_argument(arguments, "--growth_phase_genomes", false, growth_phase_genomes);
+    int32_t reduction_phase_genomes = 0;
+    get_argument(arguments, "--reduction_phase_genomes", false, reduction_phase_genomes);
+    if (growth_phase_genomes > 0 && reduction_phase_genomes > 0) {
+        Log::info(
+            "Grow-shrink enabled: growth phase %d genomes, reduction phase %d genomes\n", growth_phase_genomes,
+            reduction_phase_genomes
+        );
+    } else if (growth_phase_genomes > 0 || reduction_phase_genomes > 0) {
+        // one set without the other silently disables the feature — make that loud
+        Log::warning(
+            "Grow-shrink IGNORED: both --growth_phase_genomes and --reduction_phase_genomes must be > 0 (got %d and "
+            "%d)\n",
+            growth_phase_genomes, reduction_phase_genomes
+        );
+    }
+
     EXAMM* examm = new EXAMM(
         island_size, number_islands, max_genomes, speciation_strategy, weight_rules, genome_property, output_directory,
-        save_genome_option, homeostasis_interval, homeostasis_factor, homeostasis_adaptive_target, rng_seed
+        save_genome_option, homeostasis_interval, homeostasis_factor, homeostasis_adaptive_target, rng_seed,
+        growth_phase_genomes, reduction_phase_genomes
     );
     if (possible_node_types.size() > 0) {
         examm->set_possible_node_types(possible_node_types);

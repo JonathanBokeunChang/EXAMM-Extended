@@ -59,7 +59,7 @@ EXAMM::EXAMM(
     int32_t _island_size, int32_t _number_islands, int32_t _max_genomes, SpeciationStrategy* _speciation_strategy,
     WeightRules* _weight_rules, GenomeProperty* _genome_property, string _output_directory, string _save_genome_option,
     int32_t _homeostasis_interval, double _homeostasis_factor, double _homeostasis_adaptive_target,
-    int32_t _rng_seed
+    int32_t _rng_seed, int32_t _growth_phase_genomes, int32_t _reduction_phase_genomes
 )
     : island_size(_island_size),
       number_islands(_number_islands),
@@ -80,6 +80,10 @@ EXAMM::EXAMM(
     homeostasis_adaptive_target = _homeostasis_adaptive_target;
     next_homeostasis_at = (homeostasis_interval > 0) ? homeostasis_interval : INT32_MAX;
     next_weight_log_at = 100;  // Log weight stats every 100 evaluations
+
+    // Grow-shrink phase scheduling (both 0 => disabled => standard mutation)
+    growth_phase_genomes = _growth_phase_genomes;
+    reduction_phase_genomes = _reduction_phase_genomes;
 
     // Weight stats log (always open, records stats for baseline too)
     weight_stats_log_file = NULL;
@@ -445,6 +449,49 @@ int32_t EXAMM::get_random_node_type() {
 }
 
 void EXAMM::mutate(int32_t max_mutations, RNN_Genome* g) {
+    // Grow-shrink phase scheduling (ported from travisdesell/exact @ 16c19994).
+    // When both phase lengths are > 0, alternate windows of pure-growth and pure-shrink
+    // operator rates, keyed off the running generated-genome count. Our fork increments
+    // generated_genomes AFTER this callback exactly as upstream does
+    // (island_speciation_strategy.cxx), so the "- 1" offset reproduces upstream's phase
+    // assignment verbatim (verified against the upstream source, not assumed). When both are
+    // 0 this block is skipped and the defaults from set_evolution_hyper_parameters() apply,
+    // which is bit-identical to the pre-port baseline.
+    if (growth_phase_genomes > 0 && reduction_phase_genomes > 0) {
+        if (((speciation_strategy->get_generated_genomes() - 1) % (growth_phase_genomes + reduction_phase_genomes)) <
+            growth_phase_genomes) {
+            Log::info(
+                "\t Entering growth phase at Generated Genome - %d\n", speciation_strategy->get_generated_genomes()
+            );
+            add_node_rate = 1;
+            add_edge_rate = 1;
+            add_recurrent_edge_rate = 1;
+            enable_edge_rate = 1;
+            enable_node_rate = 1;
+            split_node_rate = 1;
+            split_edge_rate = 1;
+            clone_rate = 1;
+            disable_node_rate = 0;
+            disable_edge_rate = 0;
+            merge_node_rate = 0;
+        } else {
+            Log::info(
+                "\t Entering shrink phase at Generated Genome - %d\n", speciation_strategy->get_generated_genomes()
+            );
+            add_node_rate = 0;
+            add_edge_rate = 0;
+            add_recurrent_edge_rate = 0;
+            enable_edge_rate = 0;
+            enable_node_rate = 0;
+            split_node_rate = 0;
+            split_edge_rate = 0;
+            clone_rate = 1;
+            disable_node_rate = 1;
+            disable_edge_rate = 1;
+            merge_node_rate = 1;
+        }
+    }
+
     double total = clone_rate + add_edge_rate + add_recurrent_edge_rate + enable_edge_rate + disable_edge_rate
                    + split_edge_rate + add_node_rate + enable_node_rate + disable_node_rate + split_node_rate
                    + merge_node_rate;
