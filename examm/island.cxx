@@ -453,6 +453,11 @@ void Island::fill_with_mutated_genomes(
             new_genome->initialize_randomly();
         }
         genomes.push_back(new_genome);
+        // every genome in `genomes` must also be registered in structure_map:
+        // insert_genome's worst-removal path does structure_map.find(hash)->second
+        // unguarded (island.cxx:314), so an unregistered resident genome is a
+        // guaranteed end()-dereference crash the first time it gets evicted.
+        structure_map[new_genome->get_structural_hash()].push_back(new_genome);
     }
     if (is_full()) {
         Log::info("island %d: is filled with mutated genome\n", id);
