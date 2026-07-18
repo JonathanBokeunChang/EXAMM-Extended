@@ -11,7 +11,7 @@
 
 REPO=$(cd "$(dirname "$0")/../.." && pwd)
 BIN=$REPO/build/mpi/examm_mpi
-DATA=$REPO/datasets/701515_split
+DATA=${DATA:-$REPO/datasets/701515_split}          # env-overridable (e.g. walk-forward cohorts)
 BASE_OUT=${BASE_OUT:-$REPO/test_output/baseline}   # env-overridable (e.g. grow-shrink arm)
 
 RUNS=${RUNS:-10}
@@ -29,6 +29,22 @@ SHRINK_PHASE=${SHRINK_PHASE:-}
 GS_ARGS=""
 if [ -n "$GROW_PHASE" ] && [ -n "$SHRINK_PHASE" ]; then
     GS_ARGS="--growth_phase_genomes $GROW_PHASE --reduction_phase_genomes $SHRINK_PHASE"
+fi
+
+# optional warm-start (continual evolution): SEED_BIN=<genome.bin> seeds evolution from a
+# previously trained genome (architecture + weights). Flag set is deliberate and load-bearing:
+# v1 = only version that leaves a same-features architecture untouched; --start_filled is
+# REQUIRED for weight inheritance (without it the initial islands are re-randomized);
+# --tl_epigenetic_weights must NOT be passed (its live consumer is inverted and would
+# randomize the fill). Seeds must be post-bugfix .bins. See plan "TL invocation facts".
+SEED_BIN=${SEED_BIN:-}
+TL_ARGS=""
+if [ -n "$SEED_BIN" ]; then
+    if [ ! -f "$SEED_BIN" ]; then
+        echo "ERROR: SEED_BIN=$SEED_BIN does not exist" >&2
+        exit 1
+    fi
+    TL_ARGS="--genome_bin $SEED_BIN --transfer_learning_version v1 --epigenetic_weights --start_filled"
 fi
 
 INPUTS="RET VOL_CHANGE BA_SPREAD ILLIQUIDITY sprtrn TURNOVER"
@@ -72,6 +88,11 @@ if [ -n "$GS_ARGS" ]; then
 else
     echo "grow-shrink: OFF (standard EXAMM)"
 fi
+if [ -n "$TL_ARGS" ]; then
+    echo "warm-start: ON (seed ${SEED_BIN})"
+else
+    echo "warm-start: OFF (cold / minimal seed)"
+fi
 echo "###-------------------###"
 
 for S in $TICKERS; do
@@ -109,6 +130,7 @@ for S in $TICKERS; do
             --islands_to_exterminate 1 \
             --repopulation_method bestGenome \
             $GS_ARGS \
+            $TL_ARGS \
             --output_directory "$OUT" \
             --save_genome_option none \
             --std_message_level INFO \
