@@ -1,0 +1,56 @@
+#!/bin/bash -l
+# NOTE the -l flag!
+#
+# COLD walk-forward cohort as a job array: 500 jobs (50 stocks x 10 runs),
+# standard EXAMM re-evolved from scratch on one cohort's splits.
+#
+# submit from the repo root, one cohort at a time (they are independent):
+#   mkdir -p slurm_logs
+#   sbatch --export=ALL,COHORT=cohort_2021 --array=0 scripts/stock_run/anvil_cold.sb   (canary)
+#   sbatch --export=ALL,COHORT=cohort_2021 scripts/stock_run/anvil_cold.sb            (all 500)
+#
+# Splits must exist first: datasets/walkforward/$COHORT (built by
+# build_walkforward_splits.py --dedup-dates --test-end-year 2023).
+# Output: test_output/$COHORT/<STOCK>/run_<R>/ -- per-run genome verify hook
+# included (baseline_train.sh). Safe to resubmit (.done skip).
+
+#SBATCH --account=cis251123
+#SBATCH --partition=shared
+#SBATCH --nodes=1
+#SBATCH --ntasks=8
+#SBATCH --cpus-per-task=1
+#SBATCH --time=00:45:00
+#SBATCH --job-name=examm_cold
+#SBATCH --array=0-499
+#SBATCH --output=slurm_logs/cold_%A_%a.out
+#SBATCH --error=slurm_logs/cold_%A_%a.err
+
+module --force purge
+module load gcc/11.2.0 openmpi/4.1.6
+
+cd "$SLURM_SUBMIT_DIR"
+
+if [ -z "${COHORT:-}" ]; then
+    echo "ERROR: submit with --export=ALL,COHORT=cohort_YYYY" >&2
+    exit 1
+fi
+DATA_DIR=datasets/walkforward/$COHORT
+if [ ! -d "$DATA_DIR" ]; then
+    echo "ERROR: $DATA_DIR does not exist -- build splits first" >&2
+    exit 1
+fi
+
+TICKERS=($(ls "$DATA_DIR" | sed -E 's/_(train|val|test)\.csv$//' | sort -u))
+if [ ${#TICKERS[@]} -ne 50 ]; then
+    echo "ERROR: expected 50 tickers in $DATA_DIR, found ${#TICKERS[@]}" >&2
+    exit 1
+fi
+
+S=${TICKERS[$((SLURM_ARRAY_TASK_ID / 10))]}
+R=$((SLURM_ARRAY_TASK_ID % 10 + 1))
+
+echo "job $SLURM_ARRAY_TASK_ID -> $COHORT $S run $R (COLD)"
+DATA="$SLURM_SUBMIT_DIR/$DATA_DIR" \
+    BASE_OUT="$SLURM_SUBMIT_DIR/test_output/$COHORT" \
+    ONLY_RUN=$R MPI_LAUNCH="srun --kill-on-bad-exit" \
+    sh scripts/stock_run/baseline_train.sh "$S"

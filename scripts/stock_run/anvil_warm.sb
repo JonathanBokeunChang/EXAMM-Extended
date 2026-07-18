@@ -1,0 +1,75 @@
+#!/bin/bash -l
+# NOTE the -l flag!
+#
+# WARM (continual-evolution) wave as a job array: 500 jobs (50 stocks x 10 runs).
+# Run r of this wave is SEEDED from run r of the previous wave's verified best
+# (independent lineages), via the verified transfer-learning invocation
+# (--genome_bin + v1 + --epigenetic_weights + --start_filled) in baseline_train.sh.
+#
+# Waves are SEQUENTIAL. Per wave:
+#   1. previous wave finished + six-check clean
+#   2. sh scripts/stock_run/collect_seeds.sh test_output/<prev_out> seeds/<prev>
+#      (fails loud on any missing/unverified run -- do not proceed if it fails)
+#   3. sbatch --export=ALL,COHORT=cohort_2017,SEEDS=seeds/warm_2016[,MAXG=2000] \
+#          scripts/stock_run/anvil_warm.sb
+# First wave seeds from the COLD arm's matching cohort output
+# (e.g. COHORT=cohort_2016, SEEDS=seeds/cold_2015 collected from test_output/cohort_2015).
+#
+# MAXG optional (default 10000): set 2000 for the WARM-CHEAP arm.
+# Output: test_output/warm_<COHORT-year>[_cheap]/... is up to the submitter via OUT
+# (default test_output/warm_$COHORT). Safe to resubmit (.done skip).
+
+#SBATCH --account=cis251123
+#SBATCH --partition=shared
+#SBATCH --nodes=1
+#SBATCH --ntasks=8
+#SBATCH --cpus-per-task=1
+#SBATCH --time=00:45:00
+#SBATCH --job-name=examm_warm
+#SBATCH --array=0-499
+#SBATCH --output=slurm_logs/warm_%A_%a.out
+#SBATCH --error=slurm_logs/warm_%A_%a.err
+
+module --force purge
+module load gcc/11.2.0 openmpi/4.1.6
+
+cd "$SLURM_SUBMIT_DIR"
+
+if [ -z "${COHORT:-}" ] || [ -z "${SEEDS:-}" ]; then
+    echo "ERROR: submit with --export=ALL,COHORT=cohort_YYYY,SEEDS=seeds/<prev-wave>" >&2
+    exit 1
+fi
+DATA_DIR=datasets/walkforward/$COHORT
+SEED_DIR=$SLURM_SUBMIT_DIR/$SEEDS
+OUT_DIR=${OUT:-test_output/warm_$COHORT}
+MAXG_VAL=${MAXG:-10000}
+
+if [ ! -d "$DATA_DIR" ]; then
+    echo "ERROR: $DATA_DIR does not exist -- build splits first" >&2
+    exit 1
+fi
+if [ ! -d "$SEED_DIR" ]; then
+    echo "ERROR: seed dir $SEED_DIR does not exist -- run collect_seeds.sh first" >&2
+    exit 1
+fi
+
+TICKERS=($(ls "$DATA_DIR" | sed -E 's/_(train|val|test)\.csv$//' | sort -u))
+if [ ${#TICKERS[@]} -ne 50 ]; then
+    echo "ERROR: expected 50 tickers in $DATA_DIR, found ${#TICKERS[@]}" >&2
+    exit 1
+fi
+
+S=${TICKERS[$((SLURM_ARRAY_TASK_ID / 10))]}
+R=$((SLURM_ARRAY_TASK_ID % 10 + 1))
+SEED_FILE=$SEED_DIR/${S}_run${R}.bin
+if [ ! -f "$SEED_FILE" ]; then
+    echo "ERROR: seed $SEED_FILE missing -- collect_seeds.sh must have failed" >&2
+    exit 1
+fi
+
+echo "job $SLURM_ARRAY_TASK_ID -> $COHORT $S run $R (WARM, seed=$SEED_FILE, max_genomes=$MAXG_VAL)"
+DATA="$SLURM_SUBMIT_DIR/$DATA_DIR" \
+    BASE_OUT="$SLURM_SUBMIT_DIR/$OUT_DIR" \
+    SEED_BIN="$SEED_FILE" MAX_GENOMES="$MAXG_VAL" \
+    ONLY_RUN=$R MPI_LAUNCH="srun --kill-on-bad-exit" \
+    sh scripts/stock_run/baseline_train.sh "$S"
