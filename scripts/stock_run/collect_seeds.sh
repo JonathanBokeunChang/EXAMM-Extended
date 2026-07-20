@@ -60,3 +60,10 @@ if [ $missing -gt 0 ]; then
     echo "ERROR: $missing runs missing/unverified -- fix the wave before chaining" >&2
     exit 1
 fi
+# a stock whose directory never got created would not appear in the loop at all,
+# so also require the exact expected seed count (50 stocks x 10 runs by default)
+EXPECT=${EXPECT:-500}
+if [ "$collected" -ne "$EXPECT" ]; then
+    echo "ERROR: collected $collected seeds but expected $EXPECT -- a stock is missing entirely" >&2
+    exit 1
+fi
