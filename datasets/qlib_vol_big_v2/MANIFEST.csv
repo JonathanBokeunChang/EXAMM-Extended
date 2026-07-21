@@ -1,0 +1,2 @@
+split,stocks,train_end,val,test_start,pooled_train_rows,boundary_rows_trimmed
+fixed,120,2017-12-31,2018,2019-01-01,79452,1200

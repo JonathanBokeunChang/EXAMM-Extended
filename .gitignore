@@ -10,3 +10,17 @@ __pycache__/*
 *.pyc
 visualization/plots/*
 test_output/*
+.gstack/
+build_asan/*
+
+# Generated volatility datasets (~216 MB of CSVs). Rebuild exactly with
+# scripts/stock_run/build_vol_dataset.py; the provenance files below stay tracked so the
+# universe and split boundaries are reproducible from git alone.
+datasets/qlib_vol*/*.csv
+datasets/qlib_vol*/*/*.csv
+!datasets/qlib_vol*/MANIFEST.csv
+!datasets/qlib_vol*/TICKERS.txt
+
+# Per-row model predictions (~185 MB). The scored summaries, validation reports and
+# manifests ARE tracked -- those are the paper's numbers; the raw rows are regenerable.
+results/baselines/*/predictions/

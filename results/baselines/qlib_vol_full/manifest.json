@@ -1,0 +1,62 @@
+{
+  "tag": "qlib_vol_full",
+  "data_dir": "datasets/qlib_vol_full",
+  "timestamp": "2026-07-21T18:30:36",
+  "n_stocks": 237,
+  "n_scored_keys": 90177,
+  "har_reference": "har_pooled",
+  "models": [
+    "egarch",
+    "ewma",
+    "garch",
+    "har",
+    "har_pooled",
+    "har_x",
+    "naive"
+  ],
+  "failures": [
+    [
+      "SH601881",
+      "egarch",
+      "non-finite forecast"
+    ],
+    [
+      "SZ002352",
+      "egarch",
+      "non-finite forecast"
+    ],
+    [
+      "SZ002411",
+      "egarch",
+      "non-finite forecast"
+    ]
+  ],
+  "n_failures": 3,
+  "horizon": 5,
+  "ewma_lambda": 0.94,
+  "arch_scale": 100.0,
+  "calibrated_models": [
+    "ewma",
+    "garch",
+    "egarch"
+  ],
+  "offset_secondary": 22,
+  "prediction_hashes": {
+    "naive": "5477d761c2487529",
+    "har": "fd6991ff6475acdc",
+    "har_x": "29fb24c5d9cbb81d",
+    "ewma": "aa51b3a013f1c5df",
+    "garch": "53b600629664d78b",
+    "egarch": "430140b06baab3e6",
+    "har_pooled": "baac3a89d7f0fb05"
+  },
+  "git_commit": "a62ae61",
+  "versions": {
+    "numpy": "2.0.2",
+    "pandas": "2.3.3",
+    "scipy": "1.13.1",
+    "arch": "7.2.0"
+  },
+  "runtime_sec": 38.0,
+  "validation_passed": true
+}

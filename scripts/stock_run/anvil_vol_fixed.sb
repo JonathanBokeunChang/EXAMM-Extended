@@ -1,0 +1,104 @@
+#!/bin/bash -l
+# NOTE the -l flag!
+#
+# FIXED-SPLIT volatility runs as a job array -- the sibling of anvil_vol_cold.sb.
+# Where that script arrays over (cohort x run), this one arrays over RUN only, against a
+# single train/val/test dataset. Used for two experiments:
+#
+#   E1  (headline, 120 pinned stocks)   DATA_DIR=datasets/qlib_vol_big_v2   10 runs
+#   E1b (survivorship probe, all ~238)  DATA_DIR=datasets/qlib_vol_full      3 runs
+#
+# Both are POOLED: one job trains ONE model on ALL stocks simultaneously via multi-file
+# --training_filenames, using MPI across ranks to parallelize genome evaluation.
+#
+# submit from the repo root:
+#   mkdir -p slurm_logs
+#   sbatch --export=ALL,DATA_DIR=datasets/qlib_vol_full,OUT_ROOT=test_output/vol_e1b \
+#          --array=0 scripts/stock_run/anvil_vol_fixed.sb                    # CANARY
+#   sbatch --export=ALL,DATA_DIR=datasets/qlib_vol_full,OUT_ROOT=test_output/vol_e1b \
+#          --array=0-2 scripts/stock_run/anvil_vol_fixed.sb                  # E1b probe (3)
+#   sbatch --export=ALL,DATA_DIR=datasets/qlib_vol_big_v2,OUT_ROOT=test_output/vol_e1 \
+#          --array=0-9 scripts/stock_run/anvil_vol_fixed.sb                  # E1 (10)
+#
+# Requires: the dataset transferred to $DATA_DIR (build locally with
+# scripts/stock_run/build_vol_dataset.py --mode fixed).
+# Output: $OUT_ROOT/run_R/global_best_genome_*.bin
+# Safe to resubmit: finished runs are skipped via .done
+
+#SBATCH --account=cis251123
+#SBATCH --partition=shared
+#SBATCH --nodes=1
+#SBATCH --ntasks=32
+#SBATCH --cpus-per-task=1
+#SBATCH --time=04:00:00
+#SBATCH --job-name=vol_fixed
+#SBATCH --array=0-9
+#SBATCH --output=slurm_logs/volfixed_%A_%a.out
+#SBATCH --error=slurm_logs/volfixed_%A_%a.err
+
+module --force purge
+module load gcc/11.2.0 openmpi/4.1.6
+
+cd "$SLURM_SUBMIT_DIR"
+
+set -u
+MAXG=${MAXG:-10000}
+DATA_DIR=${DATA_DIR:-datasets/qlib_vol_big_v2}
+OUT_ROOT=${OUT_ROOT:-test_output/vol_e1}
+BIN=build/mpi/examm_mpi
+
+RUN=$(( ${SLURM_ARRAY_TASK_ID:-0} + 1 ))
+OUT=$OUT_ROOT/run_$RUN
+
+echo "### vol FIXED | $DATA_DIR | run $RUN | max_genomes $MAXG | ranks ${SLURM_NTASKS}"
+
+if [ ! -x "$BIN" ]; then echo "ERROR: $BIN not found -- build examm_mpi first" >&2; exit 1; fi
+if [ ! -d "$DATA_DIR" ]; then echo "ERROR: $DATA_DIR missing -- transfer the dataset first" >&2; exit 1; fi
+
+# ---- collect the pooled file lists (ALL stocks) -----------------------------
+TRAIN_FILES=$(ls "$DATA_DIR"/*_train.csv 2>/dev/null | tr '\n' ' ')
+VAL_FILES=$(ls "$DATA_DIR"/*_val.csv   2>/dev/null | tr '\n' ' ')
+N_TRAIN=$(echo $TRAIN_FILES | wc -w | tr -d ' ')
+N_VAL=$(echo $VAL_FILES   | wc -w | tr -d ' ')
+if [ "$N_TRAIN" -lt 50 ] || [ "$N_TRAIN" -ne "$N_VAL" ]; then
+    echo "ERROR: $DATA_DIR has $N_TRAIN train / $N_VAL val files (expected equal, >=50)" >&2
+    exit 1
+fi
+echo "pooled over $N_TRAIN stocks"
+
+if [ -f "$OUT/.done" ]; then echo "[run $RUN] already done, skipping"; exit 0; fi
+rm -rf "$OUT"; mkdir -p "$OUT"
+
+# Search config is the Evostar 2025 published setup; see memory examm-config-provenance.
+# Repopulation every 500 matches the paper (NOT 200) and is identical across E1/E1b/E2.
+srun -n "${SLURM_NTASKS}" "$BIN" \
+    --training_filenames $TRAIN_FILES \
+    --validation_filenames $VAL_FILES \
+    --time_offset 0 \
+    --input_parameter_names LV MA5 MA22 RET LOGVOL \
+    --output_parameter_names TARGET \
+    --number_islands 10 \
+    --island_size 10 \
+    --max_genomes "$MAXG" \
+    --bp_iterations 10 \
+    --num_mutations 1 \
+    --normalize avg_std_dev \
+    --extinction_event_generation_number 500 \
+    --islands_to_exterminate 1 \
+    --repopulation_method bestGenome \
+    ${GS_ARGS:-} \
+    ${TL_ARGS:-} \
+    --output_directory "$OUT" \
+    --save_genome_option none \
+    --std_message_level INFO \
+    --file_message_level NONE > "$OUT/train.log" 2>&1
+RC=$?
+
+GB=$(ls "$OUT"/global_best_genome_*.bin 2>/dev/null | head -1)
+if [ $RC -eq 0 ] && [ -n "$GB" ]; then
+    touch "$OUT/.done"
+    echo "[run $RUN] FINISHED  genome=$(basename "$GB")  genomes_logged=$(wc -l < "$OUT/fitness_log.csv" 2>/dev/null)"
+else
+    echo "[run $RUN] FAILED rc=$RC (no global best saved), see $OUT/train.log" >&2
+    exit 1
+fi

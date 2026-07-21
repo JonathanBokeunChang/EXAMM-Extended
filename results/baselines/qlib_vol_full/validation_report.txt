@@ -1,0 +1,25 @@
+VOLATILITY BASELINE HARNESS -- VALIDATION REPORT
+======================================================================
+
+[PASS] (HARD) regression_anchor/all_rows: [qlib_vol_full] pooled HAR median R2 = 0.2397, expected 0.2397 (tol 0.002); diff +0.0000
+[PASS] (HARD) regression_anchor/offset22: [qlib_vol_full] pooled HAR median R2 (offset 22) = 0.2360, expected 0.2360; diff +0.0000
+[PASS] (soft) regression_anchor/e1a_csv: E1a HAR_r2 median = 0.2371 (reference 0.2371)
+[PASS] (HARD) finiteness: all predictions and metrics finite
+[WARN] (soft) coverage/raw_predictions: common set 90,177 keys = 0.9871 of the widest model; 3 stock(s) excluded from the comparison (limiting: egarch); dropped: SH601881,SZ002352,SZ002411 | sizes: egarch:90,177, ewma:91,351, garch:91,351, har:91,351, har_pooled:91,351, har_x:91,351, naive:91,351
+[PASS] (HARD) coverage/scored_identical: 234 stocks / 90,177 rows per model, identical across all 7 models: stocks=True, rows=True
+[PASS] (HARD) leakage/train_before_test: train_max=2017-12-22 < test_min=2019-01-02
+[PASS] (HARD) leakage/calibration_train_only: affine calibration fit on TRAIN rows only
+[PASS] (HARD) garch_scale: median(fitted sigma / empirical return sd) = 0.761, expected in [0.5, 2.0] -- outside implies the arch x100 percentage-scaling error
+[PASS] (HARD) determinism: prediction hashes reproduce exactly
+[PASS] (soft) garch_persistence: alpha+beta in (0.5,1.0) for 90.3% of stocks (median 0.991)
+[PASS] (soft) convergence/garch: 100.0% converged (237/237)
+[WARN] (soft) convergence/egarch: 94.5% converged (224/237)
+[PASS] (soft) sanity/naive_is_worst: lowest median R2 is 'naive' (as expected)
+[PASS] (soft) sanity/har_ge_ewma: HAR R2 0.2271 vs EWMA 0.1503
+[PASS] (soft) legacy_metric_agreement: max |canonical - legacy| = 0.00e+00 (scratchpad inline formulas)
+
+======================================================================
+hard gates: 8/8 passed
+soft checks: 6/8 passed
+
+VERDICT: PASS -- results safe to use

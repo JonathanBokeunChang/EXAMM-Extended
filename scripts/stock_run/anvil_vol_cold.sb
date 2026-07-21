@@ -1,0 +1,111 @@
+#!/bin/bash -l
+# NOTE the -l flag!
+#
+# E2 -- walk-forward VOLATILITY cohorts, COLD arm, as a job array.
+#
+# SHAPE DIFFERS FROM THE OLD RETURNS CAMPAIGN: the volatility recipe is POOLED --
+# one job trains ONE model on ALL stocks of a cohort simultaneously (multi-file
+# --training_filenames). So the array is over (cohort x run) = 5 x 10 = 50 jobs,
+# each large, rather than 500 tiny per-stock jobs. Each job uses MPI across many
+# ranks to parallelize genome evaluation.
+#
+# submit from the repo root:
+#   mkdir -p slurm_logs
+#   sbatch --array=0 scripts/stock_run/anvil_vol_cold.sb          # CANARY (cohort 2016 run 1)
+#   sbatch scripts/stock_run/anvil_vol_cold.sb                    # all 50
+#   sbatch --export=ALL,MAXG=2000 --array=0-49 ...                # cheap variant
+#
+# Requires: datasets/qlib_vol_cohorts/cohort_YYYY/*.csv  (build locally with
+# scripts/stock_run/build_vol_cohorts.py, then transfer the tarball).
+# Output: test_output/vol_cohorts/cohort_YYYY/run_R/global_best_genome_*.bin
+# Safe to resubmit: finished runs are skipped.
+
+#SBATCH --account=cis251123
+#SBATCH --partition=shared
+#SBATCH --nodes=1
+#SBATCH --ntasks=32
+#SBATCH --cpus-per-task=1
+#SBATCH --time=04:00:00
+#SBATCH --job-name=vol_cold
+#SBATCH --array=0-49
+#SBATCH --output=slurm_logs/volcold_%A_%a.out
+#SBATCH --error=slurm_logs/volcold_%A_%a.err
+
+module --force purge
+module load gcc/11.2.0 openmpi/4.1.6
+
+cd "$SLURM_SUBMIT_DIR"
+
+set -u
+COHORT_YEARS=(2016 2017 2018 2019 2020)
+RUNS_PER_COHORT=10
+MAXG=${MAXG:-10000}
+DATA_ROOT=${DATA_ROOT:-datasets/qlib_vol_cohorts}
+OUT_ROOT=${OUT_ROOT:-test_output/vol_cohorts}
+BIN=build/mpi/examm_mpi
+
+# ---- derive (cohort, run) from the array index -----------------------------
+IDX=${SLURM_ARRAY_TASK_ID:-0}
+CI=$(( IDX / RUNS_PER_COHORT ))
+RUN=$(( IDX % RUNS_PER_COHORT + 1 ))
+if [ "$CI" -ge "${#COHORT_YEARS[@]}" ]; then
+    echo "ERROR: array index $IDX out of range (max $(( ${#COHORT_YEARS[@]} * RUNS_PER_COHORT - 1 )))" >&2
+    exit 1
+fi
+YEAR=${COHORT_YEARS[$CI]}
+DATA_DIR=$DATA_ROOT/cohort_$YEAR
+OUT=$OUT_ROOT/cohort_$YEAR/run_$RUN
+
+echo "### vol COLD | cohort $YEAR | run $RUN | max_genomes $MAXG | ranks ${SLURM_NTASKS}"
+
+if [ ! -x "$BIN" ]; then echo "ERROR: $BIN not found -- build examm_mpi first" >&2; exit 1; fi
+if [ ! -d "$DATA_DIR" ]; then echo "ERROR: $DATA_DIR missing -- transfer cohort datasets first" >&2; exit 1; fi
+
+# ---- collect the pooled file lists (ALL stocks in this cohort) -------------
+TRAIN_FILES=$(ls "$DATA_DIR"/*_train.csv 2>/dev/null | tr '\n' ' ')
+VAL_FILES=$(ls "$DATA_DIR"/*_val.csv   2>/dev/null | tr '\n' ' ')
+N_TRAIN=$(echo $TRAIN_FILES | wc -w | tr -d ' ')
+N_VAL=$(echo $VAL_FILES   | wc -w | tr -d ' ')
+if [ "$N_TRAIN" -lt 50 ] || [ "$N_TRAIN" -ne "$N_VAL" ]; then
+    echo "ERROR: cohort $YEAR has $N_TRAIN train / $N_VAL val files (expected equal, >=50)" >&2
+    exit 1
+fi
+echo "pooled over $N_TRAIN stocks"
+
+if [ -f "$OUT/.done" ]; then echo "[cohort $YEAR run $RUN] already done, skipping"; exit 0; fi
+rm -rf "$OUT"; mkdir -p "$OUT"
+
+# Search config is the Evostar 2025 published setup; see memory examm-config-provenance.
+# Repopulation every 500 matches the paper (NOT 200) and is identical to anvil_vol_fixed.sb,
+# so E1/E1b/E2 are one algorithm rather than three.
+srun -n "${SLURM_NTASKS}" "$BIN" \
+    --training_filenames $TRAIN_FILES \
+    --validation_filenames $VAL_FILES \
+    --time_offset 0 \
+    --input_parameter_names LV MA5 MA22 RET LOGVOL \
+    --output_parameter_names TARGET \
+    --number_islands 10 \
+    --island_size 10 \
+    --max_genomes "$MAXG" \
+    --bp_iterations 10 \
+    --num_mutations 1 \
+    --normalize avg_std_dev \
+    --extinction_event_generation_number 500 \
+    --islands_to_exterminate 1 \
+    --repopulation_method bestGenome \
+    ${GS_ARGS:-} \
+    ${TL_ARGS:-} \
+    --output_directory "$OUT" \
+    --save_genome_option none \
+    --std_message_level INFO \
+    --file_message_level NONE > "$OUT/train.log" 2>&1
+RC=$?
+
+GB=$(ls "$OUT"/global_best_genome_*.bin 2>/dev/null | head -1)
+if [ $RC -eq 0 ] && [ -n "$GB" ]; then
+    touch "$OUT/.done"
+    echo "[cohort $YEAR run $RUN] FINISHED  genome=$(basename "$GB")  genomes_logged=$(wc -l < "$OUT/fitness_log.csv" 2>/dev/null)"
+else
+    echo "[cohort $YEAR run $RUN] FAILED rc=$RC (no global best saved), see $OUT/train.log" >&2
+    exit 1
+fi
