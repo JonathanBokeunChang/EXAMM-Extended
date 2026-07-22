@@ -42,6 +42,15 @@ class RNN {
     RNN_Node_Interface* get_node(int32_t i);
     RNN_Edge* get_edge(int32_t i);
 
+    int32_t get_number_recurrent_edges();
+    RNN_Recurrent_Edge* get_recurrent_edge(int32_t i);
+
+    // Output-node access for cross-sectional / ranking losses that need to read
+    // each network's predictions and write per-timestep output deltas directly
+    // (see rnn/ic_loss.*, RNN_Genome::backpropagate_cross_sectional).
+    int32_t get_number_output_nodes();
+    RNN_Node_Interface* get_output_node(int32_t i);
+
     void forward_pass(
         const vector<vector<double> >& series_data, bool using_dropout, bool training, double dropout_probability
     );

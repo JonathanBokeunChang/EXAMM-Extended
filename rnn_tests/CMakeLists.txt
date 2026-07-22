@@ -82,4 +82,9 @@ target_link_libraries(test_inverse_gp_gradients examm_strategy exact_common exac
 add_executable(test_multiply_gp_gradients test_multiply_gp_gradients.cxx gradient_test.cxx)
 target_link_libraries(test_multiply_gp_gradients examm_strategy exact_common exact_time_series exact_weights examm_nn  ${MYSQL_LIBRARIES} pthread)
 
+# Cross-sectional IC loss gradient check. Compiled directly against ic_loss.cxx
+# (zero deps) rather than linking examm_nn, so this correctness gate stays fast
+# and isolated from the rest of the NN library.
+add_executable(test_ic_loss_gradients test_ic_loss_gradients.cxx ${PROJECT_SOURCE_DIR}/rnn/ic_loss.cxx)
+
 

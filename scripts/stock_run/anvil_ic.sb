@@ -1,0 +1,145 @@
+#!/bin/bash -l
+# NOTE the -l flag!
+#
+# Cross-sectional IC (Information Coefficient) training on the walk-forward
+# returns cohort -- Dr. Lyu's objective. One POOLED tiny genome (6->1) is trained
+# on ALL 50 stocks simultaneously, optimizing the daily cross-sectional rank
+# correlation between predicted and realized next-day returns (rnn/ic_loss.*),
+# with fitness = validation Spearman IC. Split: train <=2021, val 2022, trade 2023.
+#
+# The array is over SEEDS/runs (for ensembling -- average predictions across runs
+# before ranking, per the volatility recipe). One cohort, so IDX == run index.
+#
+# submit from the repo root:
+#   mkdir -p slurm_logs
+#   sbatch --array=0 scripts/stock_run/anvil_ic.sb                       # canary (1 run)
+#   sbatch --array=1-9 scripts/stock_run/anvil_ic.sb                     # remaining 9
+#   sbatch --export=ALL,IC_MODE=spearman --array=0-9 ...                 # soft-Spearman variant
+#   sbatch --export=ALL,MAXG=2000 --array=0-9 ...                        # cheaper
+#
+# Requires the ALIGNED cohort (identical calendars so the cross-section is well
+# defined); build + transfer it first:
+#   python3 scripts/stock_run/align_cohort.py \
+#       --in datasets/walkforward/cohort_2021 --out datasets/walkforward/cohort_2021_aligned
+# Output: $OUT_ROOT/run_R/global_best_genome_*.bin  (+ .done, safe to resubmit).
+
+#SBATCH --account=cis251123
+#SBATCH --partition=shared
+#SBATCH --nodes=1
+#SBATCH --ntasks=32
+#SBATCH --cpus-per-task=1
+#SBATCH --time=08:00:00
+#SBATCH --job-name=ic_train
+#SBATCH --array=0-9
+#SBATCH --output=slurm_logs/ic_%A_%a.out
+#SBATCH --error=slurm_logs/ic_%A_%a.err
+
+module --force purge
+module load gcc/11.2.0 openmpi/4.1.6
+
+cd "$SLURM_SUBMIT_DIR"
+
+set -u
+MAXG=${MAXG:-10000}
+IC_MODE=${IC_MODE:-pearson}          # pearson (default) | spearman
+DATA_DIR=${DATA_DIR:-datasets/walkforward/cohort_2021_aligned}
+RUN_TAG=${RUN_TAG:-}
+# OUT_ROOT derives from DATA_DIR + IC_MODE + RUN_TAG so pearson/spearman and any
+# config change get separate run_R namespaces (a forgotten --export otherwise lands
+# on another config's .done files and every task exits 0 via the skip below).
+OUT_ROOT=${OUT_ROOT:-test_output/ic_$(basename "$DATA_DIR")_${IC_MODE}${RUN_TAG:+_$RUN_TAG}}
+BIN=build/mpi/examm_mpi
+
+IDX=${SLURM_ARRAY_TASK_ID:-0}
+RUN=$(( IDX + 1 ))
+OUT=$OUT_ROOT/run_$RUN
+
+echo "### IC train | ic_mode $IC_MODE | run $RUN | max_genomes $MAXG | ranks ${SLURM_NTASKS}"
+
+if [ "$IC_MODE" != "pearson" ] && [ "$IC_MODE" != "spearman" ]; then
+    echo "ERROR: IC_MODE must be 'pearson' or 'spearman', got '$IC_MODE'" >&2; exit 1
+fi
+if [ ! -x "$BIN" ]; then echo "ERROR: $BIN not found -- build examm_mpi first" >&2; exit 1; fi
+if [ ! -d "$DATA_DIR" ]; then echo "ERROR: $DATA_DIR missing -- run align_cohort.py + transfer" >&2; exit 1; fi
+
+# ---- collect the pooled file lists (ALL stocks) ----------------------------
+TRAIN_FILES=$(ls "$DATA_DIR"/*_train.csv 2>/dev/null | tr '\n' ' ')
+VAL_FILES=$(ls "$DATA_DIR"/*_val.csv   2>/dev/null | tr '\n' ' ')
+N_TRAIN=$(echo $TRAIN_FILES | wc -w | tr -d ' ')
+N_VAL=$(echo $VAL_FILES   | wc -w | tr -d ' ')
+if [ "$N_TRAIN" -lt 50 ] || [ "$N_TRAIN" -ne "$N_VAL" ]; then
+    echo "ERROR: $DATA_DIR has $N_TRAIN train / $N_VAL val files (expected equal, >=50)" >&2
+    exit 1
+fi
+# Counts matching is not enough -- a partial rsync could drop one stem from each side.
+if ! diff <(ls "$DATA_DIR" | sed -n 's/_train\.csv$//p') \
+          <(ls "$DATA_DIR" | sed -n 's/_val\.csv$//p') >/dev/null; then
+    echo "ERROR: train/val stems differ in $DATA_DIR (counts match but sets do not)" >&2
+    exit 1
+fi
+# Cross-sectional IC requires calendar-aligned (equal-length) train series. The C++
+# also asserts this, but fail here with a clearer message than a mid-run abort.
+NUNIQ=$(for f in $TRAIN_FILES; do wc -l < "$f"; done | sort -u | wc -l | tr -d ' ')
+if [ "$NUNIQ" -ne 1 ]; then
+    echo "ERROR: train files in $DATA_DIR are not equal-length -- not aligned." >&2
+    echo "       Rebuild with scripts/stock_run/align_cohort.py" >&2
+    exit 1
+fi
+echo "pooled over $N_TRAIN stocks (aligned)"
+
+if [ -f "$OUT/.done" ]; then
+    echo "[run $RUN] already done, skipping"; exit 0
+fi
+
+# Atomic ownership claim (see anvil_vol_cold.sb rationale).
+mkdir -p "$(dirname "$OUT")"
+if ! mkdir "$OUT.lock" 2>/dev/null; then
+    echo "[run $RUN] another task owns $OUT, skipping"; exit 0
+fi
+trap 'rmdir "$OUT.lock" 2>/dev/null' EXIT
+
+case "$OUT" in */run_[0-9]*) ;; *) echo "ERROR: refusing rm -rf '$OUT'" >&2; exit 1;; esac
+rm -rf "$OUT"; mkdir -p "$OUT"
+printf 'data_dir=%s\nic_mode=%s\nrun=%s\nrun_tag=%s\nmax_genomes=%s\nseed=%s\nstocks=%s\n' \
+    "$DATA_DIR" "$IC_MODE" "$RUN" "${RUN_TAG:-none}" "$MAXG" "$RUN" "$N_TRAIN" > "$OUT/.config"
+
+# Search config matches anvil_vol_cold.sb / Evostar 2025 (repopulation every 500,
+# islands 10x10, bp 10). Objective flags: --loss ic --ic_mode $IC_MODE. time_offset 1
+# (predict next-day RET); inputs are the 6 reversal predictors.
+srun --kill-on-bad-exit -n "${SLURM_NTASKS}" "$BIN" \
+    --training_filenames $TRAIN_FILES \
+    --validation_filenames $VAL_FILES \
+    --seed "$RUN" \
+    --time_offset 1 \
+    --input_parameter_names RET VOL_CHANGE BA_SPREAD ILLIQUIDITY sprtrn TURNOVER \
+    --output_parameter_names RET \
+    --loss ic \
+    --ic_mode "$IC_MODE" \
+    --number_islands 10 \
+    --island_size 10 \
+    --max_genomes "$MAXG" \
+    --bp_iterations 10 \
+    --num_mutations 1 \
+    --normalize avg_std_dev \
+    --extinction_event_generation_number 500 \
+    --islands_to_exterminate 1 \
+    --repopulation_method bestGenome \
+    --output_directory "$OUT" \
+    --save_genome_option none \
+    --std_message_level INFO \
+    --file_message_level NONE > "$OUT/train.log" 2>&1
+RC=$?
+
+GB=$(ls "$OUT"/global_best_genome_*.bin 2>/dev/null \
+     | sed 's/.*_\([0-9]*\)\.bin/\1 &/' | sort -rn | head -1 | cut -d' ' -f2-)
+LOGGED=$(wc -l < "$OUT/fitness_log.csv" 2>/dev/null || echo 0)
+MIN_LOGGED=$(( MAXG * 9 / 10 ))
+
+if [ $RC -eq 0 ] && [ -n "$GB" ] && [ -s "$GB" ] && [ "$LOGGED" -ge "$MIN_LOGGED" ]; then
+    touch "$OUT/.done"
+    echo "[run $RUN] FINISHED  genome=$(basename "$GB")  genomes_logged=$LOGGED"
+else
+    echo "[run $RUN] FAILED rc=$RC genome='${GB:-none}' logged=$LOGGED (need >=$MIN_LOGGED)" >&2
+    echo "          see $OUT/train.log" >&2
+    exit 1
+fi

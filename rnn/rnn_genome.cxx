@@ -976,6 +976,18 @@ void forward_pass_thread_classification(
     Log::trace("mse[%d]: %lf\n", i, mses[i]);
 }
 
+// Forward pass only -- no loss/deltas computed here. The cross-sectional IC loss
+// couples predictions ACROSS series at each date, so it cannot be evaluated
+// per-series inside the thread; the caller gathers every series' predictions
+// first, then computes the loss and injects deltas (see get_analytic_gradient_ic).
+void forward_pass_thread_ic(
+    RNN* rnn, const vector<double>& parameters, const vector<vector<double> >& inputs, bool use_dropout, bool training,
+    double dropout_probability
+) {
+    rnn->set_weights(parameters);
+    rnn->forward_pass(inputs, use_dropout, training, dropout_probability);
+}
+
 void RNN_Genome::get_analytic_gradient(
     vector<RNN*>& rnns, const vector<double>& parameters, const vector<vector<vector<double> > >& inputs,
     const vector<vector<vector<double> > >& outputs, double& mse, vector<double>& analytic_gradient, bool training
@@ -1021,6 +1033,226 @@ void RNN_Genome::get_analytic_gradient(
             analytic_gradient[current] += rnns[k]->get_edge(i)->get_gradient();
             current++;
         }
+    }
+}
+
+void RNN_Genome::get_analytic_gradient_ic(
+    vector<RNN*>& rnns, const vector<double>& parameters, const vector<vector<vector<double> > >& inputs,
+    const vector<vector<vector<double> > >& outputs, double& loss, vector<double>& analytic_gradient, IcMode ic_mode,
+    bool training
+) {
+    int32_t n_series = (int32_t) rnns.size();
+
+    // forward-pass every series' network (shared weights) in parallel; no loss yet
+    vector<thread> threads;
+    for (int32_t i = 0; i < n_series; i++) {
+        threads.push_back(thread(
+            forward_pass_thread_ic, rnns[i], parameters, inputs[i], use_dropout, training, dropout_probability
+        ));
+    }
+    for (int32_t i = 0; i < n_series; i++) {
+        threads[i].join();
+    }
+
+    // gather predictions/targets as [stock][date] for the single output node
+    vector<vector<double> > preds(n_series);
+    vector<vector<double> > targets(n_series);
+    for (int32_t i = 0; i < n_series; i++) {
+        if (rnns[i]->get_number_output_nodes() != 1) {
+            Log::fatal(
+                "cross-sectional IC loss requires exactly 1 output node; series %d has %d\n", i,
+                rnns[i]->get_number_output_nodes()
+            );
+            exit(1);
+        }
+        preds[i] = rnns[i]->get_output_node(0)->output_values;  // copy the series
+        targets[i] = outputs[i][0];
+    }
+
+    // cross-sectional gradient: d_preds[i][j] = d(loss)/d(pred_ij), loss = -mean IC
+    vector<vector<double> > d_preds;
+    cross_sectional_ic_gradient(preds, targets, ic_mode, loss, d_preds);
+
+    // inject deltas as each network's output error and backprop with scalar 1.0, so
+    // error_fired adds exactly d(loss)/d(pred) into the output node's d_input.
+    for (int32_t i = 0; i < n_series; i++) {
+        rnns[i]->get_output_node(0)->error_values = d_preds[i];
+        rnns[i]->backward_pass(1.0, use_dropout, training, dropout_probability);
+    }
+
+    // Accumulate the shared-weight gradient across all series. Weights are identical
+    // across the rnns, so d(loss)/dw = sum_i (per-series partial). Order MUST match
+    // RNN::get_weights: nodes, then edges, then recurrent edges (the genome-level MSE
+    // path omits recurrent edges -- a latent bug we deliberately do not copy here).
+    analytic_gradient.assign(parameters.size(), 0.0);
+    vector<double> current_gradients;
+    for (int32_t k = 0; k < n_series; k++) {
+        int32_t current = 0;
+        for (int32_t i = 0; i < rnns[k]->get_number_nodes(); i++) {
+            rnns[k]->get_node(i)->get_gradients(current_gradients);
+            for (int32_t j = 0; j < (int32_t) current_gradients.size(); j++) {
+                analytic_gradient[current] += current_gradients[j];
+                current++;
+            }
+        }
+        for (int32_t i = 0; i < rnns[k]->get_number_edges(); i++) {
+            analytic_gradient[current] += rnns[k]->get_edge(i)->get_gradient();
+            current++;
+        }
+        for (int32_t i = 0; i < rnns[k]->get_number_recurrent_edges(); i++) {
+            analytic_gradient[current] += rnns[k]->get_recurrent_edge(i)->get_gradient();
+            current++;
+        }
+    }
+}
+
+double RNN_Genome::get_ic(
+    const vector<double>& parameters, const vector<vector<vector<double> > >& inputs,
+    const vector<vector<vector<double> > >& outputs
+) {
+    RNN* rnn = get_rnn();
+    rnn->set_weights(parameters);
+
+    int32_t n_series = (int32_t) inputs.size();
+    vector<vector<double> > preds(n_series);
+    vector<vector<double> > targets(n_series);
+
+    for (int32_t i = 0; i < n_series; i++) {
+        rnn->forward_pass(inputs[i], use_dropout, false, dropout_probability);
+        if (rnn->get_number_output_nodes() != 1) {
+            Log::fatal(
+                "cross-sectional IC loss requires exactly 1 output node; series %d has %d\n", i,
+                rnn->get_number_output_nodes()
+            );
+            exit(1);
+        }
+        preds[i] = rnn->get_output_node(0)->output_values;  // copy before next forward
+        targets[i] = outputs[i][0];
+    }
+
+    delete rnn;
+
+    // True (hard-rank) Spearman IC -- the metric selection is judged on.
+    return spearman_ic_hard(preds, targets);
+}
+
+void RNN_Genome::backpropagate_cross_sectional(
+    const vector<vector<vector<double> > >& inputs, const vector<vector<vector<double> > >& outputs,
+    const vector<vector<vector<double> > >& validation_inputs,
+    const vector<vector<vector<double> > >& validation_outputs, WeightUpdate* weight_update_method, IcMode ic_mode
+) {
+    int32_t n_series = (int32_t) inputs.size();
+
+    // Cross-sectional alignment requires calendar-aligned (equal-length) series so
+    // date-index j is the same date for every stock. Fail loudly otherwise.
+    auto require_rectangular = [](const vector<vector<vector<double> > >& data, const char* which) {
+        int32_t m = (int32_t) data.size();
+        if (m == 0) {
+            return;
+        }
+        int32_t len = (int32_t) data[0][0].size();
+        for (int32_t i = 1; i < m; i++) {
+            if ((int32_t) data[i][0].size() != len) {
+                Log::fatal(
+                    "cross-sectional IC requires calendar-aligned %s series (equal length); series %d has length "
+                    "%d but series 0 has %d. Use the *_aligned dataset.\n",
+                    which, i, (int32_t) data[i][0].size(), len
+                );
+                exit(1);
+            }
+        }
+    };
+    require_rectangular(inputs, "training");
+    require_rectangular(validation_inputs, "validation");
+
+    vector<RNN*> rnns;
+    for (int32_t i = 0; i < n_series; i++) {
+        rnns.push_back(this->get_rnn());
+    }
+
+    int32_t n_parameters = this->get_number_weights();
+    vector<double> parameters = initial_parameters;
+    vector<double> velocity(n_parameters, 0.0);
+    vector<double> prev_velocity(n_parameters, 0.0);
+    vector<double> analytic_gradient;
+
+    double loss = 0.0;
+    double norm = 0.0;
+
+    if (weight_decay > 0.0) {
+        Log::info("weight_decay active: lambda=%.6f (applied each iteration)\n", weight_decay);
+    }
+
+    auto cleanup_rnns = [&rnns]() {
+        while (rnns.size() > 0) {
+            RNN* g = rnns.back();
+            rnns.pop_back();
+            delete g;
+        }
+    };
+
+    // seed best-so-far from the initial weights
+    get_analytic_gradient_ic(rnns, parameters, inputs, outputs, loss, analytic_gradient, ic_mode, true);
+    double validation_ic = get_ic(parameters, validation_inputs, validation_outputs);
+    best_validation_mse = -validation_ic;  // store -IC so the minimize-fitness stack maximizes IC
+    best_validation_mae = -validation_ic;  // overloaded field; kept consistent for logging/serialization
+    best_parameters = parameters;
+
+    ofstream* output_log = create_log_file();
+
+    for (int32_t iteration = 0; iteration < bp_iterations; iteration++) {
+        get_analytic_gradient_ic(rnns, parameters, inputs, outputs, loss, analytic_gradient, ic_mode, true);
+        this->set_weights(parameters);
+
+        validation_ic = get_ic(parameters, validation_inputs, validation_outputs);
+        double neg_ic = -validation_ic;
+
+        norm = weight_update_method->get_norm(analytic_gradient);
+
+        if (isnan(norm) || isinf(norm)) {
+            // NaN/inf gradients: genetic dead-end (same policy as backpropagate_stochastic)
+            best_parameters = parameters;
+            this->best_validation_mse = NAN;
+            this->best_validation_mae = NAN;
+            cleanup_rnns();
+            if (output_log != NULL) {
+                output_log->close();
+                delete output_log;
+            }
+            return;
+        }
+
+        if (neg_ic < best_validation_mse) {
+            best_validation_mse = neg_ic;
+            best_validation_mae = neg_ic;
+            best_parameters = parameters;
+        }
+
+        weight_update_method->norm_gradients(analytic_gradient, norm);
+        weight_update_method->update_weights(parameters, velocity, prev_velocity, analytic_gradient, iteration);
+        if (weight_decay > 0.0) {
+            double decay_factor = 1.0 - weight_decay;
+            for (int32_t i = 0; i < (int32_t) parameters.size(); i++) {
+                parameters[i] *= decay_factor;
+            }
+        }
+
+        if (output_log != NULL) {
+            // columns reused from the MSE logger; in IC mode they carry loss(-IC)
+            // and best_val(-IC), i.e. lower is better -- see backpropagate_cross_sectional.
+            (*output_log) << iteration << "," << loss << "," << neg_ic << "," << best_validation_mse << endl;
+        }
+        Log::info(
+            "iteration %4d, train_loss(-IC): %5.10lf, val_IC: %5.10lf, best_val_IC: %5.10lf, norm: %5.10lf\n",
+            iteration, loss, validation_ic, -best_validation_mse, norm
+        );
+    }
+
+    cleanup_rnns();
+    this->set_weights(best_parameters);
+    if (output_log != NULL) {
+        output_log->close();
+        delete output_log;
     }
 }
 

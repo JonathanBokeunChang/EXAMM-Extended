@@ -21,6 +21,7 @@ using std::vector;
 #include "common/process_arguments.hxx"
 #include "examm/examm.hxx"
 #include "rnn/generate_nn.hxx"
+#include "rnn/ic_loss.hxx"
 #include "time_series/time_series.hxx"
 #include "weights/weight_rules.hxx"
 #include "weights/weight_update.hxx"
@@ -32,6 +33,12 @@ vector<string> arguments;
 EXAMM* examm;
 
 WeightUpdate* weight_update_method;
+
+// Training objective: "mse" (default, pointwise) or "ic" (cross-sectional
+// Information Coefficient ranking loss, rnn/ic_loss.*). When "ic", ic_mode selects
+// the differentiable surrogate (pearson | spearman).
+string loss_function = "mse";
+IcMode ic_mode = IcMode::PEARSON;
 
 bool finished = false;
 
@@ -53,10 +60,16 @@ void examm_thread(int32_t id) {
 
         string log_id = "genome_" + to_string(genome->get_generation_id()) + "_thread_" + to_string(id);
         Log::set_id(log_id);
-        // genome->backpropagate(training_inputs, training_outputs, validation_inputs, validation_outputs);
-        genome->backpropagate_stochastic(
-            training_inputs, training_outputs, validation_inputs, validation_outputs, weight_update_method
-        );
+        if (loss_function == "ic") {
+            genome->backpropagate_cross_sectional(
+                training_inputs, training_outputs, validation_inputs, validation_outputs, weight_update_method, ic_mode
+            );
+        } else {
+            // genome->backpropagate(training_inputs, training_outputs, validation_inputs, validation_outputs);
+            genome->backpropagate_stochastic(
+                training_inputs, training_outputs, validation_inputs, validation_outputs, weight_update_method
+            );
+        }
         Log::release_id(log_id);
 
         examm_mutex.lock();
@@ -89,6 +102,27 @@ int main(int argc, char** argv) {
 
     int32_t number_threads;
     get_argument(arguments, "--number_threads", true, number_threads);
+
+    // Loss selection. Defaults preserve the historical MSE behavior exactly.
+    get_argument(arguments, "--loss", false, loss_function);
+    if (loss_function == "ic") {
+        string ic_mode_str = "pearson";
+        get_argument(arguments, "--ic_mode", false, ic_mode_str);
+        ic_mode = ic_mode_from_string(ic_mode_str);
+        double tau;
+        if (get_argument(arguments, "--ic_softrank_tau", false, tau)) {
+            IC_SOFTRANK_TAU = tau;
+        }
+        Log::info(
+            "TRAINING OBJECTIVE: cross-sectional IC (ic_mode=%s, softrank_tau=%g)\n", ic_mode_to_string(ic_mode),
+            IC_SOFTRANK_TAU
+        );
+    } else if (loss_function == "mse") {
+        Log::info("TRAINING OBJECTIVE: MSE (default)\n");
+    } else {
+        Log::fatal("unknown --loss '%s' (expected 'mse' or 'ic')\n", loss_function.c_str());
+        exit(1);
+    }
 
     TimeSeriesSets* time_series_sets = NULL;
     time_series_sets = TimeSeriesSets::generate_from_arguments(arguments);

@@ -279,6 +279,22 @@ RNN_Edge* RNN::get_edge(int32_t i) {
     return edges[i];
 }
 
+int32_t RNN::get_number_recurrent_edges() {
+    return (int32_t) recurrent_edges.size();
+}
+
+RNN_Recurrent_Edge* RNN::get_recurrent_edge(int32_t i) {
+    return recurrent_edges[i];
+}
+
+int32_t RNN::get_number_output_nodes() {
+    return (int32_t) output_nodes.size();
+}
+
+RNN_Node_Interface* RNN::get_output_node(int32_t i) {
+    return output_nodes[i];
+}
+
 void RNN::get_weights(vector<double>& parameters) {
     parameters.resize(get_number_weights());
 

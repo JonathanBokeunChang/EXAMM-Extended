@@ -20,6 +20,7 @@ using std::uniform_real_distribution;
 using std::vector;
 
 #include "common/random.hxx"
+#include "ic_loss.hxx"
 #include "rnn.hxx"
 #include "rnn_edge.hxx"
 #include "rnn_node_interface.hxx"
@@ -219,6 +220,34 @@ class RNN_Genome {
         const vector<vector<vector<double> > >& inputs, const vector<vector<vector<double> > >& outputs,
         const vector<vector<vector<double> > >& validation_inputs,
         const vector<vector<vector<double> > >& validation_outputs, WeightUpdate* weight_update_method
+    );
+
+    // Full-batch backprop against the cross-sectional IC loss (rnn/ic_loss.*).
+    // Requires calendar-aligned, single-output pooled data: every series (stock)
+    // must have the same length so date-index j is the same date for all stocks,
+    // and each network must have exactly one output node. Fitness is stored as
+    // -(validation Spearman IC) in best_validation_mse so the existing
+    // minimize-fitness selection stack is used unchanged.
+    void backpropagate_cross_sectional(
+        const vector<vector<vector<double> > >& inputs, const vector<vector<vector<double> > >& outputs,
+        const vector<vector<vector<double> > >& validation_inputs,
+        const vector<vector<vector<double> > >& validation_outputs, WeightUpdate* weight_update_method, IcMode ic_mode
+    );
+
+    // Cross-sectional IC gradient: forward-passes all series' RNNs, computes the
+    // per-(stock,date) loss gradient, injects it as output deltas, backpropagates,
+    // and accumulates the shared-weight gradient. loss = -(mean daily IC).
+    void get_analytic_gradient_ic(
+        vector<RNN*>& rnns, const vector<double>& parameters, const vector<vector<vector<double> > >& inputs,
+        const vector<vector<vector<double> > >& outputs, double& loss, vector<double>& analytic_gradient,
+        IcMode ic_mode, bool training
+    );
+
+    // True (hard-rank) Spearman IC over the pooled series, averaged over dates.
+    // Used for validation/fitness and reporting (non-differentiable).
+    double get_ic(
+        const vector<double>& parameters, const vector<vector<vector<double> > >& inputs,
+        const vector<vector<vector<double> > >& outputs
     );
 
     double get_softmax(

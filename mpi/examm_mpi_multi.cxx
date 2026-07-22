@@ -23,6 +23,7 @@ using std::vector;
 #include "examm/examm.hxx"
 #include "mpi.h"
 #include "rnn/generate_nn.hxx"
+#include "rnn/ic_loss.hxx"
 #include "time_series/time_series.hxx"
 #include "weights/weight_update.hxx"
 
@@ -38,6 +39,13 @@ vector<string> arguments;
 EXAMM* examm;
 
 WeightUpdate* weight_update_method;
+
+// Training objective: "mse" (default) or "ic" (cross-sectional IC ranking loss).
+// NOTE: the IC loss requires calendar-aligned series; k-fold slicing here may break
+// that alignment, in which case backpropagate_cross_sectional fails loudly. The
+// intended IC path on Anvil is the non-multi examm_mpi.
+string loss_function = "mse";
+IcMode ic_mode = IcMode::PEARSON;
 
 vector<vector<vector<double> > > training_inputs;
 vector<vector<vector<double> > > training_outputs;
@@ -201,9 +209,16 @@ void worker(int32_t rank) {
             string log_id = "slice_" + to_string(global_slice) + "_repeat_" + to_string(global_repeat) + "_genome_"
                             + to_string(genome->get_generation_id()) + "_worker_" + to_string(rank);
             Log::set_id(log_id);
-            genome->backpropagate_stochastic(
-                training_inputs, training_outputs, validation_inputs, validation_outputs, weight_update_method
-            );
+            if (loss_function == "ic") {
+                genome->backpropagate_cross_sectional(
+                    training_inputs, training_outputs, validation_inputs, validation_outputs, weight_update_method,
+                    ic_mode
+                );
+            } else {
+                genome->backpropagate_stochastic(
+                    training_inputs, training_outputs, validation_inputs, validation_outputs, weight_update_method
+                );
+            }
             Log::release_id(log_id);
 
             // go back to the worker's log for MPI communication
@@ -244,6 +259,27 @@ int main(int argc, char** argv) {
 
     int32_t repeats;
     get_argument(arguments, "--repeats", true, repeats);
+
+    // Loss selection (parsed on every rank; defaults preserve MSE behavior).
+    get_argument(arguments, "--loss", false, loss_function);
+    if (loss_function == "ic") {
+        string ic_mode_str = "pearson";
+        get_argument(arguments, "--ic_mode", false, ic_mode_str);
+        ic_mode = ic_mode_from_string(ic_mode_str);
+        double tau;
+        if (get_argument(arguments, "--ic_softrank_tau", false, tau)) {
+            IC_SOFTRANK_TAU = tau;
+        }
+        if (rank == 0) {
+            Log::info(
+                "TRAINING OBJECTIVE: cross-sectional IC (ic_mode=%s, softrank_tau=%g)\n", ic_mode_to_string(ic_mode),
+                IC_SOFTRANK_TAU
+            );
+        }
+    } else if (loss_function != "mse") {
+        Log::fatal("unknown --loss '%s' (expected 'mse' or 'ic')\n", loss_function.c_str());
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
 
     TimeSeriesSets* time_series_sets = NULL;
     time_series_sets = TimeSeriesSets::generate_from_arguments(arguments);
