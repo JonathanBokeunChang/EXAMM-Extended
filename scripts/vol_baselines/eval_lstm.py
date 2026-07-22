@@ -74,10 +74,21 @@ def main():
     ap.add_argument("--tag", required=True)
     ap.add_argument("--seq", type=int, default=22)
     ap.add_argument("--seeds", type=int, default=3, help="match the EXAMM ensemble size")
+    ap.add_argument("--features", nargs="+", default=None,
+                    help="input features; default LV MA5 MA22 RET LOGVOL. The raw-input "
+                         "ablation passes 'LV RET LOGVOL' so the network must DISCOVER the "
+                         "multi-scale memory that MA5/MA22 otherwise hand it.")
+    ap.add_argument("--suffix", default="",
+                    help="appended to model names (e.g. _raw) so ablation rows do not "
+                         "overwrite the main comparison in metrics_per_stock.csv")
     ap.add_argument("--epochs", type=int, default=60)
     ap.add_argument("--batch", type=int, default=256)
     ap.add_argument("--out-root", default=f"{REPO}/results/baselines")
     a = ap.parse_args()
+    global FX
+    if a.features:
+        FX = list(a.features)          # raw-input ablation
+    print(f"[lstm] features: {FX}")
     torch.set_num_threads(4)
     SEQ = a.seq
 
@@ -169,7 +180,7 @@ def main():
     params = {}
 
     for kind, hid in [("lstm", 32), ("gru", 32), ("lstm", 4)]:
-        name = f"{kind}{hid}"
+        name = f"{kind}{hid}{a.suffix}"
         t0 = time.time(); P, npar, eps = [], None, []
         for sd_ in range(a.seeds):
             p, npar, e = train_one(kind, hid, sd_); P.append(p); eps.append(e)

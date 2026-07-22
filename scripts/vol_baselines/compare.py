@@ -6,16 +6,57 @@ best baseline per metric, and paired Wilcoxon tests of the focus model against e
 baseline with Holm correction across the baseline family (as pre-registered).
 
   python3 scripts/vol_baselines/compare.py --tag qlib_vol_big_fixed --focus examm
+  python3 scripts/vol_baselines/compare.py --tag qlib_vol_full --focus examm \
+      --exclude-halts --data datasets/qlib_vol_full     # halt-robustness column
 """
 from __future__ import annotations
 
-import argparse, os, sys
+import argparse, glob, os, sys
 import numpy as np, pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import metrics as M
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+HALT_FLOOR = np.log(1e-4)   # LV of a halt/limit-locked day (high==low -> Parkinson vol 0)
+HALT_H = 5                  # forward target horizon; must match the dataset build
+
+
+def halt_affected_keys(data_dir: str, horizon: int = HALT_H) -> set:
+    """(stock, date) rows a halt touches: a halt day (LV==log 1e-4) within the trailing MA5
+    window, the row itself, or the forward H-day target window. These are the rows where the
+    Parkinson estimator is degenerate and QLIKE's exp() term blows up -- excluded ONLY in the
+    robustness column, never from the headline. Model-agnostic (computed from the data)."""
+    bad = set()
+    for f in sorted(glob.glob(f"{data_dir}/*_test.csv")):
+        s = os.path.basename(f)[: -len("_test.csv")]
+        d = pd.read_csv(f)
+        dates = pd.to_datetime(d["date"]).values
+        halt = np.isclose(d["LV"].values, HALT_FLOOR, atol=1e-3)
+        for i in range(len(d)):
+            if halt[max(0, i - 4): i + 1].any() or halt[i + 1: i + 1 + horizon].any():
+                bad.add((s, pd.Timestamp(dates[i])))
+    return bad
+
+
+def recompute_from_predictions(tag_dir: str, exclude: set | None = None) -> pd.DataFrame:
+    """Rebuild per-stock metrics from predictions/*.csv, optionally dropping `exclude` keys.
+    Used for the halt-robustness column so every model is re-scored on the SAME retained rows
+    from its own persisted predictions -- identical-row invariant preserved by construction."""
+    rows = []
+    for f in sorted(glob.glob(f"{tag_dir}/predictions/*.csv")):
+        model = os.path.basename(f)[:-4]
+        p = pd.read_csv(f)
+        p["date"] = pd.to_datetime(p["date"])
+        if exclude:
+            keep = [(s, ts) not in exclude for s, ts in zip(p["stock"], p["date"])]
+            p = p[keep]
+        for s, g in p.groupby("stock"):
+            if len(g) > 10:
+                rows.append({"stock": s, "model": model, "n": len(g),
+                             **M.all_metrics(g.y_true, g.y_pred)})
+    return pd.DataFrame(rows)
 
 
 def holm(pvals: dict[str, float]) -> dict[str, float]:
@@ -36,10 +77,23 @@ def main():
     ap.add_argument("--tag", required=True)
     ap.add_argument("--focus", default="examm")
     ap.add_argument("--out-root", default=f"{REPO}/results/baselines")
+    ap.add_argument("--exclude-halts", action="store_true",
+                    help="robustness column: re-score from predictions with halt-affected "
+                         "rows removed (requires --data)")
+    ap.add_argument("--data", default=None,
+                    help="dataset dir (for --exclude-halts halt detection)")
     a = ap.parse_args()
 
     d = f"{a.out_root}/{a.tag}"
-    ps = pd.read_csv(f"{d}/metrics_per_stock.csv")
+    if a.exclude_halts:
+        if not a.data:
+            sys.exit("--exclude-halts requires --data <dataset dir> to locate halt days")
+        bad = halt_affected_keys(a.data)
+        ps = recompute_from_predictions(d, exclude=bad)
+        print(f"\n  #### HALT-ROBUSTNESS VIEW: removed {len(bad):,} halt-affected (stock,date) "
+              f"rows, re-scored every model from its predictions ####")
+    else:
+        ps = pd.read_csv(f"{d}/metrics_per_stock.csv")
 
     # A duplicate (model, stock) would cartesian-expand at the .join() below and silently
     # inflate every paired test. Fail loud instead -- this catches a partial pipeline re-run
@@ -126,7 +180,8 @@ def main():
                    ("LOSS" if (r.win_rate < 0.5 and r.p_holm < 0.05) else "ns  ")
             print(f"      {flag} vs {r.baseline:12} {r.win_rate*100:5.1f}% of {int(r.n)} stocks"
                   f"   p_holm={r.p_holm:.2g}")
-    R.to_csv(f"{d}/comparison.csv", index=False)
+    out_csv = f"{d}/comparison{'_exhalt' if a.exclude_halts else ''}.csv"
+    R.to_csv(out_csv, index=False)
 
     # R2 is NOT an independent test. With models scored on identical rows, SST_s is a
     # per-stock constant, so r2 = 1 - n*mse/SST is a strictly decreasing affine function of
@@ -140,7 +195,7 @@ def main():
           f"{tuple(m.upper() for m in indep)} (Holm-adjusted): {'YES' if sweep else 'NO'}")
     print(f"    (R2 is omitted as an independent test: within identical rows it is a monotone"
           f" transform of MSE, so its paired signs match MSE by construction.)")
-    print(f"  -> {d}/comparison.csv")
+    print(f"  -> {out_csv}")
 
 
 if __name__ == "__main__":

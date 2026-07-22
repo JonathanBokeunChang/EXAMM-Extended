@@ -1,7 +1,7 @@
 {
   "tag": "fixture_check",
   "data_dir": "datasets/qlib_vol_big",
-  "timestamp": "2026-07-21T18:29:36",
+  "timestamp": "2026-07-21T20:00:15",
   "n_stocks": 120,
   "n_scored_keys": 49931,
   "har_reference": "har_pooled",
@@ -29,18 +29,18 @@
     "naive": "0cb484f3f8161e2f",
     "har": "5c3c82fdb3ed79fe",
     "har_x": "e8bccb68af56559f",
-    "ewma": "091cc15ea4610844",
-    "garch": "4613acb9f7fc0b86",
-    "egarch": "fba8211d9010e4e1",
+    "ewma": "531dbd87597dd8f2",
+    "garch": "ca3f88f71a1ae368",
+    "egarch": "f76dcd2e7f6aaad1",
     "har_pooled": "48092c4279c4c22a"
   },
-  "git_commit": "a62ae61",
+  "git_commit": "4ab6f85",
   "versions": {
     "numpy": "2.0.2",
     "pandas": "2.3.3",
     "scipy": "1.13.1",
     "arch": "7.2.0"
   },
-  "runtime_sec": 20.5,
+  "runtime_sec": 23.4,
   "validation_passed": true
 }

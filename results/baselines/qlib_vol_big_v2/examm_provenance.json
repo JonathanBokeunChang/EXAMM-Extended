@@ -1,0 +1,24 @@
+{
+  "model": "examm",
+  "tag": "qlib_vol_big_v2",
+  "data_dir": "datasets/qlib_vol_big_v2",
+  "git_sha": "7e4da6e",
+  "ensemble_size": 10,
+  "genomes": [
+    "run_1/global_best_genome_7992.bin",
+    "run_10/global_best_genome_9474.bin",
+    "run_2/global_best_genome_9482.bin",
+    "run_3/global_best_genome_9842.bin",
+    "run_4/global_best_genome_8142.bin",
+    "run_5/global_best_genome_9611.bin",
+    "run_6/global_best_genome_9225.bin",
+    "run_7/global_best_genome_9718.bin",
+    "run_8/global_best_genome_7944.bin",
+    "run_9/global_best_genome_9864.bin"
+  ],
+  "runs_dir": "results/anvil/vol_qlib_vol_big_v2",
+  "stocks_scored": 120,
+  "stocks_skipped": [],
+  "alignment_checked_stocks": 120,
+  "alignment_max_abs_diff": 4.999880871991991e-06
+}

@@ -1,0 +1,26 @@
+VOLATILITY BASELINE HARNESS -- VALIDATION REPORT
+======================================================================
+
+[PASS] (soft) regression_anchor/all_rows: no anchor for dataset 'cohort_2019' (unregistered); MEASURED pooled HAR median R2 = 0.3222 -- promote into validate.ANCHORS once reviewed
+[PASS] (soft) regression_anchor/offset22: no anchor for 'cohort_2019'; MEASURED offset-22 R2 = 0.3154
+[PASS] (HARD) finiteness: all predictions and metrics finite
+[PASS] (soft) coverage/raw_predictions: common set 49,058 keys = 1.0000 of the widest model; 0 stock(s) excluded from the comparison | sizes: egarch:49,058, ewma:49,058, garch:49,058, har:49,058, har_pooled:49,058, har_x:49,058, naive:49,058
+[PASS] (HARD) coverage/scored_identical: 212 stocks / 49,058 rows per model, identical across all 7 models: stocks=True, rows=True
+[PASS] (HARD) leakage/train_before_test: train_max=2017-12-22 < test_min=2019-01-02
+[PASS] (HARD) leakage/calibration_train_only: affine calibration fit on TRAIN rows only
+[PASS] (HARD) boundary_trim/train->val: last-label == mean(next.LV[:H]) test: all 212 stocks clean
+[PASS] (HARD) boundary_trim/val->test: last-label == mean(next.LV[:H]) test: all 212 stocks clean
+[PASS] (HARD) garch_scale: median(fitted sigma / empirical return sd) = 0.819, expected in [0.5, 2.0] -- outside implies the arch x100 percentage-scaling error
+[PASS] (soft) determinism: first run -- hashes recorded for future comparison: egarch=11ad46e06813d8a0, ewma=50858846b737410a, garch=81b0f3469821560e, har=0f44c4aaf3deb3e9, har_pooled=5c41c2c153810006, har_x=abcd0fb5e3d384be, naive=8ca79353c648895a
+[PASS] (soft) garch_persistence: alpha+beta in (0.5,1.0) for 91.5% of stocks (median 0.992)
+[PASS] (soft) convergence/garch: 99.5% converged (211/212)
+[PASS] (soft) convergence/egarch: 99.1% converged (210/212)
+[WARN] (soft) sanity/naive_is_worst: lowest median R2 is 'garch' (expected 'naive')
+[PASS] (soft) sanity/har_ge_ewma: HAR R2 0.3124 vs EWMA 0.1436
+[PASS] (soft) legacy_metric_agreement: max |canonical - legacy| = 0.00e+00 (scratchpad inline formulas)
+
+======================================================================
+hard gates: 7/7 passed
+soft checks: 9/10 passed
+
+VERDICT: PASS -- results safe to use

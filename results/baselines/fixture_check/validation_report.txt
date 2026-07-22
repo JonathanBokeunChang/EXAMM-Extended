@@ -9,17 +9,19 @@ VOLATILITY BASELINE HARNESS -- VALIDATION REPORT
 [PASS] (HARD) coverage/scored_identical: 120 stocks / 49,931 rows per model, identical across all 7 models: stocks=True, rows=True
 [PASS] (HARD) leakage/train_before_test: train_max=2017-12-29 < test_min=2019-01-02
 [PASS] (HARD) leakage/calibration_train_only: affine calibration fit on TRAIN rows only
-[PASS] (HARD) garch_scale: median(fitted sigma / empirical return sd) = 0.748, expected in [0.5, 2.0] -- outside implies the arch x100 percentage-scaling error
+[WARN] (soft) boundary_trim/train->val: last-label == mean(next.LV[:H]) test: 120/120 leaky (frozen fixture: FAIL is expected, proves the gate works)
+[WARN] (soft) boundary_trim/val->test: last-label == mean(next.LV[:H]) test: 120/120 leaky (frozen fixture: FAIL is expected, proves the gate works)
+[PASS] (HARD) garch_scale: median(fitted sigma / empirical return sd) = 0.745, expected in [0.5, 2.0] -- outside implies the arch x100 percentage-scaling error
 [PASS] (HARD) determinism: prediction hashes reproduce exactly
 [PASS] (soft) garch_persistence: alpha+beta in (0.5,1.0) for 92.5% of stocks (median 0.993)
 [PASS] (soft) convergence/garch: 100.0% converged (120/120)
 [PASS] (soft) convergence/egarch: 100.0% converged (120/120)
 [PASS] (soft) sanity/naive_is_worst: lowest median R2 is 'naive' (as expected)
-[PASS] (soft) sanity/har_ge_ewma: HAR R2 0.2431 vs EWMA 0.1541
+[PASS] (soft) sanity/har_ge_ewma: HAR R2 0.2431 vs EWMA 0.1616
 [PASS] (soft) legacy_metric_agreement: max |canonical - legacy| = 0.00e+00 (scratchpad inline formulas)
 
 ======================================================================
 hard gates: 8/8 passed
-soft checks: 8/8 passed
+soft checks: 8/10 passed
 
 VERDICT: PASS -- results safe to use

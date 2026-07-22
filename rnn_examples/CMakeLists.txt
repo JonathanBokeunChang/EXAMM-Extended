@@ -10,6 +10,9 @@ target_link_libraries(train_rnn examm_strategy exact_common exact_time_series ex
 add_executable(evaluate_rnn evaluate_rnn.cxx)
 target_link_libraries(evaluate_rnn examm_strategy exact_common exact_time_series exact_weights examm_nn  ${MPI_LIBRARIES} ${MPI_EXTRA} ${MYSQL_LIBRARIES} pthread)
 
+add_executable(finetune_rnn finetune_rnn.cxx)
+target_link_libraries(finetune_rnn examm_strategy exact_common exact_time_series exact_weights examm_nn  ${MPI_LIBRARIES} ${MPI_EXTRA} ${MYSQL_LIBRARIES} pthread)
+
 add_executable(copy_check copy_check.cxx)
 target_link_libraries(copy_check examm_strategy exact_common exact_time_series exact_weights examm_nn  ${MPI_LIBRARIES} ${MPI_EXTRA} ${MYSQL_LIBRARIES} pthread)
 

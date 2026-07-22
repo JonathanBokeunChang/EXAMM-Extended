@@ -1,0 +1,57 @@
+{
+  "tag": "e2_cohort_2020",
+  "data_dir": "datasets/qlib_vol_cohorts_full/cohort_2020",
+  "timestamp": "2026-07-22T01:54:57",
+  "n_stocks": 230,
+  "n_scored_keys": 38621,
+  "har_reference": "har",
+  "models": [
+    "egarch",
+    "ewma",
+    "garch",
+    "har",
+    "har_pooled",
+    "har_x",
+    "naive"
+  ],
+  "failures": [
+    [
+      "SH600004",
+      "egarch",
+      "non-finite forecast"
+    ],
+    [
+      "SH603288",
+      "egarch",
+      "non-finite forecast"
+    ]
+  ],
+  "n_failures": 2,
+  "horizon": 5,
+  "ewma_lambda": 0.94,
+  "arch_scale": 100.0,
+  "calibrated_models": [
+    "ewma",
+    "garch",
+    "egarch"
+  ],
+  "offset_secondary": 22,
+  "prediction_hashes": {
+    "naive": "4b0a8a9387aace9f",
+    "har": "e9fcd8bdc9b36430",
+    "har_x": "0a79f63089eea309",
+    "ewma": "799ba7d7de19b148",
+    "garch": "a4db69dacff16a56",
+    "egarch": "8c0040ec6c44f38b",
+    "har_pooled": "dc426f6c5e0014ea"
+  },
+  "git_commit": "7e4da6e",
+  "versions": {
+    "numpy": "2.0.2",
+    "pandas": "2.3.3",
+    "scipy": "1.13.1",
+    "arch": "7.2.0"
+  },
+  "runtime_sec": 59.3,
+  "validation_passed": true
+}

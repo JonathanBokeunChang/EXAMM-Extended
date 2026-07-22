@@ -1,0 +1,46 @@
+{
+  "tag": "smoke_har20",
+  "data_dir": "datasets/qlib_vol_har",
+  "timestamp": "2026-07-21T16:11:53",
+  "n_stocks": 20,
+  "n_scored_keys": 8340,
+  "har_reference": "har_pooled",
+  "models": [
+    "egarch",
+    "ewma",
+    "garch",
+    "har",
+    "har_pooled",
+    "har_x",
+    "naive"
+  ],
+  "failures": [],
+  "n_failures": 0,
+  "horizon": 5,
+  "ewma_lambda": 0.94,
+  "arch_scale": 100.0,
+  "calibrated_models": [
+    "ewma",
+    "garch",
+    "egarch"
+  ],
+  "offset_secondary": 22,
+  "prediction_hashes": {
+    "naive": "96b8f2ccefc915ce",
+    "har": "65b04225b83ccdcd",
+    "har_x": "ee51e9db333dc583",
+    "ewma": "a8a17dac3cb4635e",
+    "garch": "fd8007242b51ed20",
+    "egarch": "2e4fc415a5462256",
+    "har_pooled": "a01fca0cb155c2da"
+  },
+  "git_commit": "a62ae61",
+  "versions": {
+    "numpy": "2.0.2",
+    "pandas": "2.3.3",
+    "scipy": "1.13.1",
+    "arch": "7.2.0"
+  },
+  "runtime_sec": 7.8,
+  "validation_passed": true
+}

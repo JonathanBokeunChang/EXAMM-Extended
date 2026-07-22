@@ -248,6 +248,14 @@ def check_boundary_trim(TR: dict, VA: dict, TE: dict, horizon: int,
 # gate 5 -- GARCH scale (catches the arch x100 error)
 # ======================================================================================
 def check_garch_scale(diag: pd.DataFrame, ret_sd_by_stock: dict[str, float]) -> list[Check]:
+    # If EVERY garch/egarch fit failed (e.g. `arch` not importable in the active interpreter),
+    # no diagnostic row is ever appended and `median_sigma` does not exist as a column at all.
+    # Indexing it raised KeyError and crashed the runner -- turning a gate that is *supposed*
+    # to report "GARCH is missing" into a traceback. Reach the honest FAIL instead.
+    if diag.empty or "median_sigma" not in diag.columns or "model" not in diag.columns:
+        return [Check("garch_scale", True, False,
+                      "no GARCH sigma diagnostics recorded at all -- the garch/egarch fits "
+                      "produced zero rows (check that `arch` imports in this interpreter)")]
     rows = diag[(diag.model.isin(["garch", "egarch"])) & diag["median_sigma"].notna()]
     if rows.empty:
         return [Check("garch_scale", True, False, "no GARCH sigma diagnostics recorded")]

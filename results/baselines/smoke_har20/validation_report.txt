@@ -1,0 +1,21 @@
+VOLATILITY BASELINE HARNESS -- VALIDATION REPORT
+======================================================================
+
+[PASS] (HARD) finiteness: all predictions and metrics finite
+[PASS] (HARD) coverage: intersection 8,340 keys across 7 models; worst coverage None=1.0000 | sizes: egarch:8,340, ewma:8,340, garch:8,340, har:8,340, har_pooled:8,340, har_x:8,340, naive:8,340
+[PASS] (HARD) leakage/train_before_test: train_max=2017-12-29 < test_min=2019-01-02
+[PASS] (HARD) leakage/calibration_train_only: affine calibration fit on TRAIN rows only
+[PASS] (HARD) garch_scale: median(fitted sigma / empirical return sd) = 0.705, expected in [0.5, 2.0] -- outside implies the arch x100 percentage-scaling error
+[PASS] (soft) determinism: first run -- hashes recorded for future comparison: egarch=2e4fc415a5462256, ewma=a8a17dac3cb4635e, garch=fd8007242b51ed20, har=65b04225b83ccdcd, har_pooled=a01fca0cb155c2da, har_x=ee51e9db333dc583, naive=96b8f2ccefc915ce
+[PASS] (soft) garch_persistence: alpha+beta in (0.5,1.0) for 90.0% of stocks (median 0.993)
+[PASS] (soft) convergence/garch: 100.0% converged (20/20)
+[PASS] (soft) convergence/egarch: 100.0% converged (20/20)
+[PASS] (soft) sanity/naive_is_worst: lowest median R2 is 'naive' (as expected)
+[PASS] (soft) sanity/har_ge_ewma: HAR R2 0.2056 vs EWMA 0.0852
+[PASS] (soft) legacy_metric_agreement: max |canonical - legacy| = 0.00e+00 (scratchpad inline formulas)
+
+======================================================================
+hard gates: 5/5 passed
+soft checks: 7/7 passed
+
+VERDICT: PASS -- results safe to use

@@ -44,11 +44,21 @@ cd "$SLURM_SUBMIT_DIR"
 set -u
 MAXG=${MAXG:-10000}
 DATA_DIR=${DATA_DIR:-datasets/qlib_vol_big_v2}
-# OUT_ROOT MUST derive from DATA_DIR. If it were a fixed default, E1 and E1b would share the
-# run_N namespace: a forgotten --export runs E1 under E1b's intent, and if E1 ran first the
-# E1b tasks hit the .done skip below, exit 0, and we would evaluate E1's genomes and report
-# them as the survivorship probe -- with clean SLURM logs and no evidence anywhere.
-OUT_ROOT=${OUT_ROOT:-test_output/vol_$(basename "$DATA_DIR")}
+# Input feature set and recurrent reach. Defaults reproduce the main experiment exactly.
+# The raw-input ablation overrides both:
+#   INPUTS="LV RET LOGVOL"  MAX_REC_DEPTH=22  RUN_TAG=raw22
+# Rationale for depth: the target's monthly component spans 22 sessions and the LSTM/GRU
+# baselines receive a 22-step input window, so depth 10 would leave EXAMM structurally
+# unable to reach a scale its baseline can. 22 equalises the memory horizon a priori.
+INPUTS=${INPUTS:-"LV MA5 MA22 RET LOGVOL"}
+MAX_REC_DEPTH=${MAX_REC_DEPTH:-10}
+RUN_TAG=${RUN_TAG:-}
+# OUT_ROOT MUST derive from DATA_DIR *and* RUN_TAG. If it were a fixed default, E1 and E1b
+# would share the run_N namespace: a forgotten --export runs E1 under E1b's intent, and if E1
+# ran first the E1b tasks hit the .done skip below, exit 0, and we would evaluate E1's genomes
+# and report them as the survivorship probe -- clean SLURM logs, no evidence anywhere.
+# RUN_TAG extends the same protection to config changes on the SAME dataset (e.g. raw22).
+OUT_ROOT=${OUT_ROOT:-test_output/vol_$(basename "$DATA_DIR")${RUN_TAG:+_$RUN_TAG}}
 BIN=build/mpi/examm_mpi
 
 RUN=$(( ${SLURM_ARRAY_TASK_ID:-0} + 1 ))
@@ -117,6 +127,10 @@ trap 'rmdir "$OUT.lock" 2>/dev/null' EXIT
 case "$OUT" in */run_[0-9]*) ;; *) echo "ERROR: refusing rm -rf '$OUT'" >&2; exit 1;; esac
 rm -rf "$OUT"; mkdir -p "$OUT"
 echo "$DATA_DIR" > "$OUT/.dataset"
+# full config provenance -- distinguishes the raw-input ablation from the main runs
+printf 'data_dir=%s\ninputs=%s\nmax_recurrent_depth=%s\nrun_tag=%s\nmax_genomes=%s\nseed=%s\n' \
+    "$DATA_DIR" "$INPUTS" "$MAX_REC_DEPTH" "${RUN_TAG:-none}" "$MAXG" \
+    "$(( ${SLURM_ARRAY_TASK_ID:-0} + 1 ))" > "$OUT/.config"
 
 # Search config is the Evostar 2025 published setup; see memory examm-config-provenance.
 # Repopulation every 500 matches the paper (NOT 200) and is identical across E1/E1b/E2.
@@ -125,7 +139,8 @@ srun --kill-on-bad-exit -n "${SLURM_NTASKS}" "$BIN" \
     --validation_filenames $VAL_FILES \
     --seed $(( ${SLURM_ARRAY_TASK_ID:-0} + 1 )) \
     --time_offset 0 \
-    --input_parameter_names LV MA5 MA22 RET LOGVOL \
+    --input_parameter_names $INPUTS \
+    --max_recurrent_depth "$MAX_REC_DEPTH" \
     --output_parameter_names TARGET \
     --number_islands 10 \
     --island_size 10 \

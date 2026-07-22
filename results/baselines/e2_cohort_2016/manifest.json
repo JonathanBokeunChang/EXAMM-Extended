@@ -1,0 +1,46 @@
+{
+  "tag": "e2_cohort_2016",
+  "data_dir": "datasets/qlib_vol_cohorts_full/cohort_2016",
+  "timestamp": "2026-07-22T01:51:11",
+  "n_stocks": 229,
+  "n_scored_keys": 47649,
+  "har_reference": "har_pooled",
+  "models": [
+    "egarch",
+    "ewma",
+    "garch",
+    "har",
+    "har_pooled",
+    "har_x",
+    "naive"
+  ],
+  "failures": [],
+  "n_failures": 0,
+  "horizon": 5,
+  "ewma_lambda": 0.94,
+  "arch_scale": 100.0,
+  "calibrated_models": [
+    "ewma",
+    "garch",
+    "egarch"
+  ],
+  "offset_secondary": 22,
+  "prediction_hashes": {
+    "naive": "854b4521777cbaa9",
+    "har": "b41a4d29b319c286",
+    "har_x": "80fe92f002daa01d",
+    "ewma": "b154270795d2f7f6",
+    "garch": "d9db90db93136ef4",
+    "egarch": "eb0debe56382a303",
+    "har_pooled": "80936686823a0339"
+  },
+  "git_commit": "7e4da6e",
+  "versions": {
+    "numpy": "2.0.2",
+    "pandas": "2.3.3",
+    "scipy": "1.13.1",
+    "arch": "7.2.0"
+  },
+  "runtime_sec": 48.5,
+  "validation_passed": true
+}

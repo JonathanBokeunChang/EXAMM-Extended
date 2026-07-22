@@ -11,16 +11,21 @@
 #
 # submit from the repo root:
 #   mkdir -p slurm_logs
-#   sbatch --array=0 scripts/stock_run/anvil_vol_cold.sb          # CANARY (cohort 2016 run 1)
-#   sbatch scripts/stock_run/anvil_vol_cold.sb                    # all 50
+#   sbatch --array=0,40 scripts/stock_run/anvil_vol_cold.sb       # CANARIES -- see below
+#   sbatch --array=1-39,41-49 scripts/stock_run/anvil_vol_cold.sb # the remaining 48
 #   sbatch --export=ALL,MAXG=2000 --array=0-49 ...                # cheap variant
 #
-# Requires: datasets/qlib_vol_cohorts/cohort_YYYY/*.csv  (build locally with
+# Two canaries, not one. Index 0 is cohort 2016 (the SMALLEST, fastest signal that the data
+# and the binary agree); index 40 is cohort 2020 (the LARGEST -- CI = 40/10 = 4). Walltime
+# risk lives entirely in the largest cohort, and a job killed at the wall is a TOTAL loss
+# because global_best_genome_* is written only at natural termination.
+#
+# Requires: $DATA_ROOT/cohort_YYYY/*.csv  (build locally with
 #   scripts/stock_run/build_vol_dataset.py --mode cohorts \
-#       --out datasets/qlib_vol_cohorts --tickers datasets/qlib_vol_big/TICKERS.txt
+#       --out datasets/qlib_vol_cohorts_full --universe all
 # then transfer the tarball). Do NOT use the superseded build_vol_cohorts.py -- it lacks the
 # train/val boundary trim and reintroduces the target leak. Enforced at runtime below.
-# Output: test_output/vol_cohorts/cohort_YYYY/run_R/global_best_genome_*.bin
+# Output: $OUT_ROOT/cohort_YYYY/run_R/global_best_genome_*.bin
 # Safe to resubmit: finished runs are skipped.
 
 #SBATCH --account=cis251123
@@ -46,8 +51,17 @@ set -u
 COHORT_YEARS=(2016 2017 2018 2019 2020)
 RUNS_PER_COHORT=10
 MAXG=${MAXG:-10000}
-DATA_ROOT=${DATA_ROOT:-datasets/qlib_vol_cohorts}
-OUT_ROOT=${OUT_ROOT:-test_output/vol_cohorts}
+# Default is the FULL-universe build (E2 as specified). The 120-ticker-pinned cohorts are
+# still reproducible, but only by asking for them explicitly:
+#   --export=ALL,DATA_ROOT=datasets/qlib_vol_cohorts
+DATA_ROOT=${DATA_ROOT:-datasets/qlib_vol_cohorts_full}
+RUN_TAG=${RUN_TAG:-}
+# OUT_ROOT MUST derive from DATA_ROOT (same rule as anvil_vol_fixed.sb). With a fixed default,
+# the 120-pinned and full-universe cohort campaigns share one cohort_YYYY/run_R namespace: a
+# forgotten --export lands the second campaign on the first's .done files, every task exits 0
+# via the skip below, and we evaluate the wrong universe's genomes as E2 -- clean SLURM logs,
+# no evidence anywhere. RUN_TAG extends the same protection to config changes on one dataset.
+OUT_ROOT=${OUT_ROOT:-test_output/vol_$(basename "$DATA_ROOT")${RUN_TAG:+_$RUN_TAG}}
 BIN=build/mpi/examm_mpi
 
 # ---- derive (cohort, run) from the array index -----------------------------
@@ -119,6 +133,11 @@ trap 'rmdir "$OUT.lock" 2>/dev/null' EXIT
 case "$OUT" in */run_[0-9]*) ;; *) echo "ERROR: refusing rm -rf '$OUT'" >&2; exit 1;; esac
 rm -rf "$OUT"; mkdir -p "$OUT"
 echo "$DATA_DIR" > "$OUT/.dataset"
+# Full config provenance, matching anvil_vol_fixed.sb -- the genome alone cannot tell you which
+# universe or cohort it came from, and E2 will hold 50 of them.
+printf 'data_root=%s\ncohort=%s\nrun=%s\nrun_tag=%s\nmax_genomes=%s\nseed=%s\nstocks=%s\n' \
+    "$DATA_ROOT" "$YEAR" "$RUN" "${RUN_TAG:-none}" "$MAXG" "$(( IDX + 1 ))" "$N_TRAIN" \
+    > "$OUT/.config"
 
 # Search config is the Evostar 2025 published setup; see memory examm-config-provenance.
 # Repopulation every 500 matches the paper (NOT 200) and is identical to anvil_vol_fixed.sb,

@@ -1,0 +1,17 @@
+{
+  "model": "examm",
+  "tag": "fixture_check",
+  "data_dir": "datasets/qlib_vol_big",
+  "git_sha": "4ab6f85",
+  "ensemble_size": 3,
+  "genomes": [
+    "run_1/global_best_genome_9463.bin",
+    "run_2/global_best_genome_7820.bin",
+    "run_3/global_best_genome_9537.bin"
+  ],
+  "runs_dir": "results/e1a_genomes/baseline",
+  "stocks_scored": 120,
+  "stocks_skipped": [],
+  "alignment_checked_stocks": 120,
+  "alignment_max_abs_diff": 4.999880871991991e-06
+}
