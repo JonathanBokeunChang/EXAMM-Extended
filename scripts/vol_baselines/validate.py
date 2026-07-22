@@ -196,6 +196,54 @@ def check_leakage(train_max_date, test_min_date, calib_fit_on_train: bool) -> li
     ]
 
 
+#: the ONE dataset known to carry the leak on purpose (the frozen regression fixture); the
+#: boundary gate is expected to fail there and is reported soft rather than aborting.
+LEAKY_FIXTURE = "qlib_vol_big"
+
+
+def check_boundary_trim(TR: dict, VA: dict, TE: dict, horizon: int,
+                        dataset: str | None = None) -> list[Check]:
+    """The trained/selected splits must not carry the forward-target boundary leak.
+
+    TARGET(t) = mean(LV[t+1..t+H]). If the last H rows of a split are NOT trimmed, that
+    split's final label aggregates LV from the NEXT split -- so the leaky split's LAST
+    TARGET equals exactly mean(next_split.LV[0:H]). We test that identity directly: for each
+    stock, is `abs(lo.TARGET[-1] - mean(hi.LV[:H])) < 1e-6`? A near-exact match is the leak's
+    fingerprint (both sides are the same H log-vols); a trimmed split's last label is built
+    from its own (trimmed-away) rows and differs by O(0.1). Uses only the split data, so the
+    vanished trimmed rows do not blind it.
+
+    train->val matters most (val drives genome selection); val->test is reported too. This
+    FAILS on the frozen pre-fix fixture and PASSES on the trimmed rebuilds, so it has
+    demonstrable power rather than being a tautology.
+    """
+    stocks = [s for s in TR if s in VA and s in TE]
+    if not stocks:
+        return [Check("boundary_trim", True, False, "no stocks with all three splits")]
+
+    key = os.path.basename(str(dataset).rstrip("/")) if dataset else None
+    is_fixture = key == LEAKY_FIXTURE
+    out = []
+    for lo, hi, lab in ((TR, VA, "train->val"), (VA, TE, "val->test")):
+        leaks = []
+        for s in stocks:
+            lo_last = float(lo[s]["TARGET"].values[-1])
+            hi_lv = hi[s]["LV"].values[:horizon]
+            if len(hi_lv) < horizon:
+                continue
+            if abs(lo_last - float(hi_lv.mean())) < 1e-6:
+                leaks.append(s)
+        passed = len(leaks) == 0
+        note = (f"-- LEAK PRESENT in {len(leaks)}/{len(stocks)} stocks "
+                f"(e.g. {','.join(leaks[:4])})" if leaks else
+                f"all {len(stocks)} stocks clean")
+        if is_fixture:
+            note = f"{len(leaks)}/{len(stocks)} leaky (frozen fixture: FAIL is expected, proves the gate works)"
+        out.append(Check(f"boundary_trim/{lab}", not is_fixture, passed,
+                         f"last-label == mean(next.LV[:H]) test: {note}"))
+    return out
+
+
 # ======================================================================================
 # gate 5 -- GARCH scale (catches the arch x100 error)
 # ======================================================================================

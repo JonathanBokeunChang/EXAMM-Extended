@@ -1,7 +1,7 @@
 {
   "tag": "qlib_vol_big_v2",
   "data_dir": "datasets/qlib_vol_big_v2",
-  "timestamp": "2026-07-21T18:29:57",
+  "timestamp": "2026-07-21T20:05:45",
   "n_stocks": 120,
   "n_scored_keys": 49931,
   "har_reference": "har_pooled",
@@ -29,18 +29,18 @@
     "naive": "0cb484f3f8161e2f",
     "har": "6a545f918b1b9afb",
     "har_x": "e848260d79bfe4c5",
-    "ewma": "d3bae65f2983ba29",
-    "garch": "b27e8719c8e4d959",
-    "egarch": "01be0c2a24062ad7",
+    "ewma": "2acfb6047da577ed",
+    "garch": "a90305b26ad54f6c",
+    "egarch": "26305b9035f4ae8b",
     "har_pooled": "07a338d9c53bfe88"
   },
-  "git_commit": "a62ae61",
+  "git_commit": "4ab6f85",
   "versions": {
     "numpy": "2.0.2",
     "pandas": "2.3.3",
     "scipy": "1.13.1",
     "arch": "7.2.0"
   },
-  "runtime_sec": 20.6,
+  "runtime_sec": 23.2,
   "validation_passed": true
 }

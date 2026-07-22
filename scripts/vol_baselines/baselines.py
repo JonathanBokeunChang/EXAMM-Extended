@@ -75,7 +75,7 @@ def _long(stock: str, dates, y_true, y_pred, y_pred_raw=None) -> pd.DataFrame:
 # ======================================================================================
 # native-target models (predict TARGET directly; no calibration)
 # ======================================================================================
-def fit_naive(tr: pd.DataFrame, te: pd.DataFrame, stock: str):
+def fit_naive(tr: pd.DataFrame, va: pd.DataFrame, te: pd.DataFrame, stock: str):
     """Random-walk-in-vol: forecast future mean log-vol with the CURRENT trailing mean.
 
     Uses MA5(t) -- the trailing 5-day mean of LV, matching the target's 5-day averaging
@@ -89,16 +89,21 @@ def fit_naive(tr: pd.DataFrame, te: pd.DataFrame, stock: str):
     return _long(stock, te["date"], te["TARGET"].values, te["MA5"].values), {}
 
 
-def fit_har(tr: pd.DataFrame, te: pd.DataFrame, stock: str, feats=FEATS_HAR):
-    """HAR: OLS on (LV, MA5, MA22) -- the domain-standard multi-scale linear model."""
+def fit_har(tr: pd.DataFrame, va: pd.DataFrame, te: pd.DataFrame, stock: str, feats=FEATS_HAR):
+    """HAR: OLS on (LV, MA5, MA22) -- the domain-standard multi-scale linear model.
+
+    `va` is accepted for signature uniformity but unused: HAR is fit on TRAIN only, matching
+    the estimation protocol (no rolling re-estimation for any model). HAR is memoryless given
+    its inputs, so there is no recursive state to bridge -- unlike EWMA/GARCH below."""
     beta = _ols_fit(tr[feats].values, tr["TARGET"].values)
     pred = _ols_pred(te[feats].values, beta)
     diag = {f"har_beta_{i}": float(b) for i, b in enumerate(beta)}
     return _long(stock, te["date"], te["TARGET"].values, pred), diag
 
 
-def fit_har_x(tr: pd.DataFrame, te: pd.DataFrame, stock: str):
+def fit_har_x(tr: pd.DataFrame, va: pd.DataFrame, te: pd.DataFrame, stock: str):
     """HAR-X: HAR plus leverage terms (signed return and negative-return magnitude).
+    `va` unused (fit on train only); see fit_har.
 
     The stronger linear bar -- volatility responds asymmetrically to negative returns,
     so a reviewer will expect HAR to be given this advantage before it is beaten.
@@ -124,30 +129,41 @@ def _ewma_var(ret: np.ndarray, lam: float = EWMA_LAMBDA) -> np.ndarray:
     return v
 
 
-def fit_ewma(tr: pd.DataFrame, te: pd.DataFrame, stock: str):
+def fit_ewma(tr: pd.DataFrame, va: pd.DataFrame, te: pd.DataFrame, stock: str):
     """EWMA/RiskMetrics. Flat h-step projection (EWMA is a martingale in variance),
-    so the raw predictor is 0.5*log(var_t) -- the log-vol implied at the forecast origin."""
-    full_ret = np.concatenate([tr["RET"].values, te["RET"].values])
+    so the raw predictor is 0.5*log(var_t) -- the log-vol implied at the forecast origin.
+
+    The recursion runs over TRAIN + VALIDATION + TEST so the variance state entering the
+    first test day reflects the immediately-preceding (validation) period. Concatenating
+    train+test only -- skipping val -- would anchor test day 1 to train's last day, ~13
+    months stale in the fixed split and (worse) across the 2015 crash in the E2 cohorts.
+    Causal throughout; calibration is still fit on TRAIN only."""
+    n_tr, n_te = len(tr), len(te)
+    full_ret = np.concatenate([tr["RET"].values, va["RET"].values, te["RET"].values])
     var = _ewma_var(full_ret)
     raw_all = 0.5 * np.log(np.maximum(var, 1e-12))
-    n_tr = len(tr)
-    raw_tr, raw_te = raw_all[:n_tr], raw_all[n_tr:]
+    raw_tr, raw_te = raw_all[:n_tr], raw_all[-n_te:]
     cal, a, b = _calibrate(raw_tr, tr["TARGET"].values, raw_te)
     return (_long(stock, te["date"], te["TARGET"].values, cal, raw_te),
             {"calib_a": a, "calib_b": b, "converged": True})
 
 
-def _garch_raw(tr: pd.DataFrame, te: pd.DataFrame, kind: str):
+def _garch_raw(tr: pd.DataFrame, va: pd.DataFrame, te: pd.DataFrame, kind: str):
     """Fit GARCH/EGARCH ONCE on train, then produce h=1..H ahead forecasts across the
     full series with parameters fixed. Returns (raw_train, raw_test, diagnostics).
+
+    The conditional-variance recursion runs over TRAIN + VALIDATION + TEST so the state
+    entering the first test day reflects the validation period (see fit_ewma for why the
+    train+test-only version is wrong, especially for the E2 cohorts). Parameters are still
+    estimated on the TRAIN slice only.
 
     raw = mean over h=1..H of log(sigma_{t+h}) -- the model-implied analogue of our
     target (mean log vol over the next H days), before calibration.
     """
     from arch import arch_model
 
-    full_ret = np.concatenate([tr["RET"].values, te["RET"].values]) * ARCH_SCALE
-    n_tr = len(tr)
+    n_tr, n_te = len(tr), len(te)
+    full_ret = np.concatenate([tr["RET"].values, va["RET"].values, te["RET"].values]) * ARCH_SCALE
     kw = dict(vol="EGARCH", p=1, o=1, q=1) if kind == "egarch" else dict(vol="GARCH", p=1, q=1)
     am = arch_model(full_ret[:n_tr], mean="Constant", dist="normal", rescale=False, **kw)
     res = am.fit(disp="off", show_warning=False)
@@ -174,12 +190,12 @@ def _garch_raw(tr: pd.DataFrame, te: pd.DataFrame, kind: str):
         raw_all = np.nanmean(np.log(np.maximum(sig, 1e-12)), axis=1)
     med_sigma = float(np.nanmedian(np.sqrt(np.maximum(var_h[:, 0], 1e-16)) / ARCH_SCALE))
     diag = {"converged": conv, "persistence": persistence, "median_sigma": med_sigma}
-    return raw_all[:n_tr], raw_all[n_tr:], diag
+    return raw_all[:n_tr], raw_all[-n_te:], diag
 
 
-def fit_garch(tr, te, stock, kind="garch"):
+def fit_garch(tr, va, te, stock, kind="garch"):
     try:
-        raw_tr, raw_te, diag = _garch_raw(tr, te, kind)
+        raw_tr, raw_te, diag = _garch_raw(tr, va, te, kind)
     except Exception as e:                            # non-convergence / singular fit
         return None, {"converged": False, "error": str(e)[:120]}
     if not np.isfinite(raw_te).all():
@@ -189,8 +205,8 @@ def fit_garch(tr, te, stock, kind="garch"):
     return _long(stock, te["date"], te["TARGET"].values, cal, raw_te), diag
 
 
-def fit_egarch(tr, te, stock):
-    return fit_garch(tr, te, stock, kind="egarch")
+def fit_egarch(tr, va, te, stock):
+    return fit_garch(tr, va, te, stock, kind="egarch")
 
 
 # ======================================================================================

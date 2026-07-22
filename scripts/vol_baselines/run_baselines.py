@@ -18,7 +18,7 @@ import metrics as M
 import baselines as B
 import validate as V
 
-REPO = "/Users/jonathanchang/EXAMM-Extended"
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def load_cohort(data_dir: str):
@@ -63,7 +63,7 @@ def main():
     for i, s in enumerate(stocks, 1):
         for mname, fn in B.PER_STOCK_MODELS.items():
             try:
-                df, d = fn(TR[s], TE[s], s)
+                df, d = fn(TR[s], VA[s], TE[s], s)   # va bridges EWMA/GARCH recursive state
             except Exception as e:
                 df, d = None, {"converged": False, "error": str(e)[:120]}
             if df is None or df.empty:
@@ -127,7 +127,16 @@ def main():
     # ---- persist --------------------------------------------------------------------
     for m, d in P.items():
         d.sort_values(["stock", "date"]).to_csv(f"{out}/predictions/{m}.csv", index=False)
-    per_stock.to_csv(f"{out}/metrics_per_stock.csv", index=False)
+    # Preserve rows written by eval_lstm / eval_examm (models NOT produced here). A plain
+    # fresh write would silently wipe the LSTM/EXAMM arms if run_baselines is re-run after
+    # them -- the harness is normally run baselines-first, but nothing should depend on order.
+    mp = f"{out}/metrics_per_stock.csv"
+    ours = set(per_stock["model"].unique())
+    if os.path.exists(mp):
+        prev = pd.read_csv(mp)
+        foreign = prev[~prev["model"].isin(ours)]
+        per_stock = pd.concat([per_stock, foreign], ignore_index=True)
+    per_stock.to_csv(mp, index=False)
     summary.to_csv(f"{out}/summary.csv", index=False)
     diag.to_csv(f"{out}/fit_diagnostics.csv", index=False)
 
@@ -151,6 +160,7 @@ def main():
     checks += V.check_coverage(P, per_stock)
     checks += V.check_leakage(max(TR[s]["date"].max() for s in stocks),
                               min(TE[s]["date"].min() for s in stocks), True)
+    checks += V.check_boundary_trim(TR, VA, TE, B.HORIZON, a.data)
     checks += V.check_garch_scale(diag, ret_sd)
     checks += V.check_determinism(hashes, prev)
     checks += V.soft_checks(per_stock, diag)

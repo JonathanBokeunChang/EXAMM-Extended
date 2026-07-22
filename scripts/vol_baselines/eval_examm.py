@@ -14,23 +14,41 @@ column -- nothing else in the codebase ever verified that alignment.
 """
 from __future__ import annotations
 
-import argparse, glob, os, subprocess, sys, tempfile
+import argparse, glob, json, os, subprocess, sys, tempfile
 import numpy as np, pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import metrics as M
 
-REPO = "/Users/jonathanchang/EXAMM-Extended"
+# REPO is this file's grandparent (scripts/vol_baselines/eval_examm.py -> repo root), so the
+# script is portable rather than pinned to one machine.
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 EV = f"{REPO}/build/rnn_examples/evaluate_rnn"
 
 
-def predict(genome: str, csv: str, tmp: str) -> np.ndarray | None:
+def git_sha() -> str:
+    try:
+        return subprocess.run(["git", "-C", REPO, "rev-parse", "--short", "HEAD"],
+                              capture_output=True, text=True).stdout.strip() or "unknown"
+    except Exception:
+        return "unknown"
+
+
+def predict(genome: str, csv: str, tmp: str):
     for f in glob.glob(f"{tmp}/*.csv"):
         os.remove(f)
-    subprocess.run([EV, "--genome_file", genome, "--testing_filenames", csv,
-                    "--time_offset", "0", "--output_directory", tmp,
-                    "--std_message_level", "ERROR", "--file_message_level", "NONE"],
-                   capture_output=True)
+    r = subprocess.run([EV, "--genome_file", genome, "--testing_filenames", csv,
+                        "--time_offset", "0", "--output_directory", tmp,
+                        "--std_message_level", "ERROR", "--file_message_level", "NONE"],
+                       capture_output=True, text=True)
+    # Surface the one channel that reports the C++ loader's NON-FATAL failures: a bad CSV
+    # cell logs `invalid argument:` / `doesn't equal number of rows` and then reads out of
+    # bounds. Silently discarding rc+stderr would hide exactly that.
+    err = (r.stderr or "") + (r.stdout or "")
+    if r.returncode != 0 or "invalid argument:" in err or "doesn't equal number of rows" in err:
+        sys.stderr.write(f"  [evaluate_rnn] rc={r.returncode} on {os.path.basename(csv)} "
+                         f"/ {os.path.basename(genome)}: {err.strip()[:300]}\n")
+        return None
     hits = glob.glob(f"{tmp}/*_predictions.csv")
     if not hits:
         return None
@@ -49,16 +67,25 @@ def main():
     ap.add_argument("--out-root", default=f"{REPO}/results/baselines")
     a = ap.parse_args()
 
-    genomes = [g for r in sorted(glob.glob(f"{a.runs}/run_*"))
-               for g in sorted(glob.glob(f"{r}/global_best_genome_*.bin"))[:1]]
+    def latest_genome(run_dir: str) -> str | None:
+        # Numeric sort on the trailing generation id; sorted()/[:1] is lexicographic and
+        # would pick _1000 before _998 if a run ever saved more than one global best.
+        gs = glob.glob(f"{run_dir}/global_best_genome_*.bin")
+        if not gs:
+            return None
+        return max(gs, key=lambda p: int(p.rsplit("_", 1)[1].split(".")[0]))
+
+    genomes = [g for r in sorted(glob.glob(f"{a.runs}/run_*")) if (g := latest_genome(r))]
     if not genomes:
         sys.exit(f"ERROR: no genomes under {a.runs}/run_*/")
-    print(f"[{a.name}] ensemble of {len(genomes)} genomes")
+    print(f"[{a.name}] ensemble of {len(genomes)} genomes:")
+    for g in genomes:
+        print(f"    {os.path.relpath(g, a.runs)}")
 
     out = f"{a.out_root}/{a.tag}"
     os.makedirs(f"{out}/predictions", exist_ok=True)
     tmp = tempfile.mkdtemp(prefix="examm_eval_")
-    rows, align_err, skipped = [], 0.0, []
+    rows, align_err, skipped, checked = [], 0.0, [], 0
 
     for f in sorted(glob.glob(f"{a.data}/*_train.csv")):
         s = os.path.basename(f)[: -len("_train.csv")]
@@ -79,10 +106,14 @@ def main():
         if not preds:
             skipped.append(s); continue
         n = min(min(len(p) for p in preds), len(te))
+        if len(preds) < len(genomes):
+            sys.stderr.write(f"  [WARN] {s}: {len(preds)}/{len(genomes)} genomes produced "
+                             f"predictions; ensembled over {len(preds)}\n")
         # alignment cross-check: evaluate_rnn's expected_TARGET vs the dataset TARGET
         if exp is not None:
             align_err = max(align_err,
                             float(np.max(np.abs(exp[:n] - te["TARGET"].values[:n]))))
+            checked += 1
         rows.append(pd.DataFrame({
             "stock": s, "date": te["date"].values[:n],
             "y_true": te["TARGET"].values[:n],
@@ -103,15 +134,32 @@ def main():
         D = pd.concat([old, D], ignore_index=True)
     D.to_csv(mp, index=False)
 
-    tol_ok = align_err < 1e-3          # evaluate_rnn writes 6 significant figures
-    print(f"  stocks={P.stock.nunique()}  rows={len(P):,}  skipped={len(skipped)}")
-    print(f"  ALIGNMENT CHECK expected_TARGET vs dataset TARGET: max|diff| = {align_err:.2e} "
-          f"-> {'PASS' if tol_ok else 'FAIL'} (tol 1e-3, 6-sig-fig output)")
+    # Provenance: the EXACT genomes ensembled, the size, dataset, and git SHA. Without this
+    # the headline EXAMM numbers cannot be traced back to the runs that produced them.
+    prov = {"model": a.name, "tag": a.tag, "data_dir": a.data, "git_sha": git_sha(),
+            "ensemble_size": len(genomes),
+            "genomes": [os.path.relpath(g, a.runs) for g in genomes],
+            "runs_dir": a.runs, "stocks_scored": int(P.stock.nunique()),
+            "stocks_skipped": skipped, "alignment_checked_stocks": checked,
+            "alignment_max_abs_diff": align_err}
+    with open(f"{out}/{a.name}_provenance.json", "w") as fh:
+        json.dump(prov, fh, indent=2)
+
+    # An alignment gate that never ran is not a pass. `checked` counts stocks where an
+    # expected_* column was actually compared; if it is zero the "PASS" below would be
+    # vacuous (align_err never moved off its 0.0 initial value).
+    tol_ok = checked > 0 and align_err < 1e-3     # evaluate_rnn writes 6 significant figures
+    print(f"  stocks={P.stock.nunique()}  rows={len(P):,}  skipped={len(skipped)}  "
+          f"ensemble={len(genomes)}")
+    print(f"  ALIGNMENT CHECK expected_TARGET vs dataset TARGET on {checked} stock(s): "
+          f"max|diff| = {align_err:.2e} -> {'PASS' if tol_ok else 'FAIL'} "
+          f"(tol 1e-3, 6-sig-fig output)")
     d = D[D.model == a.name]
     print(f"  {a.name}: MSE {d.mse.median():.4f}  MAE {d.mae.median():.4f}  "
           f"QLIKE {d.qlike.median():.4f}  R2 {d.r2.median():.4f}")
     if not tol_ok:
-        sys.exit("ALIGNMENT FAILED -- predictions do not correspond to the dataset rows")
+        sys.exit("ALIGNMENT FAILED -- gate did not run (checked=0) or predictions do not "
+                 "correspond to the dataset rows")
 
 
 if __name__ == "__main__":

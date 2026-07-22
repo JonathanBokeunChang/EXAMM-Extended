@@ -36,7 +36,7 @@ import torch, torch.nn as nn
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import metrics as M
 
-REPO = "/Users/jonathanchang/EXAMM-Extended"
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 FX = ["LV", "MA5", "MA22", "RET", "LOGVOL"]
 
 
@@ -84,8 +84,13 @@ def main():
     S, TR, VA, TE = load(a.data)
     print(f"[lstm] {len(S)} stocks, seq={SEQ} (window INCLUDES row i), seeds={a.seeds}")
 
-    # train-only pooled standardisation (inputs and target)
-    allc = pd.concat([TR[s] for s in S], ignore_index=True)
+    # Pooled standardisation over TRAIN + VALIDATION, to MATCH EXAMM. EXAMM computes its
+    # avg_std_dev normalisation bounds over training_filenames UNION validation_filenames
+    # (time_series.cxx:760-774,1033-1064) and stores them in the genome. A train-only scaler
+    # here would hand EXAMM an information advantage in the very fairness comparison this
+    # harness exists to make. The pool contains no test rows, so there is no test leakage;
+    # this is disclosed in the methods as "standardised over train+validation".
+    allc = pd.concat([TR[s] for s in S] + [VA[s] for s in S], ignore_index=True)
     mu, sd = allc[FX].mean().values, allc[FX].std().replace(0, 1).values
     tmu, tsd = allc["TARGET"].mean(), allc["TARGET"].std()
 

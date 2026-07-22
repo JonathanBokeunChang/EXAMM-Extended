@@ -41,14 +41,14 @@ Run locally under the qlib venv:
 from __future__ import annotations
 
 import argparse
+import glob
 import os
 
 import numpy as np
 import pandas as pd
 
-REPO = "/Users/jonathanchang/EXAMM-Extended"
-DEFAULT_PROVIDER = ("/private/tmp/claude-501/-Users-jonathanchang-EXAMM-Extended/"
-                    "215ee96d-8804-494b-9850-55d94ff513a6/scratchpad/qlib_data/cn_data")
+# repo root = this file's grandparent (scripts/stock_run/build_vol_dataset.py)
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 #: written column order; EXAMM and the harness both resolve by NAME, not position
 COLS = ["date", "LV", "MA5", "MA22", "RET", "LOGVOL", "TARGET"]
@@ -97,7 +97,8 @@ def main() -> None:
     ap.add_argument("--mode", choices=["fixed", "cohorts"], required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--horizon", type=int, default=5)
-    ap.add_argument("--provider", default=DEFAULT_PROVIDER)
+    ap.add_argument("--provider", default=os.environ.get("QLIB_PROVIDER"),
+                    help="qlib provider_uri (the cn_data bundle dir); or set $QLIB_PROVIDER")
     # universe control
     ap.add_argument("--tickers", default=None,
                     help="file with one ticker per line -- pins the universe exactly")
@@ -117,6 +118,9 @@ def main() -> None:
     ap.add_argument("--min-train", type=int, default=None, help="min TRAIN rows after trimming")
     ap.add_argument("--min-split", type=int, default=60, help="min val/test rows after trimming")
     a = ap.parse_args()
+
+    if not a.provider:
+        ap.error("no qlib provider: pass --provider <cn_data dir> or set $QLIB_PROVIDER")
 
     if a.start is None:
         a.start = "2015-01-01" if a.mode == "fixed" else "2008-01-01"
@@ -171,17 +175,27 @@ def main() -> None:
     os.makedirs(a.out, exist_ok=True)
     manifest, H = [], a.horizon
 
-    def emit(cdir: str, label, tr, va, te) -> tuple[int, int]:
-        """Trim the leak, apply thresholds, write. Returns (kept, rows_trimmed)."""
+    def emit(cdir: str, tr, va, te) -> tuple[int, int]:
+        """Trim the leak, apply thresholds, write. Returns (kept, rows_trimmed).
+
+        Purges any pre-existing *_{train,val,test}.csv first: a rebuild with a smaller
+        universe would otherwise leave stale per-stock CSVs that the harness's `*_train.csv`
+        globs pick up, silently mixing an old build's rows (possibly pre-leak-fix) into the
+        new experiment.
+        """
         os.makedirs(cdir, exist_ok=True)
+        for old in glob.glob(f"{cdir}/*_train.csv") + glob.glob(f"{cdir}/*_val.csv") \
+                + glob.glob(f"{cdir}/*_test.csv"):
+            os.remove(old)
         kept, trimmed = 0, 0
         for t in sorted(panels):
             a_tr, a_va, a_te = tr(panels[t]), va(panels[t]), te(panels[t])
-            n_before = len(a_tr) + len(a_va)
             a_tr, a_va = trim_boundary(a_tr, H), trim_boundary(a_va, H)   # <-- LEAK FIX
-            trimmed += n_before - len(a_tr) - len(a_va)
             if len(a_tr) < a.min_train or len(a_va) < a.min_split or len(a_te) < a.min_split:
                 continue
+            # count trimmed rows only for stocks we actually KEEP, so the manifest total is
+            # meaningful (previously it summed dropped stocks too, over-counting).
+            trimmed += 2 * H
             write_split(cdir, t, {"train": a_tr, "val": a_va, "test": a_te})
             kept += 1
         return kept, trimmed
@@ -189,7 +203,7 @@ def main() -> None:
     if a.mode == "fixed":
         VY = a.val_year
         kept, trimmed = emit(
-            a.out, "fixed",
+            a.out,
             lambda d: d[d.date <= a.train_end],
             lambda d: d[(d.date >= f"{VY}-01-01") & (d.date <= f"{VY}-12-31")],
             lambda d: d[d.date >= a.test_start],
@@ -205,7 +219,7 @@ def main() -> None:
         for Y in a.years:
             tr_end = f"{Y-2}-12-31"
             kept, trimmed = emit(
-                f"{a.out}/cohort_{Y}", Y,
+                f"{a.out}/cohort_{Y}",
                 lambda d, e=tr_end: d[d.date <= e],
                 lambda d, y=Y - 1: d[(d.date >= f"{y}-01-01") & (d.date <= f"{y}-12-31")],
                 lambda d, y=Y: d[(d.date >= f"{y}-01-01") & (d.date <= f"{y}-12-31")],

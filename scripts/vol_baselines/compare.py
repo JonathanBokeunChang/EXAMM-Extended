@@ -15,7 +15,7 @@ import numpy as np, pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import metrics as M
 
-REPO = "/Users/jonathanchang/EXAMM-Extended"
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def holm(pvals: dict[str, float]) -> dict[str, float]:
@@ -41,6 +41,15 @@ def main():
     d = f"{a.out_root}/{a.tag}"
     ps = pd.read_csv(f"{d}/metrics_per_stock.csv")
 
+    # A duplicate (model, stock) would cartesian-expand at the .join() below and silently
+    # inflate every paired test. Fail loud instead -- this catches a partial pipeline re-run
+    # that appended a model's rows twice.
+    dup = ps.groupby(["model", "stock"]).size()
+    dup = dup[dup > 1]
+    if len(dup):
+        sys.exit(f"ERROR: duplicate (model, stock) rows in metrics_per_stock.csv: "
+                 f"{dup.index.tolist()[:8]}")
+
     # Restrict every model to the GLOBAL common stock set before anything is reported.
     # Models enter this table from different scripts (run_baselines, eval_lstm, eval_examm)
     # and can disagree on coverage -- e.g. EGARCH non-convergence drops stocks that the
@@ -58,6 +67,17 @@ def main():
             print(f"    {m:12} dropped {len(ss)}: {','.join(ss[:6])}"
                   f"{' ...' if len(ss) > 6 else ''}")
     ps = ps[ps["stock"].isin(common)]
+
+    # The table header claims identical (stock, date) keys; verify per-stock ROW COUNTS agree
+    # across models (the `n` column), not just the stock set. Different scripts write these
+    # rows and nothing else enforces it. A mismatch means the models were scored on different
+    # dates for some stock and the comparison is invalid.
+    if "n" in ps.columns:
+        nwide = ps.pivot_table(index="stock", columns="model", values="n")
+        bad = nwide[nwide.nunique(axis=1) > 1]
+        if len(bad):
+            sys.exit(f"ERROR: models disagree on row count for {len(bad)} stock(s) "
+                     f"(not identical keys): e.g.\n{bad.head(5).to_string()}")
 
     piv = {m: g.set_index("stock") for m, g in ps.groupby("model")}
     if a.focus not in piv:
@@ -108,10 +128,18 @@ def main():
                   f"   p_holm={r.p_holm:.2g}")
     R.to_csv(f"{d}/comparison.csv", index=False)
 
+    # R2 is NOT an independent test. With models scored on identical rows, SST_s is a
+    # per-stock constant, so r2 = 1 - n*mse/SST is a strictly decreasing affine function of
+    # mse WITHIN each stock -- the paired sign is identical to MSE by construction (every MSE
+    # win-rate equals its R2 win-rate exactly). Report the sweep over the THREE independent
+    # metrics (MSE, MAE, QLIKE) and keep R2 as a descriptive scale-free statistic.
+    indep = [k for k in M.METRICS if k != "r2"]
     sweep = all((R[R.metric == k].win_rate > 0.5).all() and (R[R.metric == k].p_holm < 0.05).all()
-                for k in M.METRICS)
-    print(f"\n  VERDICT: {a.focus} beats EVERY baseline on ALL FOUR metrics "
-          f"(Holm-adjusted): {'YES' if sweep else 'NO'}")
+                for k in indep)
+    print(f"\n  VERDICT: {a.focus} beats EVERY baseline on all THREE independent metrics "
+          f"{tuple(m.upper() for m in indep)} (Holm-adjusted): {'YES' if sweep else 'NO'}")
+    print(f"    (R2 is omitted as an independent test: within identical rows it is a monotone"
+          f" transform of MSE, so its paired signs match MSE by construction.)")
     print(f"  -> {d}/comparison.csv")
 
 

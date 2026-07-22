@@ -44,16 +44,38 @@ cd "$SLURM_SUBMIT_DIR"
 set -u
 MAXG=${MAXG:-10000}
 DATA_DIR=${DATA_DIR:-datasets/qlib_vol_big_v2}
-OUT_ROOT=${OUT_ROOT:-test_output/vol_e1}
+# OUT_ROOT MUST derive from DATA_DIR. If it were a fixed default, E1 and E1b would share the
+# run_N namespace: a forgotten --export runs E1 under E1b's intent, and if E1 ran first the
+# E1b tasks hit the .done skip below, exit 0, and we would evaluate E1's genomes and report
+# them as the survivorship probe -- with clean SLURM logs and no evidence anywhere.
+OUT_ROOT=${OUT_ROOT:-test_output/vol_$(basename "$DATA_DIR")}
 BIN=build/mpi/examm_mpi
 
 RUN=$(( ${SLURM_ARRAY_TASK_ID:-0} + 1 ))
 OUT=$OUT_ROOT/run_$RUN
 
-echo "### vol FIXED | $DATA_DIR | run $RUN | max_genomes $MAXG | ranks ${SLURM_NTASKS}"
+echo "### vol FIXED | $DATA_DIR | run $RUN | max_genomes $MAXG | ranks ${SLURM_NTASKS} | out $OUT"
 
 if [ ! -x "$BIN" ]; then echo "ERROR: $BIN not found -- build examm_mpi first" >&2; exit 1; fi
 if [ ! -d "$DATA_DIR" ]; then echo "ERROR: $DATA_DIR missing -- transfer the dataset first" >&2; exit 1; fi
+
+# Refuse data built by the superseded pre-leak-fix builder. Only build_vol_dataset.py emits
+# the boundary_rows_trimmed column; build_vol_cohorts.py's manifest lacks it.
+if ! grep -q boundary_rows_trimmed "$DATA_DIR/MANIFEST.csv" 2>/dev/null; then
+    echo "ERROR: $DATA_DIR was not built by build_vol_dataset.py (no boundary_rows_trimmed" >&2
+    echo "       in MANIFEST.csv) -- it may carry the train/val boundary target leak" >&2
+    exit 1
+fi
+
+# TL_ARGS/GS_ARGS are spliced into srun below but are NEVER derived here (unlike
+# baseline_train.sh, which builds them from SEED_BIN). Without this guard,
+# --export=ALL,SEED_BIN=... -- the spelling used everywhere else in this repo -- would
+# silently run COLD and report success.
+if [ -n "${SEED_BIN:-}" ] && [ -z "${TL_ARGS:-}" ]; then
+    echo "ERROR: SEED_BIN is set but this script does not build TL_ARGS; pass a fully-formed" >&2
+    echo "       --export=ALL,TL_ARGS='--genome_bin ... ' or use a warm-start script" >&2
+    exit 1
+fi
 
 # ---- collect the pooled file lists (ALL stocks) -----------------------------
 TRAIN_FILES=$(ls "$DATA_DIR"/*_train.csv 2>/dev/null | tr '\n' ' ')
@@ -64,16 +86,44 @@ if [ "$N_TRAIN" -lt 50 ] || [ "$N_TRAIN" -ne "$N_VAL" ]; then
     echo "ERROR: $DATA_DIR has $N_TRAIN train / $N_VAL val files (expected equal, >=50)" >&2
     exit 1
 fi
+# Counts matching is not enough -- a partial rsync could drop AAAA_val.csv and ZZZZ_train.csv
+# and still balance, training and validating on different universes.
+if ! diff <(ls "$DATA_DIR" | sed -n 's/_train\.csv$//p') \
+          <(ls "$DATA_DIR" | sed -n 's/_val\.csv$//p') >/dev/null; then
+    echo "ERROR: train/val stems differ in $DATA_DIR (counts match but sets do not)" >&2
+    exit 1
+fi
 echo "pooled over $N_TRAIN stocks"
 
-if [ -f "$OUT/.done" ]; then echo "[run $RUN] already done, skipping"; exit 0; fi
+if [ -f "$OUT/.done" ]; then
+    # A .done from a DIFFERENT dataset must not satisfy this run.
+    if [ -f "$OUT/.dataset" ] && [ "$(cat "$OUT/.dataset")" != "$DATA_DIR" ]; then
+        echo "ERROR: $OUT/.done exists but was built from $(cat "$OUT/.dataset"), not $DATA_DIR" >&2
+        exit 1
+    fi
+    echo "[run $RUN] already done, skipping"; exit 0
+fi
+
+# Atomic ownership claim. Two tasks cannot collide within one array, but they can across two
+# sbatch submissions -- the "resubmit to fill holes while the first array drains" move both
+# headers bless. Without this, a second task rm -rf's a running job's directory and the first
+# job's save_genome() then writes into the second's tree; both find a genome, both touch .done.
+mkdir -p "$(dirname "$OUT")"
+if ! mkdir "$OUT.lock" 2>/dev/null; then
+    echo "[run $RUN] another task owns $OUT, skipping"; exit 0
+fi
+trap 'rmdir "$OUT.lock" 2>/dev/null' EXIT
+
+case "$OUT" in */run_[0-9]*) ;; *) echo "ERROR: refusing rm -rf '$OUT'" >&2; exit 1;; esac
 rm -rf "$OUT"; mkdir -p "$OUT"
+echo "$DATA_DIR" > "$OUT/.dataset"
 
 # Search config is the Evostar 2025 published setup; see memory examm-config-provenance.
 # Repopulation every 500 matches the paper (NOT 200) and is identical across E1/E1b/E2.
-srun -n "${SLURM_NTASKS}" "$BIN" \
+srun --kill-on-bad-exit -n "${SLURM_NTASKS}" "$BIN" \
     --training_filenames $TRAIN_FILES \
     --validation_filenames $VAL_FILES \
+    --seed $(( ${SLURM_ARRAY_TASK_ID:-0} + 1 )) \
     --time_offset 0 \
     --input_parameter_names LV MA5 MA22 RET LOGVOL \
     --output_parameter_names TARGET \
@@ -94,11 +144,22 @@ srun -n "${SLURM_NTASKS}" "$BIN" \
     --file_message_level NONE > "$OUT/train.log" 2>&1
 RC=$?
 
-GB=$(ls "$OUT"/global_best_genome_*.bin 2>/dev/null | head -1)
-if [ $RC -eq 0 ] && [ -n "$GB" ]; then
+# Sort numerically on the trailing generation id -- `ls | head -1` is lexicographic and would
+# pick _1000 before _998 if more than one genome were ever saved.
+GB=$(ls "$OUT"/global_best_genome_*.bin 2>/dev/null \
+     | sed 's/.*_\([0-9]*\)\.bin/\1 &/' | sort -rn | head -1 | cut -d' ' -f2-)
+LOGGED=$(wc -l < "$OUT/fitness_log.csv" 2>/dev/null || echo 0)
+MIN_LOGGED=$(( MAXG * 9 / 10 ))
+
+# `-n "$GB"` alone only proves ls printed a name: a zero-byte .bin from an ENOSPC/quota
+# failure would pass. And EXAMM silently drops NaN/Inf-fitness genomes (examm.cxx:356-360)
+# with no counter, so a run could insert a fraction of MAXG, exit 0, and be reported as a
+# full search. fitness_log length is the only signal that catches that.
+if [ $RC -eq 0 ] && [ -n "$GB" ] && [ -s "$GB" ] && [ "$LOGGED" -ge "$MIN_LOGGED" ]; then
     touch "$OUT/.done"
-    echo "[run $RUN] FINISHED  genome=$(basename "$GB")  genomes_logged=$(wc -l < "$OUT/fitness_log.csv" 2>/dev/null)"
+    echo "[run $RUN] FINISHED  genome=$(basename "$GB")  genomes_logged=$LOGGED"
 else
-    echo "[run $RUN] FAILED rc=$RC (no global best saved), see $OUT/train.log" >&2
+    echo "[run $RUN] FAILED rc=$RC genome='${GB:-none}' logged=$LOGGED (need >=$MIN_LOGGED)," >&2
+    echo "          see $OUT/train.log" >&2
     exit 1
 fi
