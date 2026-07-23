@@ -48,6 +48,11 @@ cd "$SLURM_SUBMIT_DIR"
 
 set -u
 MAXG=${MAXG:-10000}
+# save_genome_option: 'none' writes only the final global best (at natural termination).
+# Set SAVE_GENOMES=all_best_genomes to also write every new global-best genome DURING
+# the run (rnn_genome_<N>.bin) -- lets you evaluate intermediate genomes while it runs
+# (recommended for the canary; a few extra small files).
+SAVE_GENOMES=${SAVE_GENOMES:-none}
 # LOSS selects the objective. The matched MSE baseline is THIS SAME SCRIPT with
 # --export=ALL,LOSS=mse -- identical data/search/config, only the loss differs, so
 # the IC-vs-MSE comparison is apples-to-apples by construction.
@@ -149,7 +154,7 @@ srun --kill-on-bad-exit -n "${SLURM_NTASKS}" "$BIN" \
     --islands_to_exterminate 1 \
     --repopulation_method bestGenome \
     --output_directory "$OUT" \
-    --save_genome_option none \
+    --save_genome_option "$SAVE_GENOMES" \
     --std_message_level INFO \
     --file_message_level NONE > "$OUT/train.log" 2>&1
 RC=$?
