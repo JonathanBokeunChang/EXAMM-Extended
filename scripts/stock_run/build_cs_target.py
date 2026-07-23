@@ -56,8 +56,20 @@ def split_terminator(line):
 
 
 def read_raw(path):
-    with open(path, "r", newline="") as f:
-        return f.read().splitlines(keepends=True)
+    # latin-1 round-trips every byte (bijective over 0x00-0xFF), so non-UTF-8 bytes in
+    # pass-through columns (e.g. an accented company name -- Anvil data has 0xa3) survive
+    # exactly. Split on LF ONLY -- NOT str.splitlines(), which would also break lines on
+    # exotic bytes (NEL 0x85, form-feed 0x0c, ...) that can occur in the raw data. The C++
+    # reader (getline) likewise records-separates on \n only, so this stays consistent.
+    with open(path, "r", newline="", encoding="latin-1") as f:
+        data = f.read()
+    if not data:
+        return []
+    parts = data.split("\n")
+    lines = [p + "\n" for p in parts[:-1]]
+    if parts[-1] != "":  # file did not end with a newline -> trailing line has no terminator
+        lines.append(parts[-1])
+    return lines  # "".join(lines) == data, byte-for-byte
 
 
 def parse_row(content):
@@ -166,7 +178,7 @@ def main():
         # ---- write: append ,RET_CS to header + each row (original bytes preserved) ----
         hcontent, hterm = split_terminator(header_line)
         for t in tickers:
-            with open(outdir / f"{t}_{split}.csv", "w", newline="") as f:
+            with open(outdir / f"{t}_{split}.csv", "w", newline="", encoding="latin-1") as f:
                 f.write(hcontent + "," + TARGET_COL + hterm)
                 for j, (content, term) in enumerate(rows[t]):
                     f.write(content + "," + f"{z[t][j]:.17g}" + term)
