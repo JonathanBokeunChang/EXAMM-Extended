@@ -36,9 +36,11 @@ WeightUpdate* weight_update_method;
 
 // Training objective: "mse" (default, pointwise) or "ic" (cross-sectional
 // Information Coefficient ranking loss, rnn/ic_loss.*). When "ic", ic_mode selects
-// the differentiable surrogate (pearson | spearman).
+// the differentiable surrogate (pearson | spearman) and ic_var_lambda is the weight
+// on the anti-collapse MSE term (L = -IC + lambda*MSE; lambda=0 = pure IC).
 string loss_function = "mse";
 IcMode ic_mode = IcMode::PEARSON;
+double ic_var_lambda = 1.0;
 
 bool finished = false;
 
@@ -62,7 +64,8 @@ void examm_thread(int32_t id) {
         Log::set_id(log_id);
         if (loss_function == "ic") {
             genome->backpropagate_cross_sectional(
-                training_inputs, training_outputs, validation_inputs, validation_outputs, weight_update_method, ic_mode
+                training_inputs, training_outputs, validation_inputs, validation_outputs, weight_update_method, ic_mode,
+                ic_var_lambda
             );
         } else {
             // genome->backpropagate(training_inputs, training_outputs, validation_inputs, validation_outputs);
@@ -113,9 +116,19 @@ int main(int argc, char** argv) {
         if (get_argument(arguments, "--ic_softrank_tau", false, tau)) {
             IC_SOFTRANK_TAU = tau;
         }
+        get_argument(arguments, "--ic_var_lambda", false, ic_var_lambda);
+        double var_floor;
+        if (get_argument(arguments, "--ic_var_floor", false, var_floor)) {
+            IC_VAR_FLOOR = var_floor;
+        }
+        double spread_floor;
+        if (get_argument(arguments, "--ic_spread_floor", false, spread_floor)) {
+            IC_SPREAD_FLOOR = spread_floor;
+        }
         Log::info(
-            "TRAINING OBJECTIVE: cross-sectional IC (ic_mode=%s, softrank_tau=%g)\n", ic_mode_to_string(ic_mode),
-            IC_SOFTRANK_TAU
+            "TRAINING OBJECTIVE: cross-sectional IC (ic_mode=%s, softrank_tau=%g, ic_var_lambda=%g, ic_var_floor=%g, "
+            "spread_guard=%g)\n",
+            ic_mode_to_string(ic_mode), IC_SOFTRANK_TAU, ic_var_lambda, IC_VAR_FLOOR, IC_SPREAD_FLOOR
         );
     } else if (loss_function == "mse") {
         Log::info("TRAINING OBJECTIVE: MSE (default)\n");

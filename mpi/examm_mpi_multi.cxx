@@ -46,6 +46,7 @@ WeightUpdate* weight_update_method;
 // intended IC path on Anvil is the non-multi examm_mpi.
 string loss_function = "mse";
 IcMode ic_mode = IcMode::PEARSON;
+double ic_var_lambda = 1.0;
 
 vector<vector<vector<double> > > training_inputs;
 vector<vector<vector<double> > > training_outputs;
@@ -212,7 +213,7 @@ void worker(int32_t rank) {
             if (loss_function == "ic") {
                 genome->backpropagate_cross_sectional(
                     training_inputs, training_outputs, validation_inputs, validation_outputs, weight_update_method,
-                    ic_mode
+                    ic_mode, ic_var_lambda
                 );
             } else {
                 genome->backpropagate_stochastic(
@@ -270,10 +271,20 @@ int main(int argc, char** argv) {
         if (get_argument(arguments, "--ic_softrank_tau", false, tau)) {
             IC_SOFTRANK_TAU = tau;
         }
+        get_argument(arguments, "--ic_var_lambda", false, ic_var_lambda);
+        double var_floor;
+        if (get_argument(arguments, "--ic_var_floor", false, var_floor)) {
+            IC_VAR_FLOOR = var_floor;
+        }
+        double spread_floor;
+        if (get_argument(arguments, "--ic_spread_floor", false, spread_floor)) {
+            IC_SPREAD_FLOOR = spread_floor;
+        }
         if (rank == 0) {
             Log::info(
-                "TRAINING OBJECTIVE: cross-sectional IC (ic_mode=%s, softrank_tau=%g)\n", ic_mode_to_string(ic_mode),
-                IC_SOFTRANK_TAU
+                "TRAINING OBJECTIVE: cross-sectional IC (ic_mode=%s, softrank_tau=%g, ic_var_lambda=%g, "
+                "ic_var_floor=%g, spread_guard=%g)\n",
+                ic_mode_to_string(ic_mode), IC_SOFTRANK_TAU, ic_var_lambda, IC_VAR_FLOOR, IC_SPREAD_FLOOR
             );
         }
     } else if (loss_function != "mse") {

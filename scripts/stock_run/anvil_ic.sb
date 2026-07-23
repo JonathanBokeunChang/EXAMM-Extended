@@ -16,6 +16,8 @@
 #   sbatch --array=1-9 scripts/stock_run/anvil_ic.sb                     # IC ensemble (remaining 9)
 #   sbatch --export=ALL,LOSS=mse --array=0-9 ...                         # MATCHED MSE baseline (same everything, only loss differs)
 #   sbatch --export=ALL,IC_MODE=spearman --array=0-9 ...                 # soft-Spearman IC variant
+#   sbatch --export=ALL,IC_VAR_LAMBDA=0.5 --array=0-9 ...                # weaker anti-collapse term
+#   sbatch --export=ALL,IC_VAR_LAMBDA=0 --array=0 ...                    # pure IC (collapses; reference only)
 #   sbatch --export=ALL,MAXG=2000 --array=0-9 ...                        # cheaper
 #
 # The IC-vs-MSE comparison (the whole point) is LOSS=ic vs LOSS=mse on identical
@@ -51,12 +53,13 @@ MAXG=${MAXG:-10000}
 # the IC-vs-MSE comparison is apples-to-apples by construction.
 LOSS=${LOSS:-ic}                     # ic (default) | mse
 IC_MODE=${IC_MODE:-pearson}          # pearson (default) | spearman  (ignored when LOSS=mse)
+IC_VAR_LAMBDA=${IC_VAR_LAMBDA:-1.0}  # anti-collapse variance-floor weight (L = -IC + lambda*var_floor); 0 = pure IC
 DATA_DIR=${DATA_DIR:-datasets/walkforward/cohort_2021_aligned}
 RUN_TAG=${RUN_TAG:-}
 # OUT_ROOT derives from DATA_DIR + objective + RUN_TAG so ic-pearson / ic-spearman /
 # mse and any config change get separate run_R namespaces (a forgotten --export
 # otherwise lands on another config's .done files and every task exits 0 via the skip).
-if [ "$LOSS" = "ic" ]; then OBJ_TAG="ic_${IC_MODE}"; else OBJ_TAG="mse"; fi
+if [ "$LOSS" = "ic" ]; then OBJ_TAG="ic_${IC_MODE}_lam${IC_VAR_LAMBDA}"; else OBJ_TAG="mse"; fi
 OUT_ROOT=${OUT_ROOT:-test_output/${OBJ_TAG}_$(basename "$DATA_DIR")${RUN_TAG:+_$RUN_TAG}}
 BIN=build/mpi/examm_mpi
 
@@ -113,13 +116,13 @@ trap 'rmdir "$OUT.lock" 2>/dev/null' EXIT
 
 case "$OUT" in */run_[0-9]*) ;; *) echo "ERROR: refusing rm -rf '$OUT'" >&2; exit 1;; esac
 rm -rf "$OUT"; mkdir -p "$OUT"
-printf 'data_dir=%s\nloss=%s\nic_mode=%s\nrun=%s\nrun_tag=%s\nmax_genomes=%s\nseed=%s\nstocks=%s\n' \
-    "$DATA_DIR" "$LOSS" "$IC_MODE" "$RUN" "${RUN_TAG:-none}" "$MAXG" "$RUN" "$N_TRAIN" > "$OUT/.config"
+printf 'data_dir=%s\nloss=%s\nic_mode=%s\nic_var_lambda=%s\nrun=%s\nrun_tag=%s\nmax_genomes=%s\nseed=%s\nstocks=%s\n' \
+    "$DATA_DIR" "$LOSS" "$IC_MODE" "$IC_VAR_LAMBDA" "$RUN" "${RUN_TAG:-none}" "$MAXG" "$RUN" "$N_TRAIN" > "$OUT/.config"
 
 # Objective flags: ic passes --loss ic --ic_mode; mse passes --loss mse (ic_mode
 # irrelevant). Everything else is identical between the two arms.
 if [ "$LOSS" = "ic" ]; then
-    LOSS_ARGS="--loss ic --ic_mode $IC_MODE"
+    LOSS_ARGS="--loss ic --ic_mode $IC_MODE --ic_var_lambda $IC_VAR_LAMBDA"
 else
     LOSS_ARGS="--loss mse"
 fi

@@ -222,29 +222,38 @@ class RNN_Genome {
         const vector<vector<vector<double> > >& validation_outputs, WeightUpdate* weight_update_method
     );
 
-    // Full-batch backprop against the cross-sectional IC loss (rnn/ic_loss.*).
-    // Requires calendar-aligned, single-output pooled data: every series (stock)
-    // must have the same length so date-index j is the same date for all stocks,
-    // and each network must have exactly one output node. Fitness is stored as
-    // -(validation Spearman IC) in best_validation_mse so the existing
-    // minimize-fitness selection stack is used unchanged.
+    // Full-batch backprop against the anti-collapse cross-sectional objective
+    // L = -mean_j IC_j + ic_var_lambda*MSE (rnn/ic_loss.*). Requires calendar-aligned,
+    // single-output pooled data: every series (stock) must have the same length so
+    // date-index j is the same date for all stocks, and each network must have exactly
+    // one output node. Fitness is stored as -(validation Spearman IC) in
+    // best_validation_mse (train on the surrogate, SELECT on the target metric); a
+    // collapse guard dead-ends genomes whose val prediction spread < IC_SPREAD_FLOOR.
     void backpropagate_cross_sectional(
         const vector<vector<vector<double> > >& inputs, const vector<vector<vector<double> > >& outputs,
         const vector<vector<vector<double> > >& validation_inputs,
-        const vector<vector<vector<double> > >& validation_outputs, WeightUpdate* weight_update_method, IcMode ic_mode
+        const vector<vector<vector<double> > >& validation_outputs, WeightUpdate* weight_update_method, IcMode ic_mode,
+        double ic_var_lambda
     );
 
-    // Cross-sectional IC gradient: forward-passes all series' RNNs, computes the
-    // per-(stock,date) loss gradient, injects it as output deltas, backpropagates,
-    // and accumulates the shared-weight gradient. loss = -(mean daily IC).
+    // Cross-sectional objective gradient: forward-passes all series' RNNs, computes the
+    // per-(stock,date) gradient of L = -mean_j IC_j + ic_var_lambda*MSE, injects it as
+    // output deltas, backpropagates, and accumulates the shared-weight gradient.
     void get_analytic_gradient_ic(
         vector<RNN*>& rnns, const vector<double>& parameters, const vector<vector<vector<double> > >& inputs,
         const vector<vector<vector<double> > >& outputs, double& loss, vector<double>& analytic_gradient,
-        IcMode ic_mode, bool training
+        IcMode ic_mode, double ic_var_lambda, bool training
+    );
+
+    // Forward-pass the pooled validation set once and return the true (hard-rank)
+    // Spearman IC, the cross-sectional MSE, and the mean per-date prediction spread.
+    void compute_validation_metrics(
+        const vector<double>& parameters, const vector<vector<vector<double> > >& inputs,
+        const vector<vector<vector<double> > >& outputs, double& ic, double& mse, double& spread
     );
 
     // True (hard-rank) Spearman IC over the pooled series, averaged over dates.
-    // Used for validation/fitness and reporting (non-differentiable).
+    // Thin wrapper over compute_validation_metrics; used by verify_fullprec_ic.
     double get_ic(
         const vector<double>& parameters, const vector<vector<vector<double> > >& inputs,
         const vector<vector<vector<double> > >& outputs

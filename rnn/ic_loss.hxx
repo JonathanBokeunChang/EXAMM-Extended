@@ -48,6 +48,24 @@ extern double IC_SOFTRANK_TAU;
 // a genome emits constant predictions on a date).
 extern double IC_VARIANCE_FLOOR;
 
+// Collapse guard: if a genome's mean cross-sectional prediction spread (per-date std,
+// averaged over dates) falls below this, it has degenerated to near-constant output
+// and its (scale-invariant) IC is meaningless. The training variance-floor term keeps
+// spread up; the guard is the selection-side safety net (see
+// RNN_Genome::backpropagate_cross_sectional). Default well below IC_VAR_FLOOR so
+// genuinely-varied genomes pass while collapsed ones are rejected.
+extern double IC_SPREAD_FLOOR;
+
+// Target per-date cross-sectional std for the anti-collapse variance floor (tau). The
+// penalty pushes each date's prediction std up toward this value; a constant prediction
+// (std 0) gets the maximum penalty. This is VICReg's variance term (Bardes/Ponce/LeCun,
+// ICLR 2022) applied per date. IC is scale-invariant, so pinning the spread to tau does
+// not constrain the achievable ranking -- it only forbids the degenerate zero-spread
+// optimum. Unlike an MSE anchor it targets SPREAD (not level), which is the actual
+// collapse; MSE fails here because on a near-unpredictable signal the MSE-optimal
+// predictor is itself a near-constant.
+extern double IC_VAR_FLOOR;
+
 // Mean daily differentiable IC over all dates (higher is better). preds/targets
 // are [stock][date] and must be rectangular (all rows the same length).
 double cross_sectional_ic(
@@ -61,8 +79,40 @@ void cross_sectional_ic_gradient(
     vector<vector<double> >& d_preds
 );
 
+// Pointwise MSE over all (stock, date) entries: mean of (pred - target)^2.
+// Kept as a diagnostic (reported by verify_fullprec_ic); NOT part of the objective.
+double cross_sectional_mse(const vector<vector<double> >& preds, const vector<vector<double> >& targets);
+
+// Anti-collapse variance-floor penalty (VICReg-style, per date):
+//   (1/D) * sum_j max(0, IC_VAR_FLOOR - std_j)^2,   std_j = sqrt(var_j + eps).
+// Zero once every date's cross-sectional std is >= IC_VAR_FLOOR; grows as predictions
+// collapse toward a constant. Does not depend on the targets.
+double cross_sectional_variance_penalty(const vector<vector<double> >& preds);
+
+// The ANTI-COLLAPSE training objective: L = -mean_j IC_j + lambda * variance_penalty.
+// The pure IC term is scale/shift-invariant, so it admits a degenerate optimum where
+// predictions collapse to a near-constant (a documented failure of correlation losses;
+// see Kwiatkowski & Chudziak 2025). The variance-floor term forbids the zero-spread
+// solution directly. lambda = 0 recovers pure IC.
+double cross_sectional_objective(
+    const vector<vector<double> >& preds, const vector<vector<double> >& targets, IcMode mode, double lambda
+);
+
+// Fills d_preds[i][j] = d(L)/d(pred_ij) for L = -mean_j IC_j + lambda*variance_penalty,
+// and returns loss = L along with its components mean_ic and var_penalty (for logging).
+// Reuses the finite-diff-verified cross_sectional_ic_gradient for the IC part and adds
+// the closed-form variance-floor gradient.
+void cross_sectional_objective_gradient(
+    const vector<vector<double> >& preds, const vector<vector<double> >& targets, IcMode mode, double lambda,
+    double& loss, double& mean_ic, double& var_penalty, vector<vector<double> >& d_preds
+);
+
 // True Spearman rank-IC (hard ranks, average tie ranks), averaged over dates.
 // Non-differentiable; for validation/fitness/reporting only.
 double spearman_ic_hard(const vector<vector<double> >& preds, const vector<vector<double> >& targets);
+
+// Mean per-date cross-sectional prediction spread (std over stocks, averaged over
+// dates). A collapse monitor: values near 0 mean the model emits near-constant output.
+double cross_sectional_spread(const vector<vector<double> >& preds);
 
 #endif

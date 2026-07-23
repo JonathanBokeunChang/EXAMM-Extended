@@ -17,14 +17,15 @@ using std::vector;
 
 #include "rnn/ic_loss.hxx"
 
-static double loss_of(const vector<vector<double> >& preds, const vector<vector<double> >& targets, IcMode mode) {
-    // loss = -mean_j IC_j  == -cross_sectional_ic(...)
-    return -cross_sectional_ic(preds, targets, mode);
+// The training objective L = -mean_j IC_j + lambda*MSE (lambda=0 -> pure -IC).
+static double loss_of(const vector<vector<double> >& preds, const vector<vector<double> >& targets, IcMode mode,
+                      double lambda) {
+    return cross_sectional_objective(preds, targets, mode, lambda);
 }
 
 // Returns the max abs difference between analytic and finite-difference gradient
-// of the loss over all (stock, date) entries, for one random problem instance.
-static double check_instance(int32_t n_stocks, int32_t n_dates, IcMode mode, std::mt19937& rng) {
+// of the objective over all (stock, date) entries, for one random problem instance.
+static double check_instance(int32_t n_stocks, int32_t n_dates, IcMode mode, double lambda, std::mt19937& rng) {
     std::normal_distribution<double> gauss(0.0, 1.0);
 
     vector<vector<double> > preds(n_stocks, vector<double>(n_dates));
@@ -36,9 +37,9 @@ static double check_instance(int32_t n_stocks, int32_t n_dates, IcMode mode, std
         }
     }
 
-    double loss;
+    double loss, mean_ic, mse;
     vector<vector<double> > d_analytic;
-    cross_sectional_ic_gradient(preds, targets, mode, loss, d_analytic);
+    cross_sectional_objective_gradient(preds, targets, mode, lambda, loss, mean_ic, mse, d_analytic);
 
     const double eps = 1e-6;
     double max_err = 0.0;
@@ -47,10 +48,10 @@ static double check_instance(int32_t n_stocks, int32_t n_dates, IcMode mode, std
             double save = preds[i][j];
 
             preds[i][j] = save + eps;
-            double lp = loss_of(preds, targets, mode);
+            double lp = loss_of(preds, targets, mode, lambda);
 
             preds[i][j] = save - eps;
-            double lm = loss_of(preds, targets, mode);
+            double lm = loss_of(preds, targets, mode, lambda);
 
             preds[i][j] = save;
 
@@ -69,6 +70,11 @@ int main() {
 
     const double TOL = 1e-6;
 
+    // Test data is ~N(0,1) so per-date std ~ 1. Raise the variance-floor target well
+    // above that so the anti-collapse penalty (and its gradient) is ACTIVE and gets
+    // exercised by the finite-difference check for lambda > 0.
+    IC_VAR_FLOOR = 2.0;
+
     struct {
         const char* name;
         IcMode mode;
@@ -79,21 +85,27 @@ int main() {
     int32_t shapes[][2] = {{3, 1}, {5, 3}, {10, 4}, {25, 6}, {50, 8}, {2, 5}};
     int32_t n_shapes = (int32_t) (sizeof(shapes) / sizeof(shapes[0]));
 
+    // lambda = 0 -> pure -IC (original); lambda > 0 -> anti-collapse -IC + lambda*MSE.
+    double lambdas[] = {0.0, 0.5, 1.0};
+    int32_t n_lambdas = (int32_t) (sizeof(lambdas) / sizeof(lambdas[0]));
+
     bool failed = false;
     for (auto& m : modes) {
-        double worst = 0.0;
-        for (int32_t s = 0; s < n_shapes; s++) {
-            for (int32_t rep = 0; rep < 30; rep++) {
-                double err = check_instance(shapes[s][0], shapes[s][1], m.mode, rng);
-                if (err > worst) {
-                    worst = err;
+        for (int32_t l = 0; l < n_lambdas; l++) {
+            double worst = 0.0;
+            for (int32_t s = 0; s < n_shapes; s++) {
+                for (int32_t rep = 0; rep < 30; rep++) {
+                    double err = check_instance(shapes[s][0], shapes[s][1], m.mode, lambdas[l], rng);
+                    if (err > worst) {
+                        worst = err;
+                    }
                 }
             }
-        }
-        printf("ic_mode=%-9s  max |analytic - finite-diff| = %.3e  (tol %.0e)  -> %s\n", m.name, worst, TOL,
-               worst <= TOL ? "PASS" : "FAIL");
-        if (worst > TOL) {
-            failed = true;
+            printf("ic_mode=%-9s lambda=%.1f  max |analytic - finite-diff| = %.3e  (tol %.0e)  -> %s\n", m.name,
+                   lambdas[l], worst, TOL, worst <= TOL ? "PASS" : "FAIL");
+            if (worst > TOL) {
+                failed = true;
+            }
         }
     }
 

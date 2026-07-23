@@ -61,12 +61,14 @@ int main(int argc, char** argv) {
     // Also report the cross-sectional spread of the RAW (full-precision) predictions
     // per date, to show whether the genome is at the numerical noise floor.
     vector<vector<double> > preds(inputs.size());
+    vector<vector<double> > targets(inputs.size());
     {
         RNN* rnn = genome->get_rnn();
         rnn->set_weights(best);
         for (int32_t i = 0; i < (int32_t) inputs.size(); i++) {
             rnn->forward_pass(inputs[i], false, false, 0.0);
             preds[i] = rnn->get_output_node(0)->output_values;
+            targets[i] = outputs[i][0];
         }
         delete rnn;
     }
@@ -90,7 +92,9 @@ int main(int argc, char** argv) {
     printf("stocks=%d dates=%d\n", n_stocks, n_dates);
     printf("full-precision cross-sectional IC (get_ic) : %+.6f\n", ic);
     printf("recorded best_validation_mse (= -IC)       : %+.6f\n", genome->get_best_validation_mse());
-    printf("avg full-precision prediction spread/date  : %.3e\n", n_dates ? spread_sum / n_dates : 0.0);
+    printf("cross-sectional MSE (pred vs target)       : %.6f\n", cross_sectional_mse(preds, targets));
+    printf("avg full-precision prediction spread/date  : %.3e%s\n", n_dates ? spread_sum / n_dates : 0.0,
+           (n_dates && spread_sum / n_dates < 1e-6) ? "   <-- COLLAPSED (near-constant output)" : "");
 
     delete genome;
     delete tss;

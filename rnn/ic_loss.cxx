@@ -10,6 +10,11 @@ using std::vector;
 // Defaults (see header). Kept as globals so a CLI flag / test can override them.
 double IC_SOFTRANK_TAU = 0.1;
 double IC_VARIANCE_FLOOR = 1e-12;
+double IC_SPREAD_FLOOR = 0.02;  // selection guard (reject near-constant genomes)
+double IC_VAR_FLOOR = 0.1;      // tau: target per-date cross-sectional std (VICReg)
+
+// Numerical floor inside std = sqrt(var + eps) for the variance-floor gradient.
+static const double IC_VAR_EPS = 1e-8;
 
 IcMode ic_mode_from_string(const string& s) {
     string lower;
@@ -255,6 +260,125 @@ void cross_sectional_ic_gradient(
     }
 
     loss = -(ic_sum * inv_dates);
+}
+
+double cross_sectional_mse(const vector<vector<double> >& preds, const vector<vector<double> >& targets) {
+    if (preds.empty() || preds[0].empty()) {
+        return 0.0;
+    }
+    int32_t n_stocks = (int32_t) preds.size();
+    int32_t n_dates = (int32_t) preds[0].size();
+    double sse = 0.0;
+    for (int32_t i = 0; i < n_stocks; i++) {
+        for (int32_t j = 0; j < n_dates; j++) {
+            double e = preds[i][j] - targets[i][j];
+            sse += e * e;
+        }
+    }
+    return sse / ((double) n_stocks * (double) n_dates);
+}
+
+double cross_sectional_variance_penalty(const vector<vector<double> >& preds) {
+    if (preds.empty() || preds[0].empty()) {
+        return 0.0;
+    }
+    int32_t n_stocks = (int32_t) preds.size();
+    int32_t n_dates = (int32_t) preds[0].size();
+    double sum = 0.0;
+    for (int32_t j = 0; j < n_dates; j++) {
+        double mean = 0.0;
+        for (int32_t i = 0; i < n_stocks; i++) {
+            mean += preds[i][j];
+        }
+        mean /= n_stocks;
+        double var = 0.0;
+        for (int32_t i = 0; i < n_stocks; i++) {
+            double d = preds[i][j] - mean;
+            var += d * d;
+        }
+        var /= n_stocks;
+        double std_j = std::sqrt(var + IC_VAR_EPS);
+        double hinge = IC_VAR_FLOOR - std_j;
+        if (hinge > 0.0) {
+            sum += hinge * hinge;  // squared hinge -> smooth (C^1) for the gradient check
+        }
+    }
+    return sum / n_dates;
+}
+
+double cross_sectional_objective(
+    const vector<vector<double> >& preds, const vector<vector<double> >& targets, IcMode mode, double lambda
+) {
+    // L = -mean_j IC_j + lambda * variance_penalty
+    return -cross_sectional_ic(preds, targets, mode) + lambda * cross_sectional_variance_penalty(preds);
+}
+
+void cross_sectional_objective_gradient(
+    const vector<vector<double> >& preds, const vector<vector<double> >& targets, IcMode mode, double lambda,
+    double& loss, double& mean_ic, double& var_penalty, vector<vector<double> >& d_preds
+) {
+    // d(-IC)/dp via the finite-diff-verified IC gradient (also (re)sizes d_preds).
+    double ic_loss = 0.0;
+    cross_sectional_ic_gradient(preds, targets, mode, ic_loss, d_preds);
+    mean_ic = -ic_loss;  // cross_sectional_ic_gradient's loss is -mean_ic
+
+    var_penalty = cross_sectional_variance_penalty(preds);
+
+    if (lambda != 0.0 && !preds.empty() && !preds[0].empty()) {
+        int32_t n_stocks = (int32_t) preds.size();
+        int32_t n_dates = (int32_t) preds[0].size();
+        double inv_dates = 1.0 / (double) n_dates;
+        // penalty_j = max(0, tau - std_j)^2,  std_j = sqrt(var_j + eps)
+        // d(penalty_j)/dp_ij = -2*(tau - std_j) * (p_ij - mean_j)/(N*std_j)   for std_j < tau
+        // d(L_var)/dp_ij     = (1/D) * d(penalty_j)/dp_ij
+        for (int32_t j = 0; j < n_dates; j++) {
+            double mean = 0.0;
+            for (int32_t i = 0; i < n_stocks; i++) {
+                mean += preds[i][j];
+            }
+            mean /= n_stocks;
+            double var = 0.0;
+            for (int32_t i = 0; i < n_stocks; i++) {
+                double d = preds[i][j] - mean;
+                var += d * d;
+            }
+            var /= n_stocks;
+            double std_j = std::sqrt(var + IC_VAR_EPS);
+            double hinge = IC_VAR_FLOOR - std_j;
+            if (hinge <= 0.0) {
+                continue;  // this date already meets the spread floor -> no penalty gradient
+            }
+            double coef = lambda * inv_dates * (-2.0) * hinge / ((double) n_stocks * std_j);
+            for (int32_t i = 0; i < n_stocks; i++) {
+                d_preds[i][j] += coef * (preds[i][j] - mean);
+            }
+        }
+    }
+
+    loss = ic_loss + lambda * var_penalty;  // = -mean_ic + lambda*var_penalty
+}
+
+double cross_sectional_spread(const vector<vector<double> >& preds) {
+    if (preds.empty() || preds[0].empty()) {
+        return 0.0;
+    }
+    int32_t n_stocks = (int32_t) preds.size();
+    int32_t n_dates = (int32_t) preds[0].size();
+    double spread_sum = 0.0;
+    for (int32_t j = 0; j < n_dates; j++) {
+        double mean = 0.0;
+        for (int32_t i = 0; i < n_stocks; i++) {
+            mean += preds[i][j];
+        }
+        mean /= n_stocks;
+        double var = 0.0;
+        for (int32_t i = 0; i < n_stocks; i++) {
+            double d = preds[i][j] - mean;
+            var += d * d;
+        }
+        spread_sum += std::sqrt(var / n_stocks);
+    }
+    return spread_sum / n_dates;
 }
 
 double spearman_ic_hard(const vector<vector<double> >& preds, const vector<vector<double> >& targets) {

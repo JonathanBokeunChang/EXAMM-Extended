@@ -4,10 +4,15 @@
 # 50 stocks, optimizing the daily cross-sectional rank correlation between the
 # model's predicted returns and realized returns.
 #
-# Usage: sh scripts/stock_run/train_ic.sh [MAX_GENOMES] [IC_MODE] [NUM_THREADS]
-#   e.g. sh scripts/stock_run/train_ic.sh 100 pearson 4     # smoke / overfit test
-#        sh scripts/stock_run/train_ic.sh 2000 pearson 8    # local pilot
+# Usage: sh scripts/stock_run/train_ic.sh [MAX_GENOMES] [IC_MODE] [NUM_THREADS] [IC_VAR_LAMBDA]
+#   e.g. sh scripts/stock_run/train_ic.sh 100 pearson 4       # smoke / overfit test
+#        sh scripts/stock_run/train_ic.sh 2000 pearson 8      # local pilot
+#        sh scripts/stock_run/train_ic.sh 200 pearson 4 0     # pure IC (collapses; for reference)
 #   IC_MODE: pearson (default, closed-form differentiable IC) | spearman (soft-rank)
+#   IC_VAR_LAMBDA: weight on the anti-collapse variance-floor term (default 1.0; 0 = pure IC).
+#     Objective L = -IC + lambda * mean_j max(0, tau - std_j)^2. Pure IC is scale-invariant
+#     and collapses to near-constant predictions; the variance floor (VICReg, LeCun ICLR
+#     2022) forces per-date cross-sectional std up toward tau, forbidding the collapse.
 #
 # Requires the ALIGNED cohort (all stocks share one calendar so the cross-section
 # is well defined). Build it first:
@@ -22,6 +27,7 @@
 MAX=${1:-100}
 IC_MODE=${2:-pearson}
 THREADS=${3:-4}
+IC_VAR_LAMBDA=${4:-1.0}
 
 cd build
 
@@ -44,7 +50,7 @@ exp_name="../test_output/ic_${IC_MODE}"
 rm -rf $exp_name
 mkdir -p $exp_name
 
-echo "Training EXAMM (loss=ic, ic_mode=${IC_MODE}) on ${N_STOCKS} pooled stocks,"
+echo "Training EXAMM (loss=ic, ic_mode=${IC_MODE}, ic_var_lambda=${IC_VAR_LAMBDA}) on ${N_STOCKS} pooled stocks,"
 echo "max_genomes=${MAX}, threads=${THREADS}, results in: ${exp_name}"
 echo "###-------------------###"
 
@@ -63,6 +69,7 @@ echo "###-------------------###"
 --normalize avg_std_dev \
 --loss ic \
 --ic_mode $IC_MODE \
+--ic_var_lambda $IC_VAR_LAMBDA \
 --extinction_event_generation_number 500 \
 --repeat_extinction \
 --island_ranking_method EraseWorst \
