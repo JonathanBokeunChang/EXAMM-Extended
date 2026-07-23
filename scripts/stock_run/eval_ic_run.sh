@@ -26,7 +26,10 @@ CFG=$(ls "$OUT_ROOT"/run_*/.config 2>/dev/null | head -1)
 if [ -z "$CFG" ]; then echo "ERROR: no run_*/.config under $OUT_ROOT" >&2; exit 1; fi
 DATA_DIR=$(sed -n 's/^data_dir=//p' "$CFG")
 if [ ! -d "$DATA_DIR" ]; then echo "ERROR: data dir '$DATA_DIR' (from .config) missing" >&2; exit 1; fi
-echo "OUT_ROOT=$OUT_ROOT  SPLIT=$SPLIT  DATA_DIR=$DATA_DIR"
+# The trained output column: RET for raw/IC arms, RET_CS for the z-score-MSE arm.
+# (older .config files predate this key -> default RET.)
+TARGET=$(sed -n 's/^target=//p' "$CFG"); TARGET=${TARGET:-RET}
+echo "OUT_ROOT=$OUT_ROOT  SPLIT=$SPLIT  DATA_DIR=$DATA_DIR  TARGET=$TARGET"
 
 n_runs=0
 for RUNDIR in "$OUT_ROOT"/run_*/; do
@@ -53,8 +56,15 @@ if [ "$n_runs" -eq 0 ]; then echo "ERROR: no finished runs evaluated" >&2; exit 
 
 echo ""
 python3 scripts/stock_run/eval_ensemble_ic.py \
-    --run-root "$OUT_ROOT" --split "$SPLIT" \
+    --run-root "$OUT_ROOT" --split "$SPLIT" --target-col "$TARGET" \
     --emit-dir "$OUT_ROOT/ensemble_$SPLIT"
+
+if [ "$TARGET" != "RET" ]; then
+    echo ""
+    echo "NOTE: target=$TARGET is cross-sectionally z-scored -- the IC above is valid"
+    echo "      (rank-preserving per date), but expected_$TARGET is NOT a raw return, so"
+    echo "      trade_portfolio.py P&L would need raw RET joined from the source cohort."
+fi
 
 echo ""
 echo "To trade the ensemble (test only):"

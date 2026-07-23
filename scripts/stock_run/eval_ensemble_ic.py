@@ -30,11 +30,11 @@ import numpy as np
 from scipy.stats import rankdata
 
 
-def read_pred(path):
+def read_pred(path, target_col):
     with open(path) as f:
         rows = list(csv.reader(f))
     h = rows[0]
-    ei, pi = h.index("expected_RET"), h.index("predicted_RET")
+    ei, pi = h.index(f"expected_{target_col}"), h.index(f"predicted_{target_col}")
     exp = [float(r[ei]) for r in rows[1:]]
     pred = [float(r[pi]) for r in rows[1:]]
     return h, exp, pred
@@ -49,6 +49,9 @@ def main():
                     help="if set, write ensembled <ticker>_<split>_predictions.csv here")
     ap.add_argument("--min-runs", type=int, default=1,
                     help="require at least this many runs contributed per stock")
+    ap.add_argument("--target-col", default="RET",
+                    help="output parameter name (prediction CSV column suffix); "
+                         "RET for the raw/IC arms, RET_CS for the z-score-MSE arm")
     args = ap.parse_args()
 
     suffix = f"_{args.split}_predictions.csv"
@@ -65,7 +68,7 @@ def main():
     for d in eval_dirs:
         for f in sorted(glob.glob(os.path.join(d, f"*{suffix}"))):
             stock = os.path.basename(f)[: -len(suffix)]
-            h, exp, pr = read_pred(f)
+            h, exp, pr = read_pred(f, args.target_col)
             preds[stock].append(np.array(pr))
             if stock not in expected:
                 expected[stock] = np.array(exp)
@@ -113,7 +116,7 @@ def main():
             out = os.path.join(args.emit_dir, f"{s}{suffix}")
             with open(out, "w", newline="") as f:
                 w = csv.writer(f)
-                w.writerow(["expected_RET", "predicted_RET"])
+                w.writerow([f"expected_{args.target_col}", f"predicted_{args.target_col}"])
                 for j in range(n_dates):
                     w.writerow([f"{expected[s][j]:.10g}", f"{ens[s][j]:.10g}"])
         print(f"\nwrote ensembled predictions -> {args.emit_dir}  "

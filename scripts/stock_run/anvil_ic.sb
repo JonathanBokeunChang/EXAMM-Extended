@@ -15,6 +15,8 @@
 #   sbatch --array=0 scripts/stock_run/anvil_ic.sb                       # IC canary (1 run)
 #   sbatch --array=1-9 scripts/stock_run/anvil_ic.sb                     # IC ensemble (remaining 9)
 #   sbatch --export=ALL,LOSS=mse --array=0-9 ...                         # MATCHED MSE baseline (same everything, only loss differs)
+#   sbatch --export=ALL,LOSS=mse,TARGET=RET_CS,DATA_DIR=datasets/walkforward/cohort_2021_zscore --array=0-9 ...
+#                                                                        # z-score-MSE arm (Qlib CSZScoreNorm; build cohort w/ build_cs_target.py)
 #   sbatch --export=ALL,IC_MODE=spearman --array=0-9 ...                 # soft-Spearman IC variant
 #   sbatch --export=ALL,IC_VAR_LAMBDA=0.5 --array=0-9 ...                # weaker anti-collapse term
 #   sbatch --export=ALL,IC_VAR_LAMBDA=0 --array=0 ...                    # pure IC (collapses; reference only)
@@ -60,12 +62,20 @@ LOSS=${LOSS:-ic}                     # ic (default) | mse
 IC_MODE=${IC_MODE:-pearson}          # pearson (default) | spearman  (ignored when LOSS=mse)
 IC_VAR_LAMBDA=${IC_VAR_LAMBDA:-1.0}  # anti-collapse variance-floor weight (L = -IC + lambda*var_floor); 0 = pure IC
 IC_FITNESS=${IC_FITNESS:-ic}         # selection metric: ic (mean daily IC) | icir (IC information ratio)
+# TARGET selects the OUTPUT column. RET = raw next-day return (default; raw-MSE + IC arms).
+# RET_CS = cross-sectional per-date z-score of RET (Qlib CSZScoreNorm) -- the z-score-MSE
+# arm; requires a cohort built with scripts/stock_run/build_cs_target.py (it adds RET_CS).
+# Only the target differs from raw-MSE; the 6 raw inputs/search are identical.
+TARGET=${TARGET:-RET}
 DATA_DIR=${DATA_DIR:-datasets/walkforward/cohort_2021_aligned}
 RUN_TAG=${RUN_TAG:-}
 # OUT_ROOT derives from DATA_DIR + objective + RUN_TAG so ic-pearson / ic-spearman /
 # mse and any config change get separate run_R namespaces (a forgotten --export
 # otherwise lands on another config's .done files and every task exits 0 via the skip).
 if [ "$LOSS" = "ic" ]; then OBJ_TAG="ic_${IC_MODE}_lam${IC_VAR_LAMBDA}_${IC_FITNESS}"; else OBJ_TAG="mse"; fi
+# a non-default target (e.g. RET_CS z-score-MSE) gets its own namespace so it never
+# lands on the raw-RET arm's .done files.
+[ "$TARGET" != "RET" ] && OBJ_TAG="${OBJ_TAG}_${TARGET}"
 OUT_ROOT=${OUT_ROOT:-test_output/${OBJ_TAG}_$(basename "$DATA_DIR")${RUN_TAG:+_$RUN_TAG}}
 BIN=build/mpi/examm_mpi
 
@@ -107,7 +117,15 @@ if [ "$NUNIQ" -ne 1 ]; then
     echo "       Rebuild with scripts/stock_run/align_cohort.py" >&2
     exit 1
 fi
-echo "pooled over $N_TRAIN stocks (aligned)"
+# The output column must exist (e.g. RET_CS only exists in a build_cs_target.py cohort);
+# fail here with a clear message rather than a mid-run C++ abort on a missing parameter.
+FIRST_TRAIN=$(echo $TRAIN_FILES | cut -d' ' -f1)
+if ! head -1 "$FIRST_TRAIN" | tr -d '\r' | tr ',' '\n' | grep -qx "$TARGET"; then
+    echo "ERROR: output column '$TARGET' not in $FIRST_TRAIN header." >&2
+    echo "       For TARGET=RET_CS build the cohort with scripts/stock_run/build_cs_target.py" >&2
+    exit 1
+fi
+echo "pooled over $N_TRAIN stocks (aligned), target=$TARGET"
 
 if [ -f "$OUT/.done" ]; then
     echo "[run $RUN] already done, skipping"; exit 0
@@ -122,8 +140,8 @@ trap 'rmdir "$OUT.lock" 2>/dev/null' EXIT
 
 case "$OUT" in */run_[0-9]*) ;; *) echo "ERROR: refusing rm -rf '$OUT'" >&2; exit 1;; esac
 rm -rf "$OUT"; mkdir -p "$OUT"
-printf 'data_dir=%s\nloss=%s\nic_mode=%s\nic_var_lambda=%s\nic_fitness=%s\nrun=%s\nrun_tag=%s\nmax_genomes=%s\nseed=%s\nstocks=%s\n' \
-    "$DATA_DIR" "$LOSS" "$IC_MODE" "$IC_VAR_LAMBDA" "$IC_FITNESS" "$RUN" "${RUN_TAG:-none}" "$MAXG" "$RUN" "$N_TRAIN" > "$OUT/.config"
+printf 'data_dir=%s\nloss=%s\nic_mode=%s\nic_var_lambda=%s\nic_fitness=%s\ntarget=%s\nrun=%s\nrun_tag=%s\nmax_genomes=%s\nseed=%s\nstocks=%s\n' \
+    "$DATA_DIR" "$LOSS" "$IC_MODE" "$IC_VAR_LAMBDA" "$IC_FITNESS" "$TARGET" "$RUN" "${RUN_TAG:-none}" "$MAXG" "$RUN" "$N_TRAIN" > "$OUT/.config"
 
 # Objective flags: ic passes --loss ic --ic_mode; mse passes --loss mse (ic_mode
 # irrelevant). Everything else is identical between the two arms.
@@ -142,7 +160,7 @@ srun --kill-on-bad-exit -n "${SLURM_NTASKS}" "$BIN" \
     --seed "$RUN" \
     --time_offset 1 \
     --input_parameter_names RET VOL_CHANGE BA_SPREAD ILLIQUIDITY sprtrn TURNOVER \
-    --output_parameter_names RET \
+    --output_parameter_names $TARGET \
     $LOSS_ARGS \
     --number_islands 10 \
     --island_size 10 \
