@@ -79,7 +79,14 @@ def parse_row(content):
 
 
 def tickers_in(indir, split):
-    return sorted(p.name[: -len(f"_{split}.csv")] for p in indir.glob(f"*_{split}.csv"))
+    # Skip dotfiles -- notably macOS AppleDouble "._<name>_train.csv" sidecars that a
+    # Mac-made tarball leaves on extraction. glob("*_train.csv") otherwise matches them,
+    # doubling the ticker count (50 -> 100) and feeding a binary blob to the reader.
+    return sorted(
+        p.name[: -len(f"_{split}.csv")]
+        for p in indir.glob(f"*_{split}.csv")
+        if not p.name.startswith(".")
+    )
 
 
 def main():
