@@ -87,4 +87,13 @@ target_link_libraries(test_multiply_gp_gradients examm_strategy exact_common exa
 # and isolated from the rest of the NN library.
 add_executable(test_ic_loss_gradients test_ic_loss_gradients.cxx ${PROJECT_SOURCE_DIR}/rnn/ic_loss.cxx)
 
+# Genome round-trip invariant: predictions must be bit-identical after
+# copy()/write_to_file/write_to_array. Guards against saved/transferred genomes
+# not reproducing the trained network (silent fitness corruption).
+add_executable(test_genome_roundtrip test_genome_roundtrip.cxx gradient_test.cxx)
+target_link_libraries(test_genome_roundtrip examm_strategy exact_common exact_time_series exact_weights examm_nn ${MYSQL_LIBRARIES} pthread)
 
+
+
+add_executable(verify_fullprec_ic verify_fullprec_ic.cxx)
+target_link_libraries(verify_fullprec_ic examm_strategy exact_common exact_time_series exact_weights examm_nn ${MYSQL_LIBRARIES} pthread)

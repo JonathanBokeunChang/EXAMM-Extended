@@ -613,6 +613,11 @@ void RNN::write_predictions(
     forward_pass(series_data, using_dropout, false, dropout_probability);
 
     ofstream outfile(output_filename);
+    // Full double round-trip precision. The default 6 significant figures silently
+    // discards any sub-~1e-6 signal -- e.g. a near-constant cross-sectional
+    // prediction whose meaningful spread is small -- making a faithful genome look
+    // "collapsed" downstream. Evaluation must never lose a signal the model produced.
+    outfile.precision(17);
 
     outfile << "#";
 
