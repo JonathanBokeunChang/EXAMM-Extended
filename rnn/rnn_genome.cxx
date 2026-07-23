@@ -1111,7 +1111,7 @@ void RNN_Genome::get_analytic_gradient_ic(
 
 void RNN_Genome::compute_validation_metrics(
     const vector<double>& parameters, const vector<vector<vector<double> > >& inputs,
-    const vector<vector<vector<double> > >& outputs, double& ic, double& mse, double& spread
+    const vector<vector<vector<double> > >& outputs, double& ic, double& icir, double& mse, double& spread
 ) {
     RNN* rnn = get_rnn();
     rnn->set_weights(parameters);
@@ -1135,7 +1135,10 @@ void RNN_Genome::compute_validation_metrics(
 
     delete rnn;
 
-    ic = spearman_ic_hard(preds, targets);  // true (hard-rank) Spearman IC -- the selection metric
+    double std_ic;
+    int32_t n_used;
+    spearman_ic_stats(preds, targets, ic, std_ic, n_used);  // mean daily hard-rank Spearman IC
+    icir = icir_from(ic, std_ic, n_used);                   // "Sharpe of IC" -- rewards consistency
     mse = cross_sectional_mse(preds, targets);
     spread = cross_sectional_spread(preds);  // collapse monitor
 }
@@ -1144,8 +1147,8 @@ double RNN_Genome::get_ic(
     const vector<double>& parameters, const vector<vector<vector<double> > >& inputs,
     const vector<vector<vector<double> > >& outputs
 ) {
-    double ic, mse, spread;
-    compute_validation_metrics(parameters, inputs, outputs, ic, mse, spread);
+    double ic, icir, mse, spread;
+    compute_validation_metrics(parameters, inputs, outputs, ic, icir, mse, spread);
     return ic;
 }
 
@@ -1153,7 +1156,7 @@ void RNN_Genome::backpropagate_cross_sectional(
     const vector<vector<vector<double> > >& inputs, const vector<vector<vector<double> > >& outputs,
     const vector<vector<vector<double> > >& validation_inputs,
     const vector<vector<vector<double> > >& validation_outputs, WeightUpdate* weight_update_method, IcMode ic_mode,
-    double ic_var_lambda
+    double ic_var_lambda, bool select_on_icir
 ) {
     int32_t n_series = (int32_t) inputs.size();
 
@@ -1206,22 +1209,23 @@ void RNN_Genome::backpropagate_cross_sectional(
     };
 
     // Validation metrics on a set of weights; applies the collapse guard. Returns the
-    // selection fitness (-IC), or NaN if the genome collapsed (near-constant output) --
-    // a degenerate high-IC solution the scale-invariant IC term cannot see but which is
-    // worthless. With ic_var_lambda>0 the guard should essentially never fire.
-    auto val_fitness = [&](const vector<double>& p, double& ic, double& mse, double& spread) -> double {
-        compute_validation_metrics(p, validation_inputs, validation_outputs, ic, mse, spread);
-        if (spread < IC_SPREAD_FLOOR) {
+    // selection fitness -- either -IC (mean daily) or -ICIR ("Sharpe of IC"), per
+    // select_on_icir -- or NaN if the genome collapsed (near-constant output), a
+    // degenerate solution the scale-invariant IC term cannot see but which is worthless.
+    // With ic_var_lambda>0 the guard should essentially never fire.
+    double val_ic = 0.0, val_icir = 0.0, val_mse = 0.0, val_spread = 0.0;
+    auto val_fitness = [&](const vector<double>& p) -> double {
+        compute_validation_metrics(p, validation_inputs, validation_outputs, val_ic, val_icir, val_mse, val_spread);
+        if (val_spread < IC_SPREAD_FLOOR) {
             return NAN;
         }
-        return -ic;
+        return select_on_icir ? -val_icir : -val_ic;
     };
 
     // seed best-so-far from the initial weights
     get_analytic_gradient_ic(rnns, parameters, inputs, outputs, loss, analytic_gradient, ic_mode, ic_var_lambda, true);
-    double val_ic = 0.0, val_mse = 0.0, val_spread = 0.0;
-    best_validation_mse = val_fitness(parameters, val_ic, val_mse, val_spread);  // -IC (or NaN if collapsed)
-    best_validation_mae = val_mse;  // report the val MSE component alongside
+    best_validation_mse = val_fitness(parameters);  // -IC or -ICIR (or NaN if collapsed)
+    best_validation_mae = val_mse;                  // report the val MSE component alongside
     best_parameters = parameters;
 
     ofstream* output_log = create_log_file();
@@ -1232,7 +1236,7 @@ void RNN_Genome::backpropagate_cross_sectional(
         );
         this->set_weights(parameters);
 
-        double fitness = val_fitness(parameters, val_ic, val_mse, val_spread);  // -IC, or NaN if collapsed
+        double fitness = val_fitness(parameters);  // -IC or -ICIR, or NaN if collapsed
 
         norm = weight_update_method->get_norm(analytic_gradient);
 
@@ -1267,14 +1271,16 @@ void RNN_Genome::backpropagate_cross_sectional(
         }
 
         if (output_log != NULL) {
-            // train loss = -IC + lambda*MSE; then val IC, val MSE, best fitness(-IC).
-            (*output_log) << iteration << "," << loss << "," << val_ic << "," << val_mse << ","
+            // train loss = -IC + lambda*var_penalty; then val IC, val ICIR, val MSE,
+            // best fitness (= -selected-metric, lower is better).
+            (*output_log) << iteration << "," << loss << "," << val_ic << "," << val_icir << "," << val_mse << ","
                           << best_validation_mse << endl;
         }
         Log::info(
-            "iteration %4d, train_loss: %5.10lf, val_IC: %5.10lf, val_MSE: %5.6lf, val_spread: %5.3e, "
-            "best_val_IC: %5.10lf, norm: %5.10lf\n",
-            iteration, loss, val_ic, val_mse, val_spread, -best_validation_mse, norm
+            "iteration %4d, train_loss: %5.10lf, val_IC: %5.10lf, val_ICIR: %5.6lf, val_MSE: %5.6lf, "
+            "val_spread: %5.3e, best_fitness(-%s): %5.10lf, norm: %5.10lf\n",
+            iteration, loss, val_ic, val_icir, val_mse, val_spread, select_on_icir ? "ICIR" : "IC",
+            -best_validation_mse, norm
         );
     }
 

@@ -107,9 +107,23 @@ void cross_sectional_objective_gradient(
     double& loss, double& mean_ic, double& var_penalty, vector<vector<double> >& d_preds
 );
 
+// Per-date hard-rank Spearman IC statistics: fills mean_ic (the average IC that
+// spearman_ic_hard returns), std_ic (Bessel/(n-1) std of the per-date ICs), and
+// n_used (number of dates). Degenerate dates contribute IC 0. For validation/fitness.
+void spearman_ic_stats(
+    const vector<vector<double> >& preds, const vector<vector<double> >& targets, double& mean_ic, double& std_ic,
+    int32_t& n_used
+);
+
 // True Spearman rank-IC (hard ranks, average tie ranks), averaged over dates.
-// Non-differentiable; for validation/fitness/reporting only.
+// Thin wrapper over spearman_ic_stats. Non-differentiable; reporting/fitness only.
 double spearman_ic_hard(const vector<vector<double> >& preds, const vector<vector<double> >& targets);
+
+// IC information ratio: ICIR = mean_ic / std_ic * sqrt(n). "Sharpe ratio of IC" --
+// a standard quant metric (Qlib Rank ICIR) that rewards temporally-consistent IC.
+// Returns 0 if std_ic is below a small floor (degenerate; the spread collapse guard
+// handles that case upstream) or n < 2.
+double icir_from(double mean_ic, double std_ic, int32_t n);
 
 // Mean per-date cross-sectional prediction spread (std over stocks, averaged over
 // dates). A collapse monitor: values near 0 mean the model emits near-constant output.

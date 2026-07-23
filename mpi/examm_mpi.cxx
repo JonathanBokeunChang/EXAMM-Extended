@@ -44,6 +44,7 @@ WeightUpdate* weight_update_method;
 string loss_function = "mse";
 IcMode ic_mode = IcMode::PEARSON;
 double ic_var_lambda = 1.0;
+bool ic_select_icir = false;  // fitness: mean IC (false) or IC information ratio (true)
 
 bool finished = false;
 
@@ -218,7 +219,7 @@ void worker(int32_t rank) {
             if (loss_function == "ic") {
                 genome->backpropagate_cross_sectional(
                     training_inputs, training_outputs, validation_inputs, validation_outputs, weight_update_method,
-                    ic_mode, ic_var_lambda
+                    ic_mode, ic_var_lambda, ic_select_icir
                 );
             } else {
                 genome->backpropagate_stochastic(
@@ -279,11 +280,19 @@ int main(int argc, char** argv) {
         if (get_argument(arguments, "--ic_spread_floor", false, spread_floor)) {
             IC_SPREAD_FLOOR = spread_floor;
         }
+        string ic_fitness = "ic";
+        get_argument(arguments, "--ic_fitness", false, ic_fitness);
+        ic_select_icir = (ic_fitness == "icir");
+        if (ic_fitness != "ic" && ic_fitness != "icir") {
+            Log::fatal("unknown --ic_fitness '%s' (expected 'ic' or 'icir')\n", ic_fitness.c_str());
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
         if (rank == 0) {
             Log::info(
                 "TRAINING OBJECTIVE: cross-sectional IC (ic_mode=%s, softrank_tau=%g, ic_var_lambda=%g, "
-                "ic_var_floor=%g, spread_guard=%g)\n",
-                ic_mode_to_string(ic_mode), IC_SOFTRANK_TAU, ic_var_lambda, IC_VAR_FLOOR, IC_SPREAD_FLOOR
+                "ic_var_floor=%g, spread_guard=%g, fitness=%s)\n",
+                ic_mode_to_string(ic_mode), IC_SOFTRANK_TAU, ic_var_lambda, IC_VAR_FLOOR, IC_SPREAD_FLOOR,
+                ic_fitness.c_str()
             );
         }
     } else if (loss_function != "mse") {

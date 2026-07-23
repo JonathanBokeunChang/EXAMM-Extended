@@ -233,7 +233,7 @@ class RNN_Genome {
         const vector<vector<vector<double> > >& inputs, const vector<vector<vector<double> > >& outputs,
         const vector<vector<vector<double> > >& validation_inputs,
         const vector<vector<vector<double> > >& validation_outputs, WeightUpdate* weight_update_method, IcMode ic_mode,
-        double ic_var_lambda
+        double ic_var_lambda, bool select_on_icir
     );
 
     // Cross-sectional objective gradient: forward-passes all series' RNNs, computes the
@@ -246,10 +246,11 @@ class RNN_Genome {
     );
 
     // Forward-pass the pooled validation set once and return the true (hard-rank)
-    // Spearman IC, the cross-sectional MSE, and the mean per-date prediction spread.
+    // Spearman IC, the IC information ratio (ICIR), the cross-sectional MSE, and the
+    // mean per-date prediction spread.
     void compute_validation_metrics(
         const vector<double>& parameters, const vector<vector<vector<double> > >& inputs,
-        const vector<vector<vector<double> > >& outputs, double& ic, double& mse, double& spread
+        const vector<vector<vector<double> > >& outputs, double& ic, double& icir, double& mse, double& spread
     );
 
     // True (hard-rank) Spearman IC over the pooled series, averaged over dates.

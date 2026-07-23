@@ -381,23 +381,56 @@ double cross_sectional_spread(const vector<vector<double> >& preds) {
     return spread_sum / n_dates;
 }
 
-double spearman_ic_hard(const vector<vector<double> >& preds, const vector<vector<double> >& targets) {
+void spearman_ic_stats(
+    const vector<vector<double> >& preds, const vector<vector<double> >& targets, double& mean_ic, double& std_ic,
+    int32_t& n_used
+) {
+    mean_ic = 0.0;
+    std_ic = 0.0;
+    n_used = 0;
     if (preds.empty() || preds[0].empty()) {
-        return 0.0;
+        return;
     }
     int32_t n_dates = (int32_t) preds[0].size();
 
     vector<double> p, y, pr, yr;
+    vector<double> ics;
+    ics.reserve(n_dates);
     double ic_sum = 0.0;
-    int32_t counted = 0;
     for (int32_t j = 0; j < n_dates; j++) {
         gather_date(preds, targets, j, p, y);
         average_ranks(p, pr);
         average_ranks(y, yr);
         // Pearson of the two rank vectors (no gradient); degenerate dates contribute 0.
         double ic_j = pearson_grad_wrt_first(pr, yr, IC_VARIANCE_FLOOR, nullptr);
+        ics.push_back(ic_j);
         ic_sum += ic_j;
-        counted++;
     }
-    return counted > 0 ? ic_sum / counted : 0.0;
+    n_used = (int32_t) ics.size();
+    if (n_used == 0) {
+        return;
+    }
+    mean_ic = ic_sum / n_used;
+    if (n_used > 1) {
+        double ss = 0.0;
+        for (double v : ics) {
+            double d = v - mean_ic;
+            ss += d * d;
+        }
+        std_ic = std::sqrt(ss / (n_used - 1));  // Bessel-corrected
+    }
+}
+
+double spearman_ic_hard(const vector<vector<double> >& preds, const vector<vector<double> >& targets) {
+    double mean_ic, std_ic;
+    int32_t n_used;
+    spearman_ic_stats(preds, targets, mean_ic, std_ic, n_used);
+    return mean_ic;
+}
+
+double icir_from(double mean_ic, double std_ic, int32_t n) {
+    if (n < 2 || std_ic < 1e-6) {
+        return 0.0;
+    }
+    return mean_ic / std_ic * std::sqrt((double) n);
 }

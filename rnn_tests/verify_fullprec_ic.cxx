@@ -89,9 +89,18 @@ int main(int argc, char** argv) {
         spread_sum += std::sqrt(var / n_stocks);
     }
 
+    // IC information ratio (mean/std of the per-date ICs * sqrt(n)) -- cross-check
+    // against eval_ensemble_ic.py's reported "IC info ratio".
+    double mean_ic, std_ic;
+    int32_t n_used;
+    spearman_ic_stats(preds, targets, mean_ic, std_ic, n_used);
+    double icir = icir_from(mean_ic, std_ic, n_used);
+
     printf("stocks=%d dates=%d\n", n_stocks, n_dates);
     printf("full-precision cross-sectional IC (get_ic) : %+.6f\n", ic);
-    printf("recorded best_validation_mse (= -IC)       : %+.6f\n", genome->get_best_validation_mse());
+    printf("  daily-IC std                             : %.6f\n", std_ic);
+    printf("  IC information ratio (ICIR)              : %+.4f\n", icir);
+    printf("recorded best_validation_mse (= -IC/-ICIR) : %+.6f\n", genome->get_best_validation_mse());
     printf("cross-sectional MSE (pred vs target)       : %.6f\n", cross_sectional_mse(preds, targets));
     printf("avg full-precision prediction spread/date  : %.3e%s\n", n_dates ? spread_sum / n_dates : 0.0,
            (n_dates && spread_sum / n_dates < 1e-6) ? "   <-- COLLAPSED (near-constant output)" : "");

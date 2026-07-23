@@ -28,6 +28,7 @@ MAX=${1:-100}
 IC_MODE=${2:-pearson}
 THREADS=${3:-4}
 IC_VAR_LAMBDA=${4:-1.0}
+IC_FITNESS=${5:-ic}          # ic (mean daily IC) | icir (IC information ratio; rewards consistency)
 
 cd build
 
@@ -50,7 +51,7 @@ exp_name="../test_output/ic_${IC_MODE}"
 rm -rf $exp_name
 mkdir -p $exp_name
 
-echo "Training EXAMM (loss=ic, ic_mode=${IC_MODE}, ic_var_lambda=${IC_VAR_LAMBDA}) on ${N_STOCKS} pooled stocks,"
+echo "Training EXAMM (loss=ic, ic_mode=${IC_MODE}, ic_var_lambda=${IC_VAR_LAMBDA}, fitness=${IC_FITNESS}) on ${N_STOCKS} pooled stocks,"
 echo "max_genomes=${MAX}, threads=${THREADS}, results in: ${exp_name}"
 echo "###-------------------###"
 
@@ -70,6 +71,7 @@ echo "###-------------------###"
 --loss ic \
 --ic_mode $IC_MODE \
 --ic_var_lambda $IC_VAR_LAMBDA \
+--ic_fitness $IC_FITNESS \
 --extinction_event_generation_number 500 \
 --repeat_extinction \
 --island_ranking_method EraseWorst \
