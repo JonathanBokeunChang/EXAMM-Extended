@@ -38,13 +38,22 @@ vector<string> arguments;
 EXAMM* examm;
 WeightUpdate* weight_update_method;
 
-// Training objective: "mse" (default) or "ic" (cross-sectional IC ranking loss).
+// Training objective: "mse" (default), "huber" (residual-clipped pointwise loss),
+// "ic" (cross-sectional IC ranking loss), or "mse_csvar" (dispersion-penalized MSE).
 // Parsed on every rank in main() so each worker knows which backprop to run.
 // ic_var_lambda weights the anti-collapse MSE term (L = -IC + lambda*MSE).
 string loss_function = "mse";
 IcMode ic_mode = IcMode::PEARSON;
 double ic_var_lambda = 1.0;
 bool ic_select_icir = false;  // fitness: mean IC (false) or IC information ratio (true)
+// huber: training gradient clips the residual at +/-huber_delta; delta is the
+// pre-registered 1.345*sigma rule computed from the normalized training targets
+// after data load (deterministic per dataset -> identical on every rank/seed).
+LossVariant loss_variant = LossVariant::MSE;
+double huber_delta = 0.0;
+// mse_csvar: L = MSE + csvar_lambda * mean_date Var_cs(pred); fitness = val MSE.
+CsObjective cs_objective = CsObjective::IC;
+double csvar_lambda = 1.0;
 
 bool finished = false;
 
@@ -216,14 +225,15 @@ void worker(int32_t rank) {
             // have each worker write the backproagation to a separate log file
             string log_id = "genome_" + to_string(genome->get_generation_id()) + "_worker_" + to_string(rank);
             Log::set_id(log_id);
-            if (loss_function == "ic") {
+            if (loss_function == "ic" || loss_function == "mse_csvar") {
                 genome->backpropagate_cross_sectional(
                     training_inputs, training_outputs, validation_inputs, validation_outputs, weight_update_method,
-                    ic_mode, ic_var_lambda, ic_select_icir
+                    ic_mode, ic_var_lambda, ic_select_icir, cs_objective, csvar_lambda
                 );
             } else {
                 genome->backpropagate_stochastic(
-                    training_inputs, training_outputs, validation_inputs, validation_outputs, weight_update_method
+                    training_inputs, training_outputs, validation_inputs, validation_outputs, weight_update_method,
+                    loss_variant, huber_delta
                 );
             }
             Log::release_id(log_id);
@@ -295,8 +305,21 @@ int main(int argc, char** argv) {
                 ic_fitness.c_str()
             );
         }
+    } else if (loss_function == "huber") {
+        loss_variant = LossVariant::HUBER;
+        // delta is computed after data load below (needs the normalized targets)
+    } else if (loss_function == "mse_csvar") {
+        cs_objective = CsObjective::MSEVAR;
+        get_argument(arguments, "--csvar_lambda", false, csvar_lambda);
+        if (csvar_lambda < 0.0) {
+            Log::fatal("--csvar_lambda must be >= 0, got %lf\n", csvar_lambda);
+            MPI_Abort(MPI_COMM_WORLD, 1);
+        }
+        if (rank == 0) {
+            Log::info("TRAINING OBJECTIVE: dispersion-penalized MSE (csvar_lambda=%g, fitness=val_MSE)\n", csvar_lambda);
+        }
     } else if (loss_function != "mse") {
-        Log::fatal("unknown --loss '%s' (expected 'mse' or 'ic')\n", loss_function.c_str());
+        Log::fatal("unknown --loss '%s' (expected 'mse', 'huber', 'ic' or 'mse_csvar')\n", loss_function.c_str());
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
@@ -305,6 +328,14 @@ int main(int argc, char** argv) {
     get_train_validation_data(
         arguments, time_series_sets, training_inputs, training_outputs, validation_inputs, validation_outputs
     );
+
+    if (loss_function == "huber") {
+        // Pre-registered 1.345*sigma rule from the normalized training targets (see
+        // huber_delta_from_targets). Every rank computes the same value from the same
+        // data -- no broadcast needed. The helper logs the delta (rank 0 only, via
+        // the rank restriction still active here).
+        huber_delta = huber_delta_from_targets(training_outputs);
+    }
 
     weight_update_method = new WeightUpdate();
     weight_update_method->generate_from_arguments(arguments);

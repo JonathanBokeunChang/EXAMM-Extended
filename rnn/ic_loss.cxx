@@ -358,6 +358,80 @@ void cross_sectional_objective_gradient(
     loss = ic_loss + lambda * var_penalty;  // = -mean_ic + lambda*var_penalty
 }
 
+double cross_sectional_msevar_objective(
+    const vector<vector<double> >& preds, const vector<vector<double> >& targets, double lambda
+) {
+    // L = MSE + lambda * mean_j Var_i(pred_ij)   (population 1/N variance per date)
+    if (preds.empty() || preds[0].empty()) {
+        return 0.0;
+    }
+    int32_t n_stocks = (int32_t) preds.size();
+    int32_t n_dates = (int32_t) preds[0].size();
+    double var_sum = 0.0;
+    for (int32_t j = 0; j < n_dates; j++) {
+        double mean = 0.0;
+        for (int32_t i = 0; i < n_stocks; i++) {
+            mean += preds[i][j];
+        }
+        mean /= n_stocks;
+        double var = 0.0;
+        for (int32_t i = 0; i < n_stocks; i++) {
+            double d = preds[i][j] - mean;
+            var += d * d;
+        }
+        var_sum += var / n_stocks;
+    }
+    return cross_sectional_mse(preds, targets) + lambda * (var_sum / n_dates);
+}
+
+void cross_sectional_msevar_gradient(
+    const vector<vector<double> >& preds, const vector<vector<double> >& targets, double lambda, double& loss,
+    double& mse_part, double& var_part, vector<vector<double> >& d_preds
+) {
+    mse_part = 0.0;
+    var_part = 0.0;
+    loss = 0.0;
+    d_preds.assign(preds.size(), vector<double>(preds.empty() ? 0 : preds[0].size(), 0.0));
+    if (preds.empty() || preds[0].empty()) {
+        return;
+    }
+    int32_t n_stocks = (int32_t) preds.size();
+    int32_t n_dates = (int32_t) preds[0].size();
+    double inv_nt = 1.0 / ((double) n_stocks * (double) n_dates);
+
+    // MSE part: L_mse = (1/(N*T)) sum_ij r_ij^2  ->  d/dp_ij = 2*r_ij/(N*T)
+    double sse = 0.0;
+    for (int32_t i = 0; i < n_stocks; i++) {
+        for (int32_t j = 0; j < n_dates; j++) {
+            double r = preds[i][j] - targets[i][j];
+            sse += r * r;
+            d_preds[i][j] = 2.0 * r * inv_nt;
+        }
+    }
+    mse_part = sse * inv_nt;
+
+    // Dispersion part: L_var = lambda * (1/T) sum_j Var_i(p_ij), Var = (1/N) sum (p - mu)^2
+    //   dVar_j/dp_ij = 2*(p_ij - mu_j)/N  ->  dL_var/dp_ij = lambda * 2*(p_ij - mu_j)/(N*T)
+    double var_sum = 0.0;
+    for (int32_t j = 0; j < n_dates; j++) {
+        double mean = 0.0;
+        for (int32_t i = 0; i < n_stocks; i++) {
+            mean += preds[i][j];
+        }
+        mean /= n_stocks;
+        double var = 0.0;
+        for (int32_t i = 0; i < n_stocks; i++) {
+            double d = preds[i][j] - mean;
+            var += d * d;
+            d_preds[i][j] += lambda * 2.0 * d * inv_nt;
+        }
+        var_sum += var / n_stocks;
+    }
+    var_part = var_sum / n_dates;
+
+    loss = mse_part + lambda * var_part;
+}
+
 double cross_sectional_spread(const vector<vector<double> >& preds) {
     if (preds.empty() || preds[0].empty()) {
         return 0.0;

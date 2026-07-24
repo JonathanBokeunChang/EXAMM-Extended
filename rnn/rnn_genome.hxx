@@ -216,33 +216,45 @@ class RNN_Genome {
         const vector<vector<vector<double> > >& validation_outputs, WeightUpdate* weight_update_method
     );
 
+    // variant/huber_delta select the pointwise training loss for the per-series SGD
+    // path (default MSE keeps every existing caller unchanged). With HUBER only the
+    // TRAINING gradient changes; the selection fitness stays validation MSE (get_mse),
+    // matching the raw-MSE arm's selection and isolating the training-loss effect.
     void backpropagate_stochastic(
         const vector<vector<vector<double> > >& inputs, const vector<vector<vector<double> > >& outputs,
         const vector<vector<vector<double> > >& validation_inputs,
-        const vector<vector<vector<double> > >& validation_outputs, WeightUpdate* weight_update_method
+        const vector<vector<vector<double> > >& validation_outputs, WeightUpdate* weight_update_method,
+        LossVariant loss_variant = LossVariant::MSE, double huber_delta = 0.0
     );
 
-    // Full-batch backprop against the anti-collapse cross-sectional objective
-    // L = -mean_j IC_j + ic_var_lambda*MSE (rnn/ic_loss.*). Requires calendar-aligned,
-    // single-output pooled data: every series (stock) must have the same length so
-    // date-index j is the same date for all stocks, and each network must have exactly
-    // one output node. Fitness is stored as -(validation Spearman IC) in
-    // best_validation_mse (train on the surrogate, SELECT on the target metric); a
-    // collapse guard dead-ends genomes whose val prediction spread < IC_SPREAD_FLOOR.
+    // Full-batch backprop against a cross-sectional objective (rnn/ic_loss.*).
+    // Requires calendar-aligned, single-output pooled data: every series (stock) must
+    // have the same length so date-index j is the same date for all stocks, and each
+    // network must have exactly one output node.
+    //   objective = IC (default): L = -mean_j IC_j + ic_var_lambda*variance_floor.
+    //     Fitness is -(validation Spearman IC) or -ICIR in best_validation_mse (train on
+    //     the surrogate, SELECT on the target metric); a collapse guard dead-ends genomes
+    //     whose val prediction spread < IC_SPREAD_FLOOR.
+    //   objective = MSEVAR: L = MSE + csvar_lambda*mean_j Var_cs_j(pred) (dispersion-
+    //     PENALIZED MSE). Fitness = validation MSE (matching the raw-MSE arm's selection,
+    //     isolating the training-loss effect); the collapse guard is DISABLED because
+    //     shrinkage is this objective's intended behavior. ic_mode / ic_var_lambda /
+    //     select_on_icir are ignored.
     void backpropagate_cross_sectional(
         const vector<vector<vector<double> > >& inputs, const vector<vector<vector<double> > >& outputs,
         const vector<vector<vector<double> > >& validation_inputs,
         const vector<vector<vector<double> > >& validation_outputs, WeightUpdate* weight_update_method, IcMode ic_mode,
-        double ic_var_lambda, bool select_on_icir
+        double ic_var_lambda, bool select_on_icir, CsObjective objective = CsObjective::IC, double csvar_lambda = 1.0
     );
 
     // Cross-sectional objective gradient: forward-passes all series' RNNs, computes the
-    // per-(stock,date) gradient of L = -mean_j IC_j + ic_var_lambda*MSE, injects it as
+    // per-(stock,date) gradient of the selected objective (IC or MSEVAR), injects it as
     // output deltas, backpropagates, and accumulates the shared-weight gradient.
     void get_analytic_gradient_ic(
         vector<RNN*>& rnns, const vector<double>& parameters, const vector<vector<vector<double> > >& inputs,
         const vector<vector<vector<double> > >& outputs, double& loss, vector<double>& analytic_gradient,
-        IcMode ic_mode, double ic_var_lambda, bool training
+        IcMode ic_mode, double ic_var_lambda, bool training, CsObjective objective = CsObjective::IC,
+        double csvar_lambda = 1.0
     );
 
     // Forward-pass the pooled validation set once and return the true (hard-rank)

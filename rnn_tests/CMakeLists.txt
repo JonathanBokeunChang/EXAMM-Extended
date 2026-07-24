@@ -87,6 +87,15 @@ target_link_libraries(test_multiply_gp_gradients examm_strategy exact_common exa
 # and isolated from the rest of the NN library.
 add_executable(test_ic_loss_gradients test_ic_loss_gradients.cxx ${PROJECT_SOURCE_DIR}/rnn/ic_loss.cxx)
 
+# Dispersion-penalized MSE (mse_csvar) gradient check -- same isolation as above.
+add_executable(test_msevar_gradients test_msevar_gradients.cxx ${PROJECT_SOURCE_DIR}/rnn/ic_loss.cxx)
+
+# Huber error-function gate: value/gradient/clamp semantics of
+# RNN::calculate_error_huber on a real minimal network, incl. the delta->infinity
+# == MSE identity behind the end-to-end bit-identity regression.
+add_executable(test_huber_error test_huber_error.cxx)
+target_link_libraries(test_huber_error examm_strategy exact_common exact_time_series exact_weights examm_nn ${MYSQL_LIBRARIES} pthread)
+
 # Genome round-trip invariant: predictions must be bit-identical after
 # copy()/write_to_file/write_to_array. Guards against saved/transferred genomes
 # not reproducing the trained network (silent fitness corruption).

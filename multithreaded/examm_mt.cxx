@@ -42,6 +42,12 @@ string loss_function = "mse";
 IcMode ic_mode = IcMode::PEARSON;
 double ic_var_lambda = 1.0;
 bool ic_select_icir = false;  // fitness: mean IC (false) or IC information ratio (true)
+// huber: training gradient clips the residual at +/-huber_delta (pre-registered
+// 1.345*sigma rule, computed after data load). mse_csvar: dispersion-penalized MSE.
+LossVariant loss_variant = LossVariant::MSE;
+double huber_delta = 0.0;
+CsObjective cs_objective = CsObjective::IC;
+double csvar_lambda = 1.0;
 
 bool finished = false;
 
@@ -63,15 +69,16 @@ void examm_thread(int32_t id) {
 
         string log_id = "genome_" + to_string(genome->get_generation_id()) + "_thread_" + to_string(id);
         Log::set_id(log_id);
-        if (loss_function == "ic") {
+        if (loss_function == "ic" || loss_function == "mse_csvar") {
             genome->backpropagate_cross_sectional(
                 training_inputs, training_outputs, validation_inputs, validation_outputs, weight_update_method, ic_mode,
-                ic_var_lambda, ic_select_icir
+                ic_var_lambda, ic_select_icir, cs_objective, csvar_lambda
             );
         } else {
             // genome->backpropagate(training_inputs, training_outputs, validation_inputs, validation_outputs);
             genome->backpropagate_stochastic(
-                training_inputs, training_outputs, validation_inputs, validation_outputs, weight_update_method
+                training_inputs, training_outputs, validation_inputs, validation_outputs, weight_update_method,
+                loss_variant, huber_delta
             );
         }
         Log::release_id(log_id);
@@ -138,10 +145,21 @@ int main(int argc, char** argv) {
             "spread_guard=%g, fitness=%s)\n",
             ic_mode_to_string(ic_mode), IC_SOFTRANK_TAU, ic_var_lambda, IC_VAR_FLOOR, IC_SPREAD_FLOOR, ic_fitness.c_str()
         );
+    } else if (loss_function == "huber") {
+        loss_variant = LossVariant::HUBER;
+        // delta is computed after data load below (needs the normalized targets)
+    } else if (loss_function == "mse_csvar") {
+        cs_objective = CsObjective::MSEVAR;
+        get_argument(arguments, "--csvar_lambda", false, csvar_lambda);
+        if (csvar_lambda < 0.0) {
+            Log::fatal("--csvar_lambda must be >= 0, got %lf\n", csvar_lambda);
+            exit(1);
+        }
+        Log::info("TRAINING OBJECTIVE: dispersion-penalized MSE (csvar_lambda=%g, fitness=val_MSE)\n", csvar_lambda);
     } else if (loss_function == "mse") {
         Log::info("TRAINING OBJECTIVE: MSE (default)\n");
     } else {
-        Log::fatal("unknown --loss '%s' (expected 'mse' or 'ic')\n", loss_function.c_str());
+        Log::fatal("unknown --loss '%s' (expected 'mse', 'huber', 'ic' or 'mse_csvar')\n", loss_function.c_str());
         exit(1);
     }
 
@@ -150,6 +168,12 @@ int main(int argc, char** argv) {
     get_train_validation_data(
         arguments, time_series_sets, training_inputs, training_outputs, validation_inputs, validation_outputs
     );
+
+    if (loss_function == "huber") {
+        // Pre-registered 1.345*sigma rule from the normalized training targets
+        // (see huber_delta_from_targets; deterministic per dataset, logs the value).
+        huber_delta = huber_delta_from_targets(training_outputs);
+    }
 
     weight_update_method = new WeightUpdate();
     weight_update_method->generate_from_arguments(arguments);

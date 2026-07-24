@@ -561,6 +561,71 @@ double RNN::calculate_error_mae(const vector<vector<double> >& expected_outputs)
     return mae_sum;
 }
 
+double huber_delta_from_targets(const vector<vector<vector<double> > >& training_outputs) {
+    double sum = 0.0, sum_sq = 0.0;
+    long n_vals = 0;
+    for (int32_t i = 0; i < (int32_t) training_outputs.size(); i++) {
+        for (int32_t j = 0; j < (int32_t) training_outputs[i].size(); j++) {
+            for (int32_t k = 0; k < (int32_t) training_outputs[i][j].size(); k++) {
+                double v = training_outputs[i][j][k];
+                sum += v;
+                sum_sq += v * v;
+                n_vals++;
+            }
+        }
+    }
+    if (n_vals < 2) {
+        Log::fatal("--loss huber: no training-target values to compute delta from\n");
+        exit(1);
+    }
+    double mean = sum / n_vals;
+    double sigma_hat = sqrt(fmax(0.0, sum_sq / n_vals - mean * mean));
+    if (sigma_hat <= 0.0) {
+        Log::fatal("--loss huber: normalized training targets have zero variance\n");
+        exit(1);
+    }
+    double delta = 1.345 * sigma_hat;
+    Log::info(
+        "TRAINING OBJECTIVE: Huber (delta = 1.345 * sigma_hat(%.8g) = %.8g over %ld normalized "
+        "training-target values; fitness=val_MSE)\n",
+        sigma_hat, delta, n_vals
+    );
+    return delta;
+}
+
+// Huber loss in the r^2 convention: rho_delta(r) = r^2 for |r| <= delta, else
+// delta * (2|r| - delta). This is 2x the textbook Huber, chosen so that
+// delta -> infinity reduces EXACTLY to calculate_error_mse (same return value,
+// same error_values) -- the bit-identity regression gate depends on it.
+// error_values[j] stores clamp(r, -delta, +delta) = d(rho)/dr / 2; the factor 2
+// is applied by the caller's backward scalar, mirroring the MSE path where
+// error_values stores the raw residual.
+double RNN::calculate_error_huber(const vector<vector<double> >& expected_outputs, double delta) {
+    double huber_sum = 0.0;
+    double huber;
+    double error;
+
+    for (int32_t i = 0; i < (int32_t) output_nodes.size(); i++) {
+        output_nodes[i]->error_values.resize(expected_outputs[i].size());
+
+        huber = 0.0;
+        for (int32_t j = 0; j < (int32_t) expected_outputs[i].size(); j++) {
+            error = output_nodes[i]->output_values[j] - expected_outputs[i][j];
+
+            if (fabs(error) <= delta) {
+                huber += error * error;
+                output_nodes[i]->error_values[j] = error;
+            } else {
+                huber += delta * (2.0 * fabs(error) - delta);
+                output_nodes[i]->error_values[j] = (error > 0) ? delta : -delta;
+            }
+        }
+        huber_sum += huber / expected_outputs[i].size();
+    }
+
+    return huber_sum;
+}
+
 double RNN::prediction_softmax(
     const vector<vector<double> >& series_data, const vector<vector<double> >& expected_outputs, bool using_dropout,
     bool training, double dropout_probability
@@ -673,14 +738,21 @@ void RNN::write_predictions(
 void RNN::get_analytic_gradient(
     const vector<double>& test_parameters, const vector<vector<double> >& inputs,
     const vector<vector<double> >& outputs, double& mse, vector<double>& analytic_gradient, bool using_dropout,
-    bool training, double dropout_probability
+    bool training, double dropout_probability, LossVariant variant, double huber_delta
 ) {
     analytic_gradient.assign(test_parameters.size(), 0.0);
 
     set_weights(test_parameters);
     forward_pass(inputs, using_dropout, training, dropout_probability);
 
-    mse = calculate_error_mse(outputs);
+    // Both variants use the same backward scalar FORM (loss * (1/n) * 2.0): the
+    // legacy loss-scaled step is part of the matched configuration the raw-MSE
+    // arm won with, so Huber mirrors it rather than "fixing" it.
+    if (variant == LossVariant::HUBER) {
+        mse = calculate_error_huber(outputs, huber_delta);
+    } else {
+        mse = calculate_error_mse(outputs);
+    }
     backward_pass(mse * (1.0 / outputs[0].size()) * 2.0, using_dropout, training, dropout_probability);
 
     vector<double> current_gradients;

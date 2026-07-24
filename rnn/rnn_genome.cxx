@@ -1039,7 +1039,7 @@ void RNN_Genome::get_analytic_gradient(
 void RNN_Genome::get_analytic_gradient_ic(
     vector<RNN*>& rnns, const vector<double>& parameters, const vector<vector<vector<double> > >& inputs,
     const vector<vector<vector<double> > >& outputs, double& loss, vector<double>& analytic_gradient, IcMode ic_mode,
-    double ic_var_lambda, bool training
+    double ic_var_lambda, bool training, CsObjective objective, double csvar_lambda
 ) {
     int32_t n_series = (int32_t) rnns.size();
 
@@ -1069,12 +1069,19 @@ void RNN_Genome::get_analytic_gradient_ic(
         targets[i] = outputs[i][0];
     }
 
-    // cross-sectional gradient: d_preds[i][j] = d(loss)/d(pred_ij),
-    // loss = -mean_j IC_j + ic_var_lambda*variance_penalty (the penalty forbids the
-    // zero-spread collapse the scale-invariant IC term would otherwise allow).
+    // cross-sectional gradient: d_preds[i][j] = d(loss)/d(pred_ij). The injection and
+    // shared-weight accumulation below are objective-agnostic; only this block differs.
     vector<vector<double> > d_preds;
-    double mean_ic = 0.0, var_penalty = 0.0;
-    cross_sectional_objective_gradient(preds, targets, ic_mode, ic_var_lambda, loss, mean_ic, var_penalty, d_preds);
+    if (objective == CsObjective::MSEVAR) {
+        // loss = MSE + csvar_lambda * mean_j Var_cs_j(pred) (dispersion-penalized MSE)
+        double mse_part = 0.0, var_part = 0.0;
+        cross_sectional_msevar_gradient(preds, targets, csvar_lambda, loss, mse_part, var_part, d_preds);
+    } else {
+        // loss = -mean_j IC_j + ic_var_lambda*variance_penalty (the penalty forbids the
+        // zero-spread collapse the scale-invariant IC term would otherwise allow).
+        double mean_ic = 0.0, var_penalty = 0.0;
+        cross_sectional_objective_gradient(preds, targets, ic_mode, ic_var_lambda, loss, mean_ic, var_penalty, d_preds);
+    }
 
     // inject deltas as each network's output error and backprop with scalar 1.0, so
     // error_fired adds exactly d(loss)/d(pred) into the output node's d_input.
@@ -1156,7 +1163,7 @@ void RNN_Genome::backpropagate_cross_sectional(
     const vector<vector<vector<double> > >& inputs, const vector<vector<vector<double> > >& outputs,
     const vector<vector<vector<double> > >& validation_inputs,
     const vector<vector<vector<double> > >& validation_outputs, WeightUpdate* weight_update_method, IcMode ic_mode,
-    double ic_var_lambda, bool select_on_icir
+    double ic_var_lambda, bool select_on_icir, CsObjective objective, double csvar_lambda
 ) {
     int32_t n_series = (int32_t) inputs.size();
 
@@ -1208,14 +1215,19 @@ void RNN_Genome::backpropagate_cross_sectional(
         }
     };
 
-    // Validation metrics on a set of weights; applies the collapse guard. Returns the
-    // selection fitness -- either -IC (mean daily) or -ICIR ("Sharpe of IC"), per
-    // select_on_icir -- or NaN if the genome collapsed (near-constant output), a
-    // degenerate solution the scale-invariant IC term cannot see but which is worthless.
-    // With ic_var_lambda>0 the guard should essentially never fire.
+    // Validation metrics on a set of weights. IC objective: selection fitness is -IC
+    // (mean daily) or -ICIR per select_on_icir, with the collapse guard returning NaN
+    // for near-constant output (a degenerate solution the scale-invariant IC term
+    // cannot see). MSEVAR objective: fitness = validation MSE -- the SAME selection
+    // metric as the raw-MSE arm, isolating the training-loss effect -- and NO spread
+    // guard, because shrinking prediction dispersion is this objective's intended
+    // behavior (the guard would reject exactly the genomes MSEVAR is designed to produce).
     double val_ic = 0.0, val_icir = 0.0, val_mse = 0.0, val_spread = 0.0;
     auto val_fitness = [&](const vector<double>& p) -> double {
         compute_validation_metrics(p, validation_inputs, validation_outputs, val_ic, val_icir, val_mse, val_spread);
+        if (objective == CsObjective::MSEVAR) {
+            return val_mse;
+        }
         if (val_spread < IC_SPREAD_FLOOR) {
             return NAN;
         }
@@ -1223,7 +1235,10 @@ void RNN_Genome::backpropagate_cross_sectional(
     };
 
     // seed best-so-far from the initial weights
-    get_analytic_gradient_ic(rnns, parameters, inputs, outputs, loss, analytic_gradient, ic_mode, ic_var_lambda, true);
+    get_analytic_gradient_ic(
+        rnns, parameters, inputs, outputs, loss, analytic_gradient, ic_mode, ic_var_lambda, true, objective,
+        csvar_lambda
+    );
     best_validation_mse = val_fitness(parameters);  // -IC or -ICIR (or NaN if collapsed)
     best_validation_mae = val_mse;                  // report the val MSE component alongside
     best_parameters = parameters;
@@ -1232,7 +1247,8 @@ void RNN_Genome::backpropagate_cross_sectional(
 
     for (int32_t iteration = 0; iteration < bp_iterations; iteration++) {
         get_analytic_gradient_ic(
-            rnns, parameters, inputs, outputs, loss, analytic_gradient, ic_mode, ic_var_lambda, true
+            rnns, parameters, inputs, outputs, loss, analytic_gradient, ic_mode, ic_var_lambda, true, objective,
+            csvar_lambda
         );
         this->set_weights(parameters);
 
@@ -1276,12 +1292,20 @@ void RNN_Genome::backpropagate_cross_sectional(
             (*output_log) << iteration << "," << loss << "," << val_ic << "," << val_icir << "," << val_mse << ","
                           << best_validation_mse << endl;
         }
-        Log::info(
-            "iteration %4d, train_loss: %5.10lf, val_IC: %5.10lf, val_ICIR: %5.6lf, val_MSE: %5.6lf, "
-            "val_spread: %5.3e, best_fitness(-%s): %5.10lf, norm: %5.10lf\n",
-            iteration, loss, val_ic, val_icir, val_mse, val_spread, select_on_icir ? "ICIR" : "IC",
-            -best_validation_mse, norm
-        );
+        if (objective == CsObjective::MSEVAR) {
+            Log::info(
+                "iteration %4d, train_loss: %5.10lf, val_MSE: %5.10lf, val_spread: %5.3e, "
+                "best_fitness(val_MSE): %5.10lf, norm: %5.10lf\n",
+                iteration, loss, val_mse, val_spread, best_validation_mse, norm
+            );
+        } else {
+            Log::info(
+                "iteration %4d, train_loss: %5.10lf, val_IC: %5.10lf, val_ICIR: %5.6lf, val_MSE: %5.6lf, "
+                "val_spread: %5.3e, best_fitness(-%s): %5.10lf, norm: %5.10lf\n",
+                iteration, loss, val_ic, val_icir, val_mse, val_spread, select_on_icir ? "ICIR" : "IC",
+                -best_validation_mse, norm
+            );
+        }
     }
 
     cleanup_rnns();
@@ -1368,7 +1392,8 @@ void RNN_Genome::backpropagate(
 void RNN_Genome::backpropagate_stochastic(
     const vector<vector<vector<double> > >& inputs, const vector<vector<vector<double> > >& outputs,
     const vector<vector<vector<double> > >& validation_inputs,
-    const vector<vector<vector<double> > >& validation_outputs, WeightUpdate* weight_update_method
+    const vector<vector<vector<double> > >& validation_outputs, WeightUpdate* weight_update_method,
+    LossVariant loss_variant, double huber_delta
 ) {
     int32_t n_parameters = this->get_number_weights();
     int32_t n_series = (int32_t) inputs.size();
@@ -1398,7 +1423,8 @@ void RNN_Genome::backpropagate_stochastic(
             i, n_series, parameters.size(), inputs.size(), outputs.size(), log_filename.c_str()
         );
         rnn->get_analytic_gradient(
-            parameters, inputs[i], outputs[i], mse, analytic_gradient, use_dropout, true, dropout_probability
+            parameters, inputs[i], outputs[i], mse, analytic_gradient, use_dropout, true, dropout_probability,
+            loss_variant, huber_delta
         );
         Log::trace("got analytic gradient.\n");
         norm = weight_update_method->get_norm(analytic_gradient);
@@ -1432,7 +1458,7 @@ void RNN_Genome::backpropagate_stochastic(
             prev_gradient = analytic_gradient;
             rnn->get_analytic_gradient(
                 parameters, inputs[random_selection], outputs[random_selection], mse, analytic_gradient, use_dropout,
-                true, dropout_probability
+                true, dropout_probability, loss_variant, huber_delta
             );
 
             norm = weight_update_method->get_norm(analytic_gradient);

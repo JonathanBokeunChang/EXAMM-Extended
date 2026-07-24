@@ -296,6 +296,13 @@ int main(int argc, char** argv) {
                 ic_fitness.c_str()
             );
         }
+    } else if (loss_function == "huber" || loss_function == "mse_csvar") {
+        // The k-fold slicing here re-cuts the training set per fold, which would make
+        // the Huber delta (computed from the pooled training targets) and the pooled
+        // cross-sectional variance penalty fold-dependent and thus ill-defined. The
+        // loss-arm campaigns run on the non-multi examm_mpi (anvil_ic.sb); use that.
+        Log::fatal("--loss '%s' is not supported by examm_mpi_multi (use examm_mpi)\n", loss_function.c_str());
+        MPI_Abort(MPI_COMM_WORLD, 1);
     } else if (loss_function != "mse") {
         Log::fatal("unknown --loss '%s' (expected 'mse' or 'ic')\n", loss_function.c_str());
         MPI_Abort(MPI_COMM_WORLD, 1);

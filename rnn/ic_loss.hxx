@@ -35,6 +35,12 @@ using std::vector;
 
 enum class IcMode { PEARSON, SPEARMAN };
 
+// Which cross-sectional training objective the pooled batch path optimizes:
+//   IC     - L = -mean_j IC_j + ic_var_lambda * variance_floor_penalty (the ranking arm)
+//   MSEVAR - L = MSE + csvar_lambda * mean_j Var_cs_j(pred) (dispersion-PENALIZED MSE;
+//            fitness = validation MSE, collapse guard disabled -- shrinkage is intended)
+enum class CsObjective { IC, MSEVAR };
+
 // Parse "pearson"/"spearman" (case-insensitive). Unknown -> PEARSON.
 IcMode ic_mode_from_string(const std::string& s);
 const char* ic_mode_to_string(IcMode mode);
@@ -105,6 +111,28 @@ double cross_sectional_objective(
 void cross_sectional_objective_gradient(
     const vector<vector<double> >& preds, const vector<vector<double> >& targets, IcMode mode, double lambda,
     double& loss, double& mean_ic, double& var_penalty, vector<vector<double> >& d_preds
+);
+
+// DISPERSION-PENALIZED MSE (the "negative dose" on the dispersion axis):
+//   L = (1/(N*T)) * sum_ij (pred_ij - target_ij)^2
+//       + lambda * (1/T) * sum_j Var_i(pred_ij)         (population 1/N variance)
+// The returns campaign measured that objectives AMPLIFYING cross-sectional dispersion
+// overfit in proportion (raw-MSE generalizes < z-score-MSE 11x < ICIR 500x val->test).
+// This objective extends that dose-response curve in the negative direction by
+// PENALIZING dispersion -- the exact inverse of the variance-floor above. Finance
+// grounding: Grinold-Kahn forecast shrinkage (alpha = IC * vol * score) moved into
+// the training objective. lambda = 0 is the pure batch-MSE control arm that isolates
+// the optimizer-pathway effect (batch cross-sectional vs stochastic per-series).
+double cross_sectional_msevar_objective(
+    const vector<vector<double> >& preds, const vector<vector<double> >& targets, double lambda
+);
+
+// Fills d_preds[i][j] = d(L)/d(pred_ij) for the dispersion-penalized MSE and returns
+// loss = L plus its components (for logging):
+//   d(L)/d(pred_ij) = 2*(pred_ij - target_ij)/(N*T) + lambda * 2*(pred_ij - mean_i pred_ij)/(N*T)
+void cross_sectional_msevar_gradient(
+    const vector<vector<double> >& preds, const vector<vector<double> >& targets, double lambda, double& loss,
+    double& mse_part, double& var_part, vector<vector<double> >& d_preds
 );
 
 // Per-date hard-rank Spearman IC statistics: fills mean_ic (the average IC that

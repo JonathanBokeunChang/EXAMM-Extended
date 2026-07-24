@@ -17,6 +17,9 @@
 #   sbatch --export=ALL,LOSS=mse --array=0-9 ...                         # MATCHED MSE baseline (same everything, only loss differs)
 #   sbatch --export=ALL,LOSS=mse,TARGET=RET_CS,DATA_DIR=datasets/walkforward/cohort_2021_zscore --array=0-9 ...
 #                                                                        # z-score-MSE arm (Qlib CSZScoreNorm; build cohort w/ build_cs_target.py)
+#   sbatch --export=ALL,LOSS=huber --array=0-9 ...                       # Huber arm (GKX 2020; delta auto = 1.345*sigma, logged in train.log)
+#   sbatch --export=ALL,LOSS=mse_csvar,CSVAR_LAMBDA=1.0 --array=0-9 ...  # dispersion-penalized MSE arm
+#   sbatch --export=ALL,LOSS=mse_csvar,CSVAR_LAMBDA=0.0 --array=0-9 ...  # batch-MSE CONTROL (isolates batch-vs-stochastic pathway)
 #   sbatch --export=ALL,IC_MODE=spearman --array=0-9 ...                 # soft-Spearman IC variant
 #   sbatch --export=ALL,IC_VAR_LAMBDA=0.5 --array=0-9 ...                # weaker anti-collapse term
 #   sbatch --export=ALL,IC_VAR_LAMBDA=0 --array=0 ...                    # pure IC (collapses; reference only)
@@ -58,7 +61,13 @@ SAVE_GENOMES=${SAVE_GENOMES:-none}
 # LOSS selects the objective. The matched MSE baseline is THIS SAME SCRIPT with
 # --export=ALL,LOSS=mse -- identical data/search/config, only the loss differs, so
 # the IC-vs-MSE comparison is apples-to-apples by construction.
-LOSS=${LOSS:-ic}                     # ic (default) | mse
+#   huber     : residual-clipped pointwise loss (GKX 2020); delta = 1.345*sigma of the
+#               normalized training targets, auto-computed by the binary (no tuning).
+#   mse_csvar : dispersion-penalized MSE, L = MSE + CSVAR_LAMBDA*mean_date Var_cs(pred).
+#               CSVAR_LAMBDA=0 is the batch-MSE CONTROL arm (isolates the batch-vs-
+#               stochastic optimizer pathway from the penalty effect).
+LOSS=${LOSS:-ic}                     # ic (default) | mse | huber | mse_csvar
+CSVAR_LAMBDA=${CSVAR_LAMBDA:-1.0}    # only used when LOSS=mse_csvar
 IC_MODE=${IC_MODE:-pearson}          # pearson (default) | spearman  (ignored when LOSS=mse)
 IC_VAR_LAMBDA=${IC_VAR_LAMBDA:-1.0}  # anti-collapse variance-floor weight (L = -IC + lambda*var_floor); 0 = pure IC
 IC_FITNESS=${IC_FITNESS:-ic}         # selection metric: ic (mean daily IC) | icir (IC information ratio)
@@ -72,7 +81,13 @@ RUN_TAG=${RUN_TAG:-}
 # OUT_ROOT derives from DATA_DIR + objective + RUN_TAG so ic-pearson / ic-spearman /
 # mse and any config change get separate run_R namespaces (a forgotten --export
 # otherwise lands on another config's .done files and every task exits 0 via the skip).
-if [ "$LOSS" = "ic" ]; then OBJ_TAG="ic_${IC_MODE}_lam${IC_VAR_LAMBDA}_${IC_FITNESS}"; else OBJ_TAG="mse"; fi
+case "$LOSS" in
+    ic)        OBJ_TAG="ic_${IC_MODE}_lam${IC_VAR_LAMBDA}_${IC_FITNESS}" ;;
+    mse)       OBJ_TAG="mse" ;;
+    huber)     OBJ_TAG="huber" ;;                          # delta is auto/deterministic
+    mse_csvar) OBJ_TAG="mse_csvar_lam${CSVAR_LAMBDA}" ;;
+    *)         echo "ERROR: LOSS must be ic|mse|huber|mse_csvar, got '$LOSS'" >&2; exit 1 ;;
+esac
 # a non-default target (e.g. RET_CS z-score-MSE) gets its own namespace so it never
 # lands on the raw-RET arm's .done files.
 [ "$TARGET" != "RET" ] && OBJ_TAG="${OBJ_TAG}_${TARGET}"
@@ -85,9 +100,6 @@ OUT=$OUT_ROOT/run_$RUN
 
 echo "### train | loss $LOSS | obj $OBJ_TAG | run $RUN | max_genomes $MAXG | ranks ${SLURM_NTASKS}"
 
-if [ "$LOSS" != "ic" ] && [ "$LOSS" != "mse" ]; then
-    echo "ERROR: LOSS must be 'ic' or 'mse', got '$LOSS'" >&2; exit 1
-fi
 if [ "$LOSS" = "ic" ] && [ "$IC_MODE" != "pearson" ] && [ "$IC_MODE" != "spearman" ]; then
     echo "ERROR: IC_MODE must be 'pearson' or 'spearman', got '$IC_MODE'" >&2; exit 1
 fi
@@ -140,16 +152,20 @@ trap 'rmdir "$OUT.lock" 2>/dev/null' EXIT
 
 case "$OUT" in */run_[0-9]*) ;; *) echo "ERROR: refusing rm -rf '$OUT'" >&2; exit 1;; esac
 rm -rf "$OUT"; mkdir -p "$OUT"
-printf 'data_dir=%s\nloss=%s\nic_mode=%s\nic_var_lambda=%s\nic_fitness=%s\ntarget=%s\nrun=%s\nrun_tag=%s\nmax_genomes=%s\nseed=%s\nstocks=%s\n' \
-    "$DATA_DIR" "$LOSS" "$IC_MODE" "$IC_VAR_LAMBDA" "$IC_FITNESS" "$TARGET" "$RUN" "${RUN_TAG:-none}" "$MAXG" "$RUN" "$N_TRAIN" > "$OUT/.config"
+printf 'data_dir=%s\nloss=%s\nic_mode=%s\nic_var_lambda=%s\nic_fitness=%s\ncsvar_lambda=%s\ntarget=%s\nrun=%s\nrun_tag=%s\nmax_genomes=%s\nseed=%s\nstocks=%s\n' \
+    "$DATA_DIR" "$LOSS" "$IC_MODE" "$IC_VAR_LAMBDA" "$IC_FITNESS" "$CSVAR_LAMBDA" "$TARGET" "$RUN" "${RUN_TAG:-none}" "$MAXG" "$RUN" "$N_TRAIN" > "$OUT/.config"
 
-# Objective flags: ic passes --loss ic --ic_mode; mse passes --loss mse (ic_mode
-# irrelevant). Everything else is identical between the two arms.
-if [ "$LOSS" = "ic" ]; then
-    LOSS_ARGS="--loss ic --ic_mode $IC_MODE --ic_var_lambda $IC_VAR_LAMBDA --ic_fitness $IC_FITNESS"
-else
-    LOSS_ARGS="--loss mse"
-fi
+# Objective flags. Everything else is identical between all arms:
+#   ic        -> --loss ic + ic knobs
+#   mse       -> --loss mse                (stochastic path)
+#   huber     -> --loss huber              (stochastic path; delta auto-computed+logged)
+#   mse_csvar -> --loss mse_csvar + lambda (batch cross-sectional path; lam 0 = control)
+case "$LOSS" in
+    ic)        LOSS_ARGS="--loss ic --ic_mode $IC_MODE --ic_var_lambda $IC_VAR_LAMBDA --ic_fitness $IC_FITNESS" ;;
+    huber)     LOSS_ARGS="--loss huber" ;;
+    mse_csvar) LOSS_ARGS="--loss mse_csvar --csvar_lambda $CSVAR_LAMBDA" ;;
+    *)         LOSS_ARGS="--loss mse" ;;
+esac
 
 # Search config matches anvil_vol_cold.sb / Evostar 2025 (repopulation every 500,
 # islands 10x10, bp 10). time_offset 1 (predict next-day RET); inputs are the 6
