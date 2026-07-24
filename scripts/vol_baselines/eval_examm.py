@@ -65,6 +65,14 @@ def main():
     ap.add_argument("--tag", required=True)
     ap.add_argument("--name", default="examm")
     ap.add_argument("--out-root", default=f"{REPO}/results/baselines")
+    ap.add_argument("--members", choices=["global_best", "island_best", "population"],
+                    default="global_best",
+                    help="which genomes to ensemble per run. global_best (default, historical: "
+                         "1/run) | island_best (the top genome of each island: n_islands/run) | "
+                         "population (every genome in every island: n_islands*island_size/run). "
+                         "island_best/population need --save_genome_option entire_population, "
+                         "which writes island_<i>_genome_<j>.bin (j=0 is that island's best -- "
+                         "islands keep their genomes sorted by fitness).")
     a = ap.parse_args()
 
     def latest_genome(run_dir: str) -> str | None:
@@ -75,12 +83,34 @@ def main():
             return None
         return max(gs, key=lambda p: int(p.rsplit("_", 1)[1].split(".")[0]))
 
-    genomes = [g for r in sorted(glob.glob(f"{a.runs}/run_*")) if (g := latest_genome(r))]
+    def population_genomes(run_dir: str, best_only: bool) -> list:
+        """island_<i>_genome_<j>.bin written by Island::save_population. Genomes are stored
+        fitness-sorted within an island, so j=0 is the island champion."""
+        gs = glob.glob(f"{run_dir}/island_*_genome_*.bin")
+        if best_only:
+            gs = [g for g in gs if os.path.basename(g).rsplit("_", 1)[1] == "0.bin"]
+        return sorted(gs)
+
+    run_dirs = sorted(glob.glob(f"{a.runs}/run_*"))
+    genomes = []
+    for r in run_dirs:
+        if a.members == "global_best":
+            if (g := latest_genome(r)):
+                genomes.append(g)
+        else:
+            got = population_genomes(r, best_only=(a.members == "island_best"))
+            if not got:
+                sys.exit(f"ERROR: --members {a.members} but no island_*_genome_*.bin in {r}\n"
+                         f"       (re-run training with --save_genome_option entire_population)")
+            genomes += got
     if not genomes:
         sys.exit(f"ERROR: no genomes under {a.runs}/run_*/")
-    print(f"[{a.name}] ensemble of {len(genomes)} genomes:")
-    for g in genomes:
+    print(f"[{a.name}] members={a.members}: ensemble of {len(genomes)} genomes "
+          f"from {len(run_dirs)} run(s)")
+    for g in genomes[:12]:
         print(f"    {os.path.relpath(g, a.runs)}")
+    if len(genomes) > 12:
+        print(f"    ... and {len(genomes) - 12} more")
 
     out = f"{a.out_root}/{a.tag}"
     os.makedirs(f"{out}/predictions", exist_ok=True)
@@ -137,6 +167,7 @@ def main():
     # Provenance: the EXACT genomes ensembled, the size, dataset, and git SHA. Without this
     # the headline EXAMM numbers cannot be traced back to the runs that produced them.
     prov = {"model": a.name, "tag": a.tag, "data_dir": a.data, "git_sha": git_sha(),
+            "members": a.members, "n_runs": len(run_dirs),
             "ensemble_size": len(genomes),
             "genomes": [os.path.relpath(g, a.runs) for g in genomes],
             "runs_dir": a.runs, "stocks_scored": int(P.stock.nunique()),

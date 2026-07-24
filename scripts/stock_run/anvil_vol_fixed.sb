@@ -19,6 +19,8 @@
 #          --array=0-2 scripts/stock_run/anvil_vol_fixed.sb                  # E1b probe (3)
 #   sbatch --export=ALL,DATA_DIR=datasets/qlib_vol_big_v2,OUT_ROOT=test_output/vol_e1 \
 #          --array=0-9 scripts/stock_run/anvil_vol_fixed.sb                  # E1 (10)
+#   sbatch --export=ALL,DATA_DIR=datasets/qlib_vol_full,OUT_ROOT=test_output/vol_e1b_pop,SAVE_GENOMES=entire_population \
+#          --array=0-2 scripts/stock_run/anvil_vol_fixed.sb                  # E1b + POPULATION ensembling (3 runs x 100 members)
 #
 # Requires: the dataset transferred to $DATA_DIR (build locally with
 # scripts/stock_run/build_vol_dataset.py --mode fixed).
@@ -53,6 +55,14 @@ DATA_DIR=${DATA_DIR:-datasets/qlib_vol_big_v2}
 INPUTS=${INPUTS:-"LV MA5 MA22 RET LOGVOL"}
 MAX_REC_DEPTH=${MAX_REC_DEPTH:-10}
 RUN_TAG=${RUN_TAG:-}
+# save_genome_option: 'none' (default) writes only the final global best -- the historical
+# behavior, one ensemble member per run. 'entire_population' ALSO dumps every island's final
+# population at natural termination as island_<i>_genome_<j>.bin (10 islands x island_size
+# = 100 members per run), enabling POPULATION ENSEMBLING: a 100x wider ensemble from the
+# SAME training compute, which is EXAMM's structural advantage over fixed-architecture
+# baselines (matching it with LSTMs would cost 100 training runs). Costs ~100 small extra
+# files per run and nothing at train time (single call at termination, examm.cxx:420).
+SAVE_GENOMES=${SAVE_GENOMES:-none}
 # OUT_ROOT MUST derive from DATA_DIR *and* RUN_TAG. If it were a fixed default, E1 and E1b
 # would share the run_N namespace: a forgotten --export runs E1 under E1b's intent, and if E1
 # ran first the E1b tasks hit the .done skip below, exit 0, and we would evaluate E1's genomes
@@ -154,7 +164,7 @@ srun --kill-on-bad-exit -n "${SLURM_NTASKS}" "$BIN" \
     ${GS_ARGS:-} \
     ${TL_ARGS:-} \
     --output_directory "$OUT" \
-    --save_genome_option none \
+    --save_genome_option "$SAVE_GENOMES" \
     --std_message_level INFO \
     --file_message_level NONE > "$OUT/train.log" 2>&1
 RC=$?
