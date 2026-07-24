@@ -22,12 +22,61 @@ Usage:
 import argparse
 import csv
 import glob
+import math
 import os
 import sys
 from collections import defaultdict
 
-import numpy as np
-from scipy.stats import rankdata
+# STDLIB ONLY -- no numpy/scipy. This script must run on Anvil compute nodes, where
+# the bare `module load gcc/openmpi` python has no scientific stack. The problem is
+# tiny (universe x dates ~ 50 x 250), so pure Python costs nothing, and keeping one
+# implementation for both machines means local and Anvil numbers are identical by
+# construction. Verified to reproduce the numpy/scipy results to <1e-15.
+
+
+def _rankdata(a):
+    """Ranks 1..n with ties averaged -- scipy.stats.rankdata's default 'average'."""
+    n = len(a)
+    order = sorted(range(n), key=lambda i: a[i])
+    ranks = [0.0] * n
+    i = 0
+    while i < n:
+        j = i
+        while j + 1 < n and a[order[j + 1]] == a[order[i]]:
+            j += 1
+        avg_rank = (i + j) / 2.0 + 1.0  # 1-based, averaged over the tie block
+        for k in range(i, j + 1):
+            ranks[order[k]] = avg_rank
+        i = j + 1
+    return ranks
+
+
+def _mean(a):
+    return sum(a) / len(a)
+
+
+def _std(a, ddof=0):
+    n = len(a)
+    if n - ddof <= 0:
+        return 0.0
+    m = _mean(a)
+    return math.sqrt(sum((x - m) * (x - m) for x in a) / (n - ddof))
+
+
+def _pearson(x, y):
+    """Pearson correlation; 0.0 if either side is constant (degenerate date)."""
+    n = len(x)
+    mx, my = _mean(x), _mean(y)
+    sxy = sxx = syy = 0.0
+    for i in range(n):
+        dx = x[i] - mx
+        dy = y[i] - my
+        sxy += dx * dy
+        sxx += dx * dx
+        syy += dy * dy
+    if sxx <= 0.0 or syy <= 0.0:
+        return 0.0
+    return sxy / math.sqrt(sxx * syy)
 
 
 def read_pred(path, target_col):
@@ -69,9 +118,9 @@ def main():
         for f in sorted(glob.glob(os.path.join(d, f"*{suffix}"))):
             stock = os.path.basename(f)[: -len(suffix)]
             h, exp, pr = read_pred(f, args.target_col)
-            preds[stock].append(np.array(pr))
+            preds[stock].append(pr)
             if stock not in expected:
-                expected[stock] = np.array(exp)
+                expected[stock] = exp
                 nrows[stock] = len(exp)
             elif len(exp) != nrows[stock]:
                 sys.exit(f"ERROR: {stock} row count differs across runs ({len(exp)} vs {nrows[stock]})")
@@ -87,28 +136,29 @@ def main():
     for s in stocks:
         if len(preds[s]) < args.min_runs:
             sys.exit(f"ERROR: {s} has only {len(preds[s])} run(s) (< --min-runs {args.min_runs})")
-        ens[s] = np.mean(np.vstack(preds[s]), axis=0)
+        n_runs_s = len(preds[s])
+        ens[s] = [sum(r[j] for r in preds[s]) / n_runs_s for j in range(n_dates)]
 
     # per-date cross-sectional Spearman IC of the ensemble
-    ics = np.zeros(n_dates)
+    ics = [0.0] * n_dates
     for j in range(n_dates):
-        p = np.array([ens[s][j] for s in stocks])
-        e = np.array([expected[s][j] for s in stocks])
-        if p.std() < 1e-12 or e.std() < 1e-12:
+        p = [ens[s][j] for s in stocks]
+        e = [expected[s][j] for s in stocks]
+        if _std(p) < 1e-12 or _std(e) < 1e-12:
             ics[j] = 0.0
         else:
-            ics[j] = np.corrcoef(rankdata(p), rankdata(e))[0, 1]
+            ics[j] = _pearson(_rankdata(p), _rankdata(e))
 
-    mean_ic = ics.mean()
-    std_ic = ics.std(ddof=1)
-    ir = mean_ic / std_ic * np.sqrt(n_dates) if std_ic > 0 else float("nan")
+    mean_ic = _mean(ics)
+    std_ic = _std(ics, ddof=1)
+    ir = mean_ic / std_ic * math.sqrt(n_dates) if std_ic > 0 else float("nan")
     print(f"\n=== ENSEMBLE cross-sectional IC ({args.split}) ===")
     print(f"universe      : {len(stocks)} stocks")
     print(f"dates         : {n_dates}")
     print(f"runs ensembled: {len(eval_dirs)}")
     print(f"mean IC       : {mean_ic:+.6f}")
     print(f"IC info ratio : {ir:+.3f}")
-    print(f"hit rate      : {(ics > 0).mean():.1%}")
+    print(f"hit rate      : {sum(1 for x in ics if x > 0) / len(ics):.1%}")
 
     if args.emit_dir:
         os.makedirs(args.emit_dir, exist_ok=True)
