@@ -20,7 +20,12 @@
 #   sbatch --export=ALL,DATA_DIR=datasets/qlib_vol_big_v2,OUT_ROOT=test_output/vol_e1 \
 #          --array=0-9 scripts/stock_run/anvil_vol_fixed.sb                  # E1 (10)
 #   sbatch --export=ALL,DATA_DIR=datasets/qlib_vol_full,OUT_ROOT=test_output/vol_e1b_pop,SAVE_GENOMES=entire_population \
-#          --array=0-2 scripts/stock_run/anvil_vol_fixed.sb                  # E1b + POPULATION ensembling (3 runs x 100 members)
+#          --array=0-2 scripts/stock_run/anvil_vol_fixed.sb                  # ARM 1: E1b config + POPULATION (3 x 100 members)
+#   sbatch --export=ALL,DATA_DIR=datasets/qlib_vol_full,OUT_ROOT=test_output/vol_e1b_pop_cfg20,SAVE_GENOMES=entire_population,ISLANDS=20,NUM_MUTATIONS=2,EXTINCTION=200,TRAIN_SEQ_LEN=50 \
+#          --array=0-2 scripts/stock_run/anvil_vol_fixed.sb                  # ARM 2: wider/faster-turnover search + seq-50 slicing (3 x 200 members)
+# Arm 1 is the CONTROL (config identical to the published E1b, so the +0.2854 baseline and
+# the LSTM/GRU standings remain comparable); arm 2 changes the search. Running both is what
+# makes the population-ensembling effect separable from the config change.
 #
 # Requires: the dataset transferred to $DATA_DIR (build locally with
 # scripts/stock_run/build_vol_dataset.py --mode fixed).
@@ -63,6 +68,30 @@ RUN_TAG=${RUN_TAG:-}
 # baselines (matching it with LSTMs would cost 100 training runs). Costs ~100 small extra
 # files per run and nothing at train time (single call at termination, examm.cxx:420).
 SAVE_GENOMES=${SAVE_GENOMES:-none}
+# ---- search knobs -----------------------------------------------------------
+# DEFAULTS ARE THE EVOSTAR 2025 PUBLISHED SETUP and reproduce E1/E1b/E2 exactly; do not
+# change them casually (see memory examm-config-provenance, examm-hyperparameter-futility:
+# val fitness does NOT predict test, so tuning these is futile AND a fairness trap against
+# the fixed-architecture baselines). They are parameterized ONLY so a config arm can be run
+# as a DELIBERATE, separately-tagged experiment alongside an unchanged control arm.
+#
+# Note on ISLANDS + population ensembling: members/run = ISLANDS * ISLAND_SIZE, so 20 islands
+# doubles the ensemble to 200. But EXTINCTION works the other way -- repopulation_method
+# bestGenome overwrites an exterminated island with mutated COPIES of the best island, so a
+# SHORTER extinction interval homogenizes the population and erodes exactly the member
+# diversity population ensembling depends on.
+ISLANDS=${ISLANDS:-10}
+ISLAND_SIZE=${ISLAND_SIZE:-10}
+NUM_MUTATIONS=${NUM_MUTATIONS:-1}
+EXTINCTION=${EXTINCTION:-500}
+NORMALIZE=${NORMALIZE:-avg_std_dev}      # none | min_max | avg_std_dev
+# TRAIN_SEQ_LEN slices each training series into NON-OVERLAPPING chunks of this length
+# (common/process_arguments.cxx slice_input_data). Total timesteps are ~unchanged, but the
+# number of series -- and therefore the number of SGD weight updates per bp_iteration --
+# multiplies by (series_length / TRAIN_SEQ_LEN). Validation/test are deliberately NOT sliced:
+# training on truncated windows while inferring on the full series is standard truncated
+# BPTT and matches deployment. Empty = no slicing (historical behavior).
+TRAIN_SEQ_LEN=${TRAIN_SEQ_LEN:-}
 # OUT_ROOT MUST derive from DATA_DIR *and* RUN_TAG. If it were a fixed default, E1 and E1b
 # would share the run_N namespace: a forgotten --export runs E1 under E1b's intent, and if E1
 # ran first the E1b tasks hit the .done skip below, exit 0, and we would evaluate E1's genomes
@@ -138,12 +167,19 @@ case "$OUT" in */run_[0-9]*) ;; *) echo "ERROR: refusing rm -rf '$OUT'" >&2; exi
 rm -rf "$OUT"; mkdir -p "$OUT"
 echo "$DATA_DIR" > "$OUT/.dataset"
 # full config provenance -- distinguishes the raw-input ablation from the main runs
-printf 'data_dir=%s\ninputs=%s\nmax_recurrent_depth=%s\nrun_tag=%s\nmax_genomes=%s\nseed=%s\n' \
+printf 'data_dir=%s\ninputs=%s\nmax_recurrent_depth=%s\nrun_tag=%s\nmax_genomes=%s\nseed=%s\nislands=%s\nisland_size=%s\nnum_mutations=%s\nextinction=%s\nnormalize=%s\ntrain_seq_len=%s\nsave_genomes=%s\n' \
     "$DATA_DIR" "$INPUTS" "$MAX_REC_DEPTH" "${RUN_TAG:-none}" "$MAXG" \
-    "$(( ${SLURM_ARRAY_TASK_ID:-0} + 1 ))" > "$OUT/.config"
+    "$(( ${SLURM_ARRAY_TASK_ID:-0} + 1 ))" \
+    "$ISLANDS" "$ISLAND_SIZE" "$NUM_MUTATIONS" "$EXTINCTION" "$NORMALIZE" \
+    "${TRAIN_SEQ_LEN:-none}" "$SAVE_GENOMES" > "$OUT/.config"
 
-# Search config is the Evostar 2025 published setup; see memory examm-config-provenance.
-# Repopulation every 500 matches the paper (NOT 200) and is identical across E1/E1b/E2.
+echo "### search: islands $ISLANDS x $ISLAND_SIZE | mutations $NUM_MUTATIONS | extinction $EXTINCTION"
+echo "###         normalize $NORMALIZE | train_seq_len ${TRAIN_SEQ_LEN:-none} | save_genomes $SAVE_GENOMES"
+
+# Search config defaults are the Evostar 2025 published setup; see memory
+# examm-config-provenance. Repopulation every 500 matches the paper (NOT 200) and is
+# identical across E1/E1b/E2 -- overriding EXTINCTION makes this run NON-comparable to them,
+# so always pair such a run with a distinct RUN_TAG.
 srun --kill-on-bad-exit -n "${SLURM_NTASKS}" "$BIN" \
     --training_filenames $TRAIN_FILES \
     --validation_filenames $VAL_FILES \
@@ -152,13 +188,14 @@ srun --kill-on-bad-exit -n "${SLURM_NTASKS}" "$BIN" \
     --input_parameter_names $INPUTS \
     --max_recurrent_depth "$MAX_REC_DEPTH" \
     --output_parameter_names TARGET \
-    --number_islands 10 \
-    --island_size 10 \
+    --number_islands "$ISLANDS" \
+    --island_size "$ISLAND_SIZE" \
     --max_genomes "$MAXG" \
     --bp_iterations 10 \
-    --num_mutations 1 \
-    --normalize avg_std_dev \
-    --extinction_event_generation_number 500 \
+    --num_mutations "$NUM_MUTATIONS" \
+    --normalize "$NORMALIZE" \
+    ${TRAIN_SEQ_LEN:+--train_sequence_length $TRAIN_SEQ_LEN} \
+    --extinction_event_generation_number "$EXTINCTION" \
     --islands_to_exterminate 1 \
     --repopulation_method bestGenome \
     ${GS_ARGS:-} \
