@@ -1,0 +1,182 @@
+#!/bin/bash -l
+# NOTE the -l flag!
+#
+# E2 -- walk-forward VOLATILITY cohorts, WARM (continual-evolution) arm.
+#
+# Sibling of anvil_vol_cold.sb: IDENTICAL pooled config, the ONLY difference is that each
+# run is SEEDED from the previous cohort's matching run via the verified transfer-learning
+# invocation (--genome_bin + v1 + --epigenetic_weights + --start_filled; the SAME flags
+# baseline_train.sh uses, and NOT --tl_epigenetic_weights, whose live consumer is inverted
+# and would randomize the fill). Run r of cohort N continues the lineage of run r of cohort
+# N-1 (independent lineages, matching the returns anvil_warm.sb).
+#
+# SHAPE: one submission = ONE cohort's 10 runs (array 0-9), because the chain is SEQUENTIAL
+# -- cohort N's seeds are cohort N-1's finished global bests, so the waves cannot run in
+# parallel. The pooled genome is stock-agnostic, so a cohort's universe size (229 vs 221 ...)
+# need not match its seed cohort's.
+#
+# THE CHAIN (cohorts 2016..2020; 2016 has no predecessor so it stays COLD as the root):
+#   # link 1: 2017 seeded from the 2016 COLD output
+#   sbatch --export=ALL,COHORT=cohort_2017,SEED_ROOT=results/anvil_e2/test_output/vol_qlib_vol_cohorts_full/cohort_2016 \
+#          --array=0 scripts/stock_run/anvil_vol_warm.sb            # CANARY first
+#   sbatch ... --array=1-9 ...                                      # rest of link 1
+#   # link 2..4: each seeds from the PREVIOUS WARM output
+#   sbatch --export=ALL,COHORT=cohort_2018,SEED_ROOT=test_output/vol_warm/cohort_2017 --array=0-9 ...
+#   sbatch --export=ALL,COHORT=cohort_2019,SEED_ROOT=test_output/vol_warm/cohort_2018 --array=0-9 ...
+#   sbatch --export=ALL,COHORT=cohort_2020,SEED_ROOT=test_output/vol_warm/cohort_2019 --array=0-9 ...
+# Submit each link only AFTER the previous one is verified complete (all 10 .done); or chain
+# with --dependency=afterok:<prev_jobid>. MAXG optional (default 10000; 2000 = WARM-CHEAP arm,
+# the efficiency comparison against COLD).
+#
+# Output: $OUT_ROOT/cohort_YYYY/run_R/global_best_genome_*.bin  (default OUT_ROOT test_output/vol_warm)
+# Safe to resubmit: finished runs are skipped.
+
+#SBATCH --account=cis251123
+#SBATCH --partition=shared
+#SBATCH --nodes=1
+#SBATCH --ntasks=32
+#SBATCH --cpus-per-task=1
+#SBATCH --time=08:00:00
+#SBATCH --job-name=vol_warm
+#SBATCH --array=0-9
+#SBATCH --output=slurm_logs/volwarm_%A_%a.out
+#SBATCH --error=slurm_logs/volwarm_%A_%a.err
+
+module --force purge
+module load gcc/11.2.0 openmpi/4.1.6
+
+cd "$SLURM_SUBMIT_DIR"
+
+set -u
+RUNS_PER_COHORT=10
+MAXG=${MAXG:-10000}
+DATA_ROOT=${DATA_ROOT:-datasets/qlib_vol_cohorts_full}
+RUN_TAG=${RUN_TAG:-}
+OUT_ROOT=${OUT_ROOT:-test_output/vol_warm${RUN_TAG:+_$RUN_TAG}}
+BIN=build/mpi/examm_mpi
+
+# ---- required warm inputs ---------------------------------------------------
+if [ -z "${COHORT:-}" ] || [ -z "${SEED_ROOT:-}" ]; then
+    echo "ERROR: submit with --export=ALL,COHORT=cohort_YYYY,SEED_ROOT=<prev cohort output dir>" >&2
+    exit 1
+fi
+YEAR=${COHORT#cohort_}
+DATA_DIR=$DATA_ROOT/$COHORT
+
+# ---- derive run from the array index ---------------------------------------
+IDX=${SLURM_ARRAY_TASK_ID:-0}
+if [ "$IDX" -ge "$RUNS_PER_COHORT" ]; then
+    echo "ERROR: array index $IDX out of range (0-$(( RUNS_PER_COHORT - 1 )); one cohort per submission)" >&2
+    exit 1
+fi
+RUN=$(( IDX + 1 ))
+OUT=$OUT_ROOT/cohort_$YEAR/run_$RUN
+
+echo "### vol WARM | cohort $YEAR | run $RUN | max_genomes $MAXG | ranks ${SLURM_NTASKS}"
+
+if [ ! -x "$BIN" ]; then echo "ERROR: $BIN not found -- build examm_mpi first" >&2; exit 1; fi
+if [ ! -d "$DATA_DIR" ]; then echo "ERROR: $DATA_DIR missing -- transfer cohort datasets first" >&2; exit 1; fi
+
+# Refuse pre-leak-fix data (same guard as COLD).
+if ! grep -q boundary_rows_trimmed "$DATA_ROOT/MANIFEST.csv" 2>/dev/null; then
+    echo "ERROR: $DATA_ROOT was not built by build_vol_dataset.py (no boundary_rows_trimmed" >&2
+    echo "       in MANIFEST.csv) -- it may carry the train/val boundary target leak" >&2
+    exit 1
+fi
+
+# ---- resolve the seed genome: run R of the PREVIOUS cohort ------------------
+# Highest trailing generation id (numeric sort; `ls | head` is lexicographic: _1000 < _998).
+# We deliberately verify the seed .bin directly rather than its .done sentinel: a transferred
+# COLD wave may lack .done (dotfiles dropped in transit) yet hold a valid global best.
+SEED_RUN_DIR=$SEED_ROOT/run_$RUN
+SEED_FILE=$(ls "$SEED_RUN_DIR"/global_best_genome_*.bin 2>/dev/null \
+     | sed 's/.*_\([0-9]*\)\.bin/\1 &/' | sort -rn | head -1 | cut -d' ' -f2-)
+if [ -z "$SEED_FILE" ] || [ ! -s "$SEED_FILE" ]; then
+    echo "ERROR: no non-empty seed genome in $SEED_RUN_DIR (need the previous cohort's run $RUN" >&2
+    echo "       global_best_genome_*.bin; is $SEED_ROOT the finished previous wave?)" >&2
+    exit 1
+fi
+# The verified continual invocation (baseline_train.sh:47). v1 leaves a same-feature
+# architecture untouched; --epigenetic_weights carries the trained weights; --start_filled
+# begins from the seed rather than a minimal graph. --tl_epigenetic_weights is NOT passed.
+TL_ARGS="--genome_bin $SEED_FILE --transfer_learning_version v1 --epigenetic_weights --start_filled"
+
+# ---- collect the pooled file lists (ALL stocks in this cohort) -------------
+TRAIN_FILES=$(ls "$DATA_DIR"/*_train.csv 2>/dev/null | tr '\n' ' ')
+VAL_FILES=$(ls "$DATA_DIR"/*_val.csv   2>/dev/null | tr '\n' ' ')
+N_TRAIN=$(echo $TRAIN_FILES | wc -w | tr -d ' ')
+N_VAL=$(echo $VAL_FILES   | wc -w | tr -d ' ')
+if [ "$N_TRAIN" -lt 50 ] || [ "$N_TRAIN" -ne "$N_VAL" ]; then
+    echo "ERROR: cohort $YEAR has $N_TRAIN train / $N_VAL val files (expected equal, >=50)" >&2
+    exit 1
+fi
+if ! diff <(ls "$DATA_DIR" | sed -n 's/_train\.csv$//p') \
+          <(ls "$DATA_DIR" | sed -n 's/_val\.csv$//p') >/dev/null; then
+    echo "ERROR: train/val stems differ in $DATA_DIR (counts match but sets do not)" >&2
+    exit 1
+fi
+echo "pooled over $N_TRAIN stocks | seed=$SEED_FILE"
+
+if [ -f "$OUT/.done" ]; then
+    if [ -f "$OUT/.dataset" ] && [ "$(cat "$OUT/.dataset")" != "$DATA_DIR" ]; then
+        echo "ERROR: $OUT/.done exists but was built from $(cat "$OUT/.dataset"), not $DATA_DIR" >&2
+        exit 1
+    fi
+    echo "[cohort $YEAR run $RUN] already done, skipping"; exit 0
+fi
+
+# Atomic ownership claim (see anvil_vol_cold.sb).
+mkdir -p "$(dirname "$OUT")"
+if ! mkdir "$OUT.lock" 2>/dev/null; then
+    echo "[cohort $YEAR run $RUN] another task owns $OUT, skipping"; exit 0
+fi
+trap 'rmdir "$OUT.lock" 2>/dev/null' EXIT
+
+case "$OUT" in */run_[0-9]*) ;; *) echo "ERROR: refusing rm -rf '$OUT'" >&2; exit 1;; esac
+rm -rf "$OUT"; mkdir -p "$OUT"
+echo "$DATA_DIR" > "$OUT/.dataset"
+# Provenance, incl. the exact seed lineage -- a warm genome is meaningless without knowing
+# which cohort/run it continued.
+printf 'data_root=%s\ncohort=%s\nrun=%s\nrun_tag=%s\nmax_genomes=%s\nseed=%s\nstocks=%s\narm=warm\nseed_root=%s\nseed_file=%s\n' \
+    "$DATA_ROOT" "$YEAR" "$RUN" "${RUN_TAG:-none}" "$MAXG" "$(( IDX + 1 ))" "$N_TRAIN" \
+    "$SEED_ROOT" "$SEED_FILE" > "$OUT/.config"
+
+# Search config IDENTICAL to anvil_vol_cold.sb (Evostar 2025); the ONLY difference from COLD
+# is $TL_ARGS. Keeping everything else fixed is what makes WARM-vs-COLD a clean attribution.
+srun --kill-on-bad-exit -n "${SLURM_NTASKS}" "$BIN" \
+    --training_filenames $TRAIN_FILES \
+    --validation_filenames $VAL_FILES \
+    --seed $(( IDX + 1 )) \
+    --time_offset 0 \
+    --input_parameter_names LV MA5 MA22 RET LOGVOL \
+    --output_parameter_names TARGET \
+    --number_islands 10 \
+    --island_size 10 \
+    --max_genomes "$MAXG" \
+    --bp_iterations 10 \
+    --num_mutations 1 \
+    --normalize avg_std_dev \
+    --extinction_event_generation_number 500 \
+    --islands_to_exterminate 1 \
+    --repopulation_method bestGenome \
+    ${GS_ARGS:-} \
+    $TL_ARGS \
+    --output_directory "$OUT" \
+    --save_genome_option none \
+    --std_message_level INFO \
+    --file_message_level NONE > "$OUT/train.log" 2>&1
+RC=$?
+
+GB=$(ls "$OUT"/global_best_genome_*.bin 2>/dev/null \
+     | sed 's/.*_\([0-9]*\)\.bin/\1 &/' | sort -rn | head -1 | cut -d' ' -f2-)
+LOGGED=$(wc -l < "$OUT/fitness_log.csv" 2>/dev/null || echo 0)
+MIN_LOGGED=$(( MAXG * 9 / 10 ))
+
+if [ $RC -eq 0 ] && [ -n "$GB" ] && [ -s "$GB" ] && [ "$LOGGED" -ge "$MIN_LOGGED" ]; then
+    touch "$OUT/.done"
+    echo "[cohort $YEAR run $RUN] FINISHED  genome=$(basename "$GB")  genomes_logged=$LOGGED"
+else
+    echo "[cohort $YEAR run $RUN] FAILED rc=$RC genome='${GB:-none}' logged=$LOGGED" >&2
+    echo "          (need >=$MIN_LOGGED), see $OUT/train.log" >&2
+    exit 1
+fi
