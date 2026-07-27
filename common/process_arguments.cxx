@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <string>
 using std::string;
 
@@ -105,11 +106,42 @@ EXAMM* generate_examm_from_arguments(
         );
     }
 
+    // Optional per-operator mutation rate overrides. EXAMM's defaults are SYMMETRIC
+    // (add_node_rate == disable_node_rate == 1.0, likewise edges), so the search runs under
+    // balanced growth/shrink pressure. These flags let that balance be biased without a rebuild;
+    // omitting them all leaves every default untouched.
+    vector<string> known_ops = {"clone", "add_edge", "add_recurrent_edge", "enable_edge",
+                                "disable_edge", "split_edge", "add_node", "enable_node",
+                                "disable_node", "split_node", "merge_node"};
+    map<string, double> rate_overrides;
+    for (string op : known_ops) {
+        double v = -1.0;
+        get_argument(arguments, "--" + op + "_rate", false, v);
+        if (v >= 0.0) rate_overrides[op] = v;
+    }
+    // A MISSPELLED rate flag is simply never read, so the run would proceed on default rates and
+    // produce a clean-looking null result -- indistinguishable from "biasing growth doesn't help".
+    // Reject any unrecognised --*_rate argument instead of ignoring it.
+    for (const string& arg : arguments) {
+        if (arg.size() > 7 && arg.compare(0, 2, "--") == 0 &&
+            arg.compare(arg.size() - 5, 5, "_rate") == 0) {
+            string op = arg.substr(2, arg.size() - 7);
+            if (find(known_ops.begin(), known_ops.end(), op) == known_ops.end()) {
+                Log::fatal("unknown mutation rate argument '%s'\n", arg.c_str());
+                Log::fatal("valid: --<op>_rate for op in {clone, add_edge, add_recurrent_edge,\n");
+                Log::fatal("  enable_edge, disable_edge, split_edge, add_node, enable_node,\n");
+                Log::fatal("  disable_node, split_node, merge_node}\n");
+                exit(1);
+            }
+        }
+    }
+
     EXAMM* examm = new EXAMM(
         island_size, number_islands, max_genomes, speciation_strategy, weight_rules, genome_property, output_directory,
         save_genome_option, homeostasis_interval, homeostasis_factor, homeostasis_adaptive_target, rng_seed,
         growth_phase_genomes, reduction_phase_genomes
     );
+    if (!rate_overrides.empty()) examm->override_mutation_rates(rate_overrides);
     if (possible_node_types.size() > 0) {
         examm->set_possible_node_types(possible_node_types);
     }

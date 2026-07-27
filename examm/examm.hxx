@@ -151,6 +151,22 @@ class EXAMM {
     void check_weight_initialize_validity();
     void generate_log();
     void set_evolution_hyper_parameters();
+
+    /**
+     * Override individual mutation-operator rates AFTER construction.
+     *
+     * The rates are otherwise compile-time constants in set_evolution_hyper_parameters(), which
+     * makes EXAMM's search dynamics impossible to study without recompiling. Defaults are
+     * symmetric -- add_node_rate and disable_node_rate are BOTH 1.0, likewise for edges -- so the
+     * search sits under roughly balanced growth/shrink pressure. On CSI300 sequence data that
+     * plateaued every seed at 9-11 nodes while a 38,849-parameter GRU scored ~2x the rank IC,
+     * so being able to bias growth is the difference between testing that hypothesis and not.
+     *
+     * Only keys present in `rates` are changed; everything else keeps its default, so omitting
+     * the flags reproduces prior results exactly. Unknown keys are a hard error rather than a
+     * silent no-op -- a typo'd rate name that quietly did nothing would look like a null result.
+     */
+    void override_mutation_rates(const map<string, double>& rates);
     void initialize_seed_genome();
     void update_op_log_statistics(RNN_Genome* genome, int32_t insert_position);
 };

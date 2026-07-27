@@ -1179,6 +1179,39 @@ void EXAMM::initialize_seed_genome() {
     seed_genome->best_parameters.clear();
 }
 
+void EXAMM::override_mutation_rates(const map<string, double>& rates) {
+    // Applied AFTER set_evolution_hyper_parameters(), so anything not named keeps its default and
+    // omitting every flag reproduces earlier runs bit-for-bit.
+    map<string, double*> table = {
+        {"clone", &clone_rate},
+        {"add_edge", &add_edge_rate},
+        {"add_recurrent_edge", &add_recurrent_edge_rate},
+        {"enable_edge", &enable_edge_rate},
+        {"disable_edge", &disable_edge_rate},
+        {"split_edge", &split_edge_rate},
+        {"add_node", &add_node_rate},
+        {"enable_node", &enable_node_rate},
+        {"disable_node", &disable_node_rate},
+        {"split_node", &split_node_rate},
+        {"merge_node", &merge_node_rate},
+    };
+    for (auto& kv : rates) {
+        auto it = table.find(kv.first);
+        if (it == table.end()) {
+            // Hard error, not a warning: a typo'd rate name that silently did nothing would
+            // produce a "no effect" result indistinguishable from a real negative.
+            Log::fatal("unknown mutation rate '%s'\n", kv.first.c_str());
+            exit(1);
+        }
+        if (kv.second < 0.0) {
+            Log::fatal("mutation rate '%s' must be >= 0 (got %lf)\n", kv.first.c_str(), kv.second);
+            exit(1);
+        }
+        Log::info("mutation rate override: %s %lf -> %lf\n", kv.first.c_str(), *(it->second), kv.second);
+        *(it->second) = kv.second;
+    }
+}
+
 void EXAMM::set_evolution_hyper_parameters() {
     more_fit_crossover_rate = 1.00;
     less_fit_crossover_rate = 0.50;

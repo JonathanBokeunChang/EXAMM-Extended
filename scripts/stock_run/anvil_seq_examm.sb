@@ -6,7 +6,14 @@
 # thesis: can an evolved genome reach GRU-level rank IC at a fraction of GRU's 38,849 parameters?
 #
 # THE NUMBER TO BEAT, measured on this exact data / eval index / target:
-#     GRU 2x64, 2-seed ensemble:  Rank IC +0.0571  (HAC t 12.35)  38,849 params
+#     GRU 2x64, 2-seed ens, SAME 306-stock train universe:
+#         Rank IC +0.0564  (HAC t 11.71)  38,849 params
+#     EXAMM 3-seed ensemble at depth 45, bpi 10:
+#         Rank IC +0.0289  (HAC t  5.06)  mean 76 weights  -> paired delta -0.0275, HAC t -5.66
+#     i.e. EXAMM is SIGNIFICANTLY WORSE, not tied. Genomes plateaued at 9-11 nodes every seed,
+#     ensembling added only +8% (not the 4.5x this project saw elsewhere), and fine-tuning the
+#     winner changed validation MSE by exactly 0.0 -- so the winner is fully trained and the
+#     limit is the SIZE the search reaches, not how well it trains what it finds.
 # Context only (different encoding, NOT targets): our Alpha360-flat GRU +0.0581; published
 # qlib Alpha360 GRU 0.0584; published HIST (SOTA) 0.0667.
 #
@@ -14,8 +21,13 @@
 #   mkdir -p slurm_logs
 #   sbatch --array=0 scripts/stock_run/anvil_seq_examm.sb                    # CANARY (1 run)
 #   sbatch --array=0-2 scripts/stock_run/anvil_seq_examm.sb                  # FULL (3 seeds)
-#   sbatch --export=ALL,MAX_REC_DEPTH=10 --array=0-2 scripts/stock_run/anvil_seq_examm.sb
+#   sbatch --export=ALL,MAX_REC_DEPTH=10,RUN_TAG=d10 --array=0-2 scripts/stock_run/anvil_seq_examm.sb
 #                                                                            # depth CONTROL arm
+#   sbatch --export=ALL,BP_ITERATIONS=30,RUN_TAG=bpi30,SAVE_GENOMES=all_best_genomes \
+#          --array=0 scripts/stock_run/anvil_seq_examm.sb                     # training-budget arm
+#   sbatch --export=ALL,BP_ITERATIONS=30,ADD_NODE_RATE=3.0,ADD_EDGE_RATE=3.0,\
+#ADD_REC_EDGE_RATE=3.0,RUN_TAG=grow3,SAVE_GENOMES=all_best_genomes \
+#          --array=0 scripts/stock_run/anvil_seq_examm.sb                     # GROWTH-BIASED arm
 #
 # Requires: dataset transferred to $DATA_DIR, and build/mpi/examm_mpi built on Anvil.
 # Output: $OUT_ROOT/run_R/global_best_genome_*.bin
@@ -66,6 +78,25 @@ NUM_MUTATIONS=${NUM_MUTATIONS:-1}
 EXTINCTION=${EXTINCTION:-500}
 NORMALIZE=${NORMALIZE:-avg_std_dev}
 SAVE_GENOMES=${SAVE_GENOMES:-none}
+# Mutation-operator rate overrides (optional; empty = EXAMM defaults, which are SYMMETRIC:
+# add_node_rate == disable_node_rate == 1.0, likewise edges, so the search sits under balanced
+# growth/shrink pressure). Every depth-45 seed plateaued at 9-11 nodes / 49-102 weights while a
+# 38,849-param GRU scored ~2x the rank IC, so biasing growth is the hypothesis under test.
+# Growth rates and BP_ITERATIONS are COMPLEMENTARY and should move together: higher rates make
+# bigger genomes get PROPOSED, higher bp_iterations lets them train enough to SURVIVE selection.
+# Raising rates alone would likely fail for the bp_iterations reason and be misread as
+# "growth doesn't help".
+#   growth-biased arm:  ADD_NODE_RATE=3.0 ADD_EDGE_RATE=3.0 ADD_REC_EDGE_RATE=3.0 BP_ITERATIONS=30
+# disable_* are deliberately left at 1.0 -- a 3:1 bias, not a pure-growth regime, so the search
+# can still prune and is less likely to bloat into genomes it cannot train.
+ADD_NODE_RATE=${ADD_NODE_RATE:-}
+ADD_EDGE_RATE=${ADD_EDGE_RATE:-}
+ADD_REC_EDGE_RATE=${ADD_REC_EDGE_RATE:-}
+RATE_ARGS=()
+[ -n "$ADD_NODE_RATE" ]     && RATE_ARGS+=( --add_node_rate "$ADD_NODE_RATE" )
+[ -n "$ADD_EDGE_RATE" ]     && RATE_ARGS+=( --add_edge_rate "$ADD_EDGE_RATE" )
+[ -n "$ADD_REC_EDGE_RATE" ] && RATE_ARGS+=( --add_recurrent_edge_rate "$ADD_REC_EDGE_RATE" )
+
 RUN_TAG=${RUN_TAG:-d${MAX_REC_DEPTH}}
 
 OUT_ROOT=${OUT_ROOT:-test_output/seq_examm_${RUN_TAG}}
@@ -74,7 +105,7 @@ BIN=build/mpi/examm_mpi
 RUN=$(( ${SLURM_ARRAY_TASK_ID:-0} + 1 ))
 OUT=$OUT_ROOT/run_$RUN
 
-echo "### seq EXAMM | $DATA_DIR | run $RUN | genomes $MAXG | depth $MAX_REC_DEPTH | ranks ${SLURM_NTASKS} | out $OUT"
+echo "### seq EXAMM | $DATA_DIR | run $RUN | genomes $MAXG | depth $MAX_REC_DEPTH | bpi $BP_ITERATIONS | rates ${RATE_ARGS[*]:-default} | out $OUT"
 
 if [ ! -x "$BIN" ]; then echo "ERROR: $BIN not found -- build examm_mpi on Anvil first" >&2; exit 1; fi
 if [ ! -d "$DATA_DIR" ]; then echo "ERROR: $DATA_DIR missing -- transfer the dataset first" >&2; exit 1; fi
@@ -113,6 +144,7 @@ srun -n "${SLURM_NTASKS}" "$BIN" \
   --extinction_event_generation_number "$EXTINCTION" \
   --islands_to_exterminate 1 --repopulation_method bestGenome \
   --save_genome_option "$SAVE_GENOMES" \
+  ${RATE_ARGS[@]+"${RATE_ARGS[@]}"} \
   --seed "$RUN" --output_directory "$OUT" \
   --std_message_level ERROR --file_message_level NONE
 rc=$?
