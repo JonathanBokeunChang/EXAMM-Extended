@@ -1,0 +1,26 @@
+{
+  "acquired_utc": "2026-07-26T20:21:51Z",
+  "archive_sha256": "f4df2e1679b4c30776bda2a004d804403f75b2cfdbcdecf58f2a13480d60248f",
+  "archive_size_bytes": 558648799,
+  "bundle": "invdata",
+  "dolt_commit": "gj2o1t8j4vanv6nk7q2kioe0gnkf17t3",
+  "image_digest": "sha256:792d875e7aaf10e93b93c2e4154658238a50baadb9a7889dbfe69de1cb2018b5",
+  "instruments": [
+    "all.txt",
+    "csi1000.txt",
+    "csi300.txt",
+    "csi500.txt",
+    "csi800.txt",
+    "csiall.txt"
+  ],
+  "investment_data_commit": "4a1d700965941ba0837bc801a983e2503f1ef917",
+  "n_feature_dirs": 6122,
+  "note": "Releases are rolling daily -- this tag is pinned. Re-acquiring a DIFFERENT tag will produce a different dataset; record the tag alongside any published result.",
+  "provider_uri": "/Users/jonathanchang/EXAMM-Extended/datasets/_bundles/invdata/qlib_bin",
+  "qlib_commit": "b87a2c294d364a33fb739359886acffe8ec907d1",
+  "qlib_version_at_acquire": "0.9.7",
+  "release_tag": "2026-07-26",
+  "release_url": "https://github.com/chenditc/investment_data/releases/download/2026-07-26/qlib_bin.tar.gz",
+  "source": "https://github.com/chenditc/investment_data",
+  "target_trade_date": "2026-07-24"
+}

@@ -1,0 +1,127 @@
+#!/bin/bash -l
+# NOTE the -l flag!
+#
+# Pooled EXAMM on the SEQUENCE-FORM CSI300 dataset (Alpha360-matched universe/label/split,
+# 6 fields per row, 60-day recurrence). This is the load-bearing experiment for the efficiency
+# thesis: can an evolved genome reach GRU-level rank IC at a fraction of GRU's 38,849 parameters?
+#
+# THE NUMBER TO BEAT, measured on this exact data / eval index / target:
+#     GRU 2x64, 2-seed ensemble:  Rank IC +0.0571  (HAC t 12.35)  38,849 params
+# Context only (different encoding, NOT targets): our Alpha360-flat GRU +0.0581; published
+# qlib Alpha360 GRU 0.0584; published HIST (SOTA) 0.0667.
+#
+# submit from the repo root on Anvil:
+#   mkdir -p slurm_logs
+#   sbatch --array=0 scripts/stock_run/anvil_seq_examm.sb                    # CANARY (1 run)
+#   sbatch --array=0-2 scripts/stock_run/anvil_seq_examm.sb                  # FULL (3 seeds)
+#   sbatch --export=ALL,MAX_REC_DEPTH=10 --array=0-2 scripts/stock_run/anvil_seq_examm.sb
+#                                                                            # depth CONTROL arm
+#
+# Requires: dataset transferred to $DATA_DIR, and build/mpi/examm_mpi built on Anvil.
+# Output: $OUT_ROOT/run_R/global_best_genome_*.bin
+# Safe to resubmit: finished runs are skipped via .done
+
+#SBATCH --account=cis251123
+#SBATCH --partition=shared
+#SBATCH --nodes=1
+#SBATCH --ntasks=32
+#SBATCH --cpus-per-task=1
+#SBATCH --time=04:00:00
+#SBATCH --job-name=seq_examm
+#SBATCH --array=0-2
+#SBATCH --output=slurm_logs/seqexamm_%A_%a.out
+#SBATCH --error=slurm_logs/seqexamm_%A_%a.err
+
+module --force purge
+module load gcc/11.2.0 openmpi/4.1.6
+
+cd "$SLURM_SUBMIT_DIR"
+set -u
+
+DATA_DIR=${DATA_DIR:-datasets/csi300_master_replica_invdata_seq}
+MAXG=${MAXG:-10000}
+INPUTS=${INPUTS:-"RET OPEN_C HIGH_C LOW_C VWAP_C VOLR"}
+OUTPUT=${OUTPUT:-LABEL_CSRANK}
+
+# MAX_REC_DEPTH: the multi-scale hypothesis, and the one knob deliberately raised above the
+# EvoStar default of 10. Alpha360 gives 60 days of history and every RNN baseline on the qlib
+# leaderboard has ONE fixed recurrence depth, while ALSTM (+0.005 over LSTM) shows better
+# temporal routing pays on this venue. Deep skips let EXAMM reach scales a fixed-depth GRU
+# cannot.
+#   VERIFIED LOCALLY: depths 10/20/30/45 all run clean; depth 45 survived 2,116 genomes at
+#   bp_iterations=10 with ZERO errors. Depth 60 CRASHES after ~120-300 genomes with
+#   "inputs_fired on RNN_Node N at time 55 is 7 and total_inputs is 6" -- an EXAMM edge
+#   bookkeeping bug (total_inputs is fixed at edge construction and fatals on mismatch).
+#   DO NOT set this to 60 until that is fixed.
+# Run MAX_REC_DEPTH=10 as a separate tagged arm to isolate the multi-scale contribution.
+MAX_REC_DEPTH=${MAX_REC_DEPTH:-45}
+
+# Search knobs: EvoStar 2025 published setup. Do NOT tune casually -- validation fitness does
+# not predict test here (memory examm-hyperparameter-futility: r=+0.065, n=6), so tuning is
+# both futile and a fairness trap against the fixed-architecture baseline.
+ISLANDS=${ISLANDS:-10}
+ISLAND_SIZE=${ISLAND_SIZE:-10}
+BP_ITERATIONS=${BP_ITERATIONS:-10}
+NUM_MUTATIONS=${NUM_MUTATIONS:-1}
+EXTINCTION=${EXTINCTION:-500}
+NORMALIZE=${NORMALIZE:-avg_std_dev}
+SAVE_GENOMES=${SAVE_GENOMES:-none}
+RUN_TAG=${RUN_TAG:-d${MAX_REC_DEPTH}}
+
+OUT_ROOT=${OUT_ROOT:-test_output/seq_examm_${RUN_TAG}}
+BIN=build/mpi/examm_mpi
+
+RUN=$(( ${SLURM_ARRAY_TASK_ID:-0} + 1 ))
+OUT=$OUT_ROOT/run_$RUN
+
+echo "### seq EXAMM | $DATA_DIR | run $RUN | genomes $MAXG | depth $MAX_REC_DEPTH | ranks ${SLURM_NTASKS} | out $OUT"
+
+if [ ! -x "$BIN" ]; then echo "ERROR: $BIN not found -- build examm_mpi on Anvil first" >&2; exit 1; fi
+if [ ! -d "$DATA_DIR" ]; then echo "ERROR: $DATA_DIR missing -- transfer the dataset first" >&2; exit 1; fi
+if [ -f "$OUT/.done" ]; then echo "run $RUN already complete -- skipping"; exit 0; fi
+
+# ---- file lists MUST come from the frozen universe, never a glob -----------------------------
+# EXAMM pairs --training_filenames and --validation_filenames INDEX-WISE and SEGFAULTS on a count
+# mismatch. This dataset has 515 train but only 364 val files, so a glob crashes immediately.
+# _train_universe.txt is the 306-stock intersection (both splits present); the GRU baseline is
+# restricted to the SAME list via --train-universe, so neither model trains on more data than the
+# other. Costs 30.6% of train rows (491,300 -> 341,193) -- disclosed, not hidden. Evaluation is
+# unaffected: every model still scores the full frozen eval_index (235,277 rows).
+UNIV="$DATA_DIR/_train_universe.txt"
+if [ ! -f "$UNIV" ]; then echo "ERROR: $UNIV missing" >&2; exit 1; fi
+TRAIN=(); VAL=()
+while read -r s; do
+  case "$s" in ''|\#*) continue;; esac
+  TRAIN+=( "$DATA_DIR/${s}_train.csv" ); VAL+=( "$DATA_DIR/${s}_val.csv" )
+done < "$UNIV"
+if [ "${#TRAIN[@]}" -ne "${#VAL[@]}" ] || [ "${#TRAIN[@]}" -eq 0 ]; then
+  echo "ERROR: train/val file count mismatch (${#TRAIN[@]}/${#VAL[@]})" >&2; exit 1
+fi
+echo "### universe: ${#TRAIN[@]} matched train/val pairs"
+
+mkdir -p "$OUT"
+srun -n "${SLURM_NTASKS}" "$BIN" \
+  --training_filenames "${TRAIN[@]}" \
+  --validation_filenames "${VAL[@]}" \
+  --time_offset 0 \
+  --input_parameter_names $INPUTS \
+  --output_parameter_names $OUTPUT \
+  --number_islands "$ISLANDS" --island_size "$ISLAND_SIZE" \
+  --max_genomes "$MAXG" --bp_iterations "$BP_ITERATIONS" \
+  --num_mutations "$NUM_MUTATIONS" --normalize "$NORMALIZE" \
+  --max_recurrent_depth "$MAX_REC_DEPTH" \
+  --extinction_event_generation_number "$EXTINCTION" \
+  --islands_to_exterminate 1 --repopulation_method bestGenome \
+  --save_genome_option "$SAVE_GENOMES" \
+  --seed "$RUN" --output_directory "$OUT" \
+  --std_message_level ERROR --file_message_level NONE
+rc=$?
+
+gb=$(ls "$OUT"/global_best_genome_*.bin 2>/dev/null | wc -l | tr -d ' ')
+echo "### run $RUN finished rc=$rc global_best=$gb"
+if [ "$rc" = "0" ] && [ "$gb" != "0" ]; then
+  touch "$OUT/.done"
+else
+  echo "ERROR: run $RUN did not produce a global best genome" >&2
+  exit 1
+fi

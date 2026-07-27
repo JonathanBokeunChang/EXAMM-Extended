@@ -24,3 +24,17 @@ datasets/qlib_vol*/*/*.csv
 # Per-row model predictions (~185 MB). The scored summaries, validation reports and
 # manifests ARE tracked -- those are the paper's numbers; the raw rows are regenerable.
 results/baselines/*/predictions/
+
+# Pinned qlib source bundles (~1 GB extracted). Re-acquire byte-identically with
+# scripts/stock_run/acquire_bundle.py; BUNDLE.json carries the pinned release tag and SHA256
+# and stays tracked, so the exact source is reproducible from git alone.
+datasets/_bundles/*
+!datasets/_bundles/*/
+!datasets/_bundles/*/BUNDLE.json
+
+# Generated MASTER-replica datasets (~2 GB of CSVs per bundle). Rebuild exactly with
+# scripts/stock_run/build_csi300_master_replica.py --bundle <name>; MANIFEST.json pins the
+# source bundle, parameters and a content hash, and eval_index.csv is the frozen row set every
+# model must score -- both stay tracked so the benchmark is reproducible from git alone.
+datasets/csi300_master_replica*/*.csv
+!datasets/csi300_master_replica*/eval_index.csv

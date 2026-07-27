@@ -1,0 +1,28 @@
+{
+  "acquired_utc": "2026-07-26T20:21:24Z",
+  "bundle": "cndata",
+  "calendar": {
+    "first": "1999-11-10",
+    "last": "2020-09-25",
+    "n_trading_days": 4943
+  },
+  "content_sha256": "8a323fec32e1bd0c1662c1fc753ad033f190523e450936e63c9509796ea32e41",
+  "content_sha256_kind": "archive:20260725215155_qlib_data_cn_1d_latest.zip",
+  "instruments": [
+    "all.txt",
+    "csi100.txt",
+    "csi300.txt",
+    "csi500.txt"
+  ],
+  "known_limitations": [
+    "Yahoo-sourced; qlib documents quality as 'might not be perfect'.",
+    "$vwap was 0% populated in an earlier build from this bundle.",
+    "Coarse point-in-time membership (~820 spans vs invdata's 16k+).",
+    "Use ONLY as an independent replication source, never as the primary."
+  ],
+  "n_feature_dirs": 3875,
+  "provider_uri": "/Users/jonathanchang/.qlib/qlib_data/cn_data",
+  "qlib_version_at_acquire": "0.9.7",
+  "recorded_in_place": true,
+  "source": "qlib public example bundle (Yahoo-sourced), via qlib.run.get_data"
+}

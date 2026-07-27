@@ -1,0 +1,70 @@
+{
+  "builder_git_sha": "6ce31a62d7f5e4940b72439ff3d09161341b0540",
+  "bundle": {
+    "archive_sha256": "f4df2e1679b4c30776bda2a004d804403f75b2cfdbcdecf58f2a13480d60248f",
+    "bundle": "invdata",
+    "content_sha256": null,
+    "provider_uri": "/Users/jonathanchang/EXAMM-Extended/datasets/_bundles/invdata/qlib_bin",
+    "release_tag": "2026-07-26",
+    "target_trade_date": "2026-07-24"
+  },
+  "content_sha256": "9a5318e523f4cefe84c0dfb66c516384133c92f2cf25043c0ba362fd52478b36",
+  "dataset": "MASTER AAAI24 replica v3 (research-grade)",
+  "eval_index": {
+    "dates": 871,
+    "median_stocks_per_date": 273,
+    "rows": 235277,
+    "stocks": 429
+  },
+  "feature_outlier_stats": {
+    "max_abs": 13.895944595336914,
+    "pct_abs_gt_10": 1.4350837956757905e-05,
+    "pct_abs_gt_200": 0.0,
+    "pct_abs_gt_3": 0.016997623425703635,
+    "pct_abs_gt_50": 0.0
+  },
+  "float_format": "%.9g (lossless round-trip for the float32 qlib source)",
+  "handler": "seq",
+  "index_codes_dropped": {},
+  "index_codes_resolved": {},
+  "known_deviations": [
+    "Raw feed is NOT MASTER's confidential source (unfixable).",
+    "MASTERTSDatasetH/marketDataHandler reimplemented on vanilla qlib; formulas verbatim."
+  ],
+  "label": "Ref($close,-2)/Ref($close,-1)-1",
+  "label_horizon_trading_days": 2,
+  "label_kind": "qlib",
+  "market_block_complete": false,
+  "market_block_included": false,
+  "max_gap_trading_days": 5,
+  "n_alpha158": 6,
+  "n_features": 6,
+  "n_market": 0,
+  "purged_rows": 1164,
+  "qlib_version": "0.9.7",
+  "rows": {
+    "test": 254135,
+    "train": 491300,
+    "val": 137208
+  },
+  "seq_for_eligibility": 60,
+  "splits": {
+    "test": [
+      "2017-01-01",
+      "2020-08-01"
+    ],
+    "train": [
+      "2008-01-01",
+      "2014-12-31"
+    ],
+    "val": [
+      "2015-01-01",
+      "2016-12-31"
+    ]
+  },
+  "stocks": {
+    "test": 452,
+    "train": 515,
+    "val": 364
+  }
+}
