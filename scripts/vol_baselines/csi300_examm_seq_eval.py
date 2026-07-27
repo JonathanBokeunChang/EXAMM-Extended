@@ -32,6 +32,7 @@ import argparse
 import glob
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -95,18 +96,35 @@ def restrict(df, data_dir, tag):
     return m
 
 
-def genome_size(genome):
-    """Parameter count, for the efficiency claim. evaluate_rnn prints it; fall back to file size."""
+STATS_BIN = f"{REPO}/build/rnn_examples/rnn_statistics"
+
+
+def genome_stats(genome):
+    """Exact weight count and node-type composition, via rnn_statistics.
+
+    The efficiency claim is "matches the GRU at N-fold fewer parameters", so this number has to be
+    the real trainable-weight count -- not a file size, which varies with serialization detail and
+    would silently misstate the headline by an arbitrary factor. rnn_statistics prints:
+        RNN INFO FOR '<file>', nodes: 8, edges: 10, rec: 0, weights: 26
+    plus the per-cell-type breakdown, which doubles as the memory-cell inductive-bias analysis
+    (which cells evolution actually selects for financial sequences).
+    """
+    out = {"weights": None, "nodes": None, "edges": None, "rec": None}
     try:
-        r = subprocess.run([BIN, "--genome_file", genome, "--std_message_level", "INFO"],
-                            capture_output=True, text=True, timeout=60)
+        r = subprocess.run([STATS_BIN, "--rnn_filenames", genome,
+                            "--output_directory", "/tmp/_gstats",
+                            "--std_message_level", "INFO", "--file_message_level", "NONE"],
+                           capture_output=True, text=True, timeout=120)
         for line in (r.stdout + r.stderr).splitlines():
-            low = line.lower()
-            if "weight" in low and any(c.isdigit() for c in line):
-                return line.strip()
+            if "RNN INFO FOR" in line:
+                for key in out:
+                    m = re.search(rf"\b{key}:\s*(\d+)", line)
+                    if m:
+                        out[key] = int(m.group(1))
+                break
     except Exception:
         pass
-    return f"(unparsed; genome file {os.path.getsize(genome)} bytes)"
+    return out
 
 
 def main():
@@ -131,7 +149,7 @@ def main():
         sys.exit("ERROR: no global_best_genome_*.bin found -- did the runs finish?")
 
     cache = f"{a.runs_root}/_eval_cache"
-    per_run, ics_per_run = {}, {}
+    per_run, ics_per_run, sizes = {}, {}, {}
     for d, g in pairs:
         tag = os.path.basename(d)
         df = eval_genome(g, a.data, cache, tag)
@@ -141,7 +159,10 @@ def main():
         df = restrict(df, a.data, tag)
         per_run[tag] = df
         ics_per_run[tag] = daily_ic(df, pred_col="pred", label_col="LABEL", date_col="date")
-        print(f"   {tag}: {os.path.basename(g)}  {genome_size(g)}")
+        st = genome_stats(g)
+        sizes[tag] = st
+        print(f"   {tag}: {os.path.basename(g)}  weights={st['weights']} "
+              f"nodes={st['nodes']} edges={st['edges']} rec={st['rec']}")
 
     print(f"\n=== per-run (validation-selected global best, scored once) ===")
     for tag, ics in ics_per_run.items():
@@ -168,6 +189,16 @@ def main():
                 print(f"   EXAMM - GRU: {p['delta']:+.4f}  HAC t {p['t_hac']:+.2f}")
             else:
                 print("   (paired test needs the GRU daily-IC series; not stored in that JSON)")
+
+    ws = [v["weights"] for v in sizes.values() if v.get("weights")]
+    if ws:
+        mean_w = sum(ws) / len(ws)
+        print(f"\n=== EFFICIENCY (the claim this experiment exists to test) ===")
+        print(f"   EXAMM weights per genome : {ws}  (mean {mean_w:.0f})")
+        print(f"   GRU 2x64 parameters      : 38849")
+        print(f"   ratio                    : {38849/mean_w:.0f}x fewer")
+        print(f"   NOTE: a parameter-count advantage only counts if accuracy is comparable --")
+        print(f"   read it against the paired IC delta above, never on its own.")
 
     print(f"\n=== context (different encoding -- NOT a target) ===")
     print(f"   published qlib GRU, Alpha360 flat : 0.0584")
