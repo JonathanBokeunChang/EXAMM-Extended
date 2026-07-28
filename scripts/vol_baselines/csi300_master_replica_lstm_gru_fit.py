@@ -170,6 +170,20 @@ def main():
                      help="print val loss every N epochs (0 = silent); each epoch on "
                           "Alpha360's 60-step sequences takes minutes, so per-epoch "
                           "output is the only way to see progress inside a seed")
+    # --lr overrides the LR table. That table's values come from qlib's
+    # workflow_config_{lstm,gru}_ALPHA158.yaml but this script is normally run on ALPHA360, so the
+    # learning rate is not necessarily tuned for the venue it is used on. An attention-gate CONTROL
+    # arm (a GRU-family readout at lr 1e-3) scored +0.0616 against this baseline's +0.0581 on the
+    # identical frozen index -- lr is one of several confounds in that gap, and this flag exists to
+    # isolate it. Load-bearing, because the capacity curve, "EXAMM sits on the curve", and the
+    # cross-sectional feature result are all differences measured against this baseline.
+    ap.add_argument("--lr", type=float, default=None,
+                    help="override the per-model learning rate (default: qlib's Alpha158 values, "
+                         "lstm 1e-3 / gru 2e-4)")
+    # --out keeps sweep arms from overwriting each other; the default path is a single fixed file,
+    # so two runs would silently clobber (which is how the 2x64 baseline's daily-IC series was lost).
+    ap.add_argument("--out", default=None,
+                    help="output JSON path (default: <data>/_lstm_gru_result.json)")
     ap.add_argument("--device", default="auto", choices=["auto", "cpu", "mps"],
                      help="auto picks Apple-GPU MPS when available. A 60-timestep RNN cannot "
                           "parallelise over time, so CPU runs are dominated by sequential depth.")
@@ -263,7 +277,8 @@ def main():
         torch.manual_seed(seed); np.random.seed(seed)
         m = Net(kind, a.hidden, n_in, a.layers).to(dev)
         npar = sum(p.numel() for p in m.parameters())
-        opt = torch.optim.Adam(m.parameters(), lr=LR[kind]); lf = nn.MSELoss()
+        lr_used = a.lr if a.lr is not None else LR[kind]
+        opt = torch.optim.Adam(m.parameters(), lr=lr_used); lf = nn.MSELoss()
         best, state, bad, n = np.inf, None, 0, len(Xt)
         t0 = time.time()
         for ep in range(a.epochs):
@@ -304,7 +319,7 @@ def main():
         for s_ in range(a.seeds):
             p, npar, e = train_one(kind, s_)
             P.append(p)
-            print(f"  {kind} seed {s_}: {e} epochs, lr={LR[kind]:g}, {time.time()-t0:.0f}s")
+            print(f"  {kind} seed {s_}: {e} epochs, lr={lr_used:g}, {time.time()-t0:.0f}s")
         ics = daily_ic(md.assign(pred=np.mean(P, axis=0)),
                         pred_col="pred", label_col="LABEL", date_col="date")
         print(f"  {kind}: {npar} params, {time.time()-t0:.0f}s")
@@ -335,9 +350,10 @@ def main():
     print("   MASTER's own GRU column (their protocol) : +0.0520 RankIC")
     print("   MASTER (published, confidential data)     : +0.0760 RankIC")
 
-    with open(f"{a.data}/_lstm_gru_result.json", "w") as f:
+    out_path = a.out or f"{a.data}/_lstm_gru_result.json"
+    with open(out_path, "w") as f:
         json.dump(out, f, indent=2, default=float)
-    print(f"\nwrote {a.data}/_lstm_gru_result.json")
+    print(f"\nwrote {out_path}")
 
 
 if __name__ == "__main__":
