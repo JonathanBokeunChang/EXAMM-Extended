@@ -72,7 +72,16 @@ OUTPUT=${OUTPUT:-LABEL_CSRANK}
 # MAXG >= 10 x ISLANDS x ISLAND_SIZE or there is no search, only initialisation.
 # These are extrapolations off ONE measured point -- run the canary (MAXG=100) and re-set from
 # observed genomes/hour before trusting them.
-MAXG=${MAXG:-3500}
+# MEASURED, not extrapolated. Canary (1h, 32 ranks, gru_2x32 seed, bp_iterations=10, contending with
+# a second canary on the same node): 169 genomes in 53 min, steady-state ~227 genomes/hr once the
+# ~20-min startup (32 ranks x 612 CSVs) amortizes. Over 12h that is ~2,650; at a 30% margin -> 1800.
+# The margin covers NaN-fitness genomes, which consume a worker WITHOUT counting against max_genomes
+# (examm.cxx:358), and per-genome cost rising as genomes grow.
+# Finishing matters beyond losing the tail: if B1 and B2 hit the wall at DIFFERENT genome counts the
+# arms are confounded, not merely truncated.
+# Re-measure if the seed size, bp_iterations, or the universe changes -- this number is specific to
+# 3,079 weights at bp_iterations=10.
+MAXG=${MAXG:-1800}
 ISLANDS=${ISLANDS:-10}
 ISLAND_SIZE=${ISLAND_SIZE:-10}
 
