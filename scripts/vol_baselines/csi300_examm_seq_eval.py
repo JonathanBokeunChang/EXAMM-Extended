@@ -42,19 +42,37 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from ic_stats import DEFAULT_HAC_LAG, daily_ic, paired, report  # noqa: E402
 
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "scripts/stock_run"))
+from salvage_best_genome import salvage  # noqa: E402
+
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 BIN = f"{REPO}/build/rnn_examples/evaluate_rnn"
 TARGET = "LABEL_CSRANK"
 
 
-def global_best(run_dir):
+def global_best(run_dir, allow_salvage=False):
     """The single validation-selected genome. global_best_genome_*.bin is written once at the end
     by EXAMM::update_log via speciation_strategy->get_global_best_genome(); rnn_genome_*.bin files
-    are ISLAND-local bests (insert_position==0) and must never be max-ed over on test."""
+    are ISLAND-local bests (insert_position==0) and must never be max-ed over on test.
+
+    With allow_salvage, a run KILLED before its genome budget (which therefore has no global best,
+    examm.cxx:416-418 only fires on completion) falls back to the argmin-best_validation_mse saved
+    island best. That reproduces EXAMM's own global-best rule on VALIDATION fitness -- it is not a
+    test-set max. Off by default so a truncated run can never be silently scored as a complete one.
+    """
     gs = glob.glob(f"{run_dir}/global_best_genome_*.bin")
-    if not gs:
-        return None
-    return max(gs, key=lambda p: int(p.rsplit("_", 1)[1].split(".")[0]))
+    if gs:
+        return max(gs, key=lambda p: int(p.rsplit("_", 1)[1].split(".")[0])), "global_best"
+    if not allow_salvage:
+        return None, None
+    r = salvage(run_dir)
+    if "error" in r:
+        print(f"   {os.path.basename(run_dir)}: salvage failed -- {r['error']}")
+        return None, None
+    print(f"   {os.path.basename(run_dir)}: SALVAGED gen {r['generation_id']} "
+          f"val_mse {r['val_mse']:.6f} (best of {r['n_saved']} saved island bests)")
+    return r["genome"], "salvaged"
 
 
 def eval_genome(genome, data_dir, cache_root, run_tag):
@@ -129,9 +147,18 @@ def genome_stats(genome):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--runs-root", required=True)
+    # --genome scores ONE .bin directly. Needed for the seeded experiment's control arm: the
+    # pretrained seed and the compute-matched-trained seed are single genomes, not campaigns, and
+    # they must be scored by this evaluator -- same frozen eval_index, same CSRANK target, same HAC
+    # lag -- or the B - A delta compares numbers produced by different harnesses.
+    ap.add_argument("--genome", help="score a single genome .bin (e.g. a pretrained seed)")
+    ap.add_argument("--runs-root")
     ap.add_argument("--data", default=f"{REPO}/datasets/csi300_master_replica_invdata_seq")
     ap.add_argument("--hac-lag", type=int, default=None)
+    ap.add_argument("--allow-salvage", action="store_true",
+                    help="for runs killed before their genome budget: fall back to the "
+                         "argmin-best_validation_mse saved island best (EXAMM's own global-best "
+                         "rule). Results are PARTIAL-BUDGET and must be reported as such.")
     a = ap.parse_args()
 
     man = json.load(open(f"{a.data}/MANIFEST.json"))
@@ -139,14 +166,38 @@ def main():
     print(f"[dataset] handler={man.get('handler')} content={man['content_sha256'][:16]}...  "
           f"HAC lag={hac}")
 
+    if not a.genome and not a.runs_root:
+        sys.exit("ERROR: pass either --genome <file.bin> or --runs-root <dir>")
+    if a.genome:
+        if not os.path.exists(a.genome):
+            sys.exit(f"ERROR: genome '{a.genome}' not found")
+        tag = os.path.splitext(os.path.basename(a.genome))[0]
+        cache = a.runs_root or os.path.dirname(os.path.abspath(a.genome))
+        df = eval_genome(a.genome, a.data, f"{cache}/_eval_cache", tag)
+        if df is None:
+            sys.exit(f"ERROR: {a.genome} produced no predictions")
+        df = restrict(df, a.data, tag)
+        ics = daily_ic(df, pred_col="pred", label_col="LABEL", date_col="date")
+        st = genome_stats(a.genome)
+        print(f"\n=== single genome ===")
+        print(f"   {tag}: weights={st['weights']} nodes={st['nodes']} edges={st['edges']} "
+              f"rec={st['rec']}")
+        report(tag, ics, hac)
+        return
+
     runs = sorted(d for d in glob.glob(f"{a.runs_root}/run_*") if os.path.isdir(d))
-    pairs = [(d, global_best(d)) for d in runs]
-    missing = [d for d, g in pairs if g is None]
-    pairs = [(d, g) for d, g in pairs if g]
-    print(f"[runs] {len(pairs)} with a global_best_genome"
+    resolved = [(d,) + global_best(d, a.allow_salvage) for d in runs]
+    missing = [d for d, g, _ in resolved if g is None]
+    pairs = [(d, g) for d, g, _ in resolved if g]
+    salvaged = [os.path.basename(d) for d, g, src in resolved if src == "salvaged"]
+    print(f"[runs] {len(pairs)} usable genome(s)"
           + (f"; MISSING in {[os.path.basename(m) for m in missing]}" if missing else ""))
     if not pairs:
-        sys.exit("ERROR: no global_best_genome_*.bin found -- did the runs finish?")
+        sys.exit("ERROR: no global_best_genome_*.bin found -- did the runs finish? "
+                 "If a run was killed by walltime, re-run with --allow-salvage.")
+    if salvaged:
+        print(f"[WARNING] PARTIAL-BUDGET runs (walltime-killed, validation-selected from saved "
+              f"island bests): {salvaged}. Report the genome count reached, not '10,000 genomes'.")
 
     cache = f"{a.runs_root}/_eval_cache"
     per_run, ics_per_run, sizes = {}, {}, {}
@@ -176,12 +227,21 @@ def main():
     print(f"\n=== ENSEMBLE ({len(per_run)} runs) ===")
     s = report(f"EXAMM {len(per_run)}-run ensemble", ics_ens, hac)
 
+    # The baseline's parameter count MUST be read from the JSON, never hardcoded: this file is
+    # rewritten by every baseline run, including capacity-sweep configs. A hardcoded 38,849 silently
+    # mislabelled a 10,209-param sweep GRU as the 2x64 baseline and inflated the efficiency ratio
+    # by 3.8x. The whole efficiency claim rests on this number being the one actually compared.
     gp = f"{a.data}/_lstm_gru_result.json"
+    base_params = None
     if os.path.exists(gp):
         g = json.load(open(gp))
         print(f"\n=== same rows, same target, same HAC lag ===")
         for k, v in g.items():
-            print(f"   {k:<6} {v['ic']:+.4f}  HAC t {v['t_hac']:+.2f}   (38,849 params)")
+            np_ = v.get("_n_params")
+            print(f"   {k:<6} {v['ic']:+.4f}  HAC t {v['t_hac']:+.2f}   "
+                  + (f"({np_:,} params)" if np_ else "(param count NOT in JSON)"))
+            if k == "gru":
+                base_params = np_
         if "gru" in g:
             gi = np.asarray(g["gru"].get("_daily_ic", []), float)
             if gi.size == len(ics_ens):
@@ -195,8 +255,13 @@ def main():
         mean_w = sum(ws) / len(ws)
         print(f"\n=== EFFICIENCY (the claim this experiment exists to test) ===")
         print(f"   EXAMM weights per genome : {ws}  (mean {mean_w:.0f})")
-        print(f"   GRU 2x64 parameters      : 38849")
-        print(f"   ratio                    : {38849/mean_w:.0f}x fewer")
+        if base_params:
+            print(f"   GRU parameters (from JSON): {base_params:,}")
+            print(f"   ratio                    : {base_params/mean_w:.0f}x fewer")
+        else:
+            print(f"   GRU parameters           : UNKNOWN -- _n_params absent from "
+                  f"_lstm_gru_result.json, so no ratio is reported. Re-run the baseline rather "
+                  f"than assuming a param count.")
         print(f"   NOTE: a parameter-count advantage only counts if accuracy is comparable --")
         print(f"   read it against the paired IC delta above, never on its own.")
 

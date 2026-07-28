@@ -1,0 +1,125 @@
+#!/bin/bash -l
+# STAGE 1 of the seeded-EXAMM experiment: build a GRU seed and pretrain it to convergence.
+#
+# Everything downstream depends on this genome, so two properties are non-negotiable:
+#
+# 1. THE SEED MUST CARRY NORMALIZATION BOUNDS. A genome emitted without --training_filenames has
+#    normalize_type "" and finetune_rnn.cxx:78 then applies NO normalization -- it would train on
+#    RAW features. EXAMM meanwhile overwrites the bounds from its own TimeSeriesSets
+#    (generate_nn.cxx:215) and trains on NORMALIZED data, so the pretrained weights would land in
+#    the wrong input space with nothing failing loudly. Measured locally on 8 stocks: bounded seed
+#    starts at validation MSE 0.399, unbounded at 1.284. make_seed_genome stores the same bounds
+#    EXAMM will compute, making its overwrite a no-op.
+#
+# 2. DEPTH 1, NOT 45. create_nn adds a recurrent edge at EVERY depth 1..max_recurrent_depth for
+#    every connection (generate_nn.cxx:142), so a 2x64 net at depth 45 is 210,183 weights instead
+#    of 10,247. Depth 1 is what a standard GRU has, and it is the honest starting point -- EVOLUTION
+#    is what gets to add multi-scale recurrent edges later (that is the hypothesis under test, and
+#    the one thing a fixed-depth GRU cannot express at any width).
+#
+# Output: $SEED_DIR/gru_2x${WIDTH}_pretrained.bin  -> feed to anvil_seeded_examm.sb via SEED_GENOME
+#
+# submit from the repo root on Anvil:
+#   mkdir -p slurm_logs
+#   sbatch scripts/stock_run/anvil_pretrain_seed.sb                        # 2x32 (3,079 weights)
+#   sbatch --export=ALL,WIDTH=64 scripts/stock_run/anvil_pretrain_seed.sb  # 2x64 (10,247 weights)
+
+#SBATCH --account=cis251123
+#SBATCH --partition=shared
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --time=08:00:00
+#SBATCH --job-name=pretrain_seed
+#SBATCH --output=slurm_logs/pretrain_%A.out
+#SBATCH --error=slurm_logs/pretrain_%A.err
+
+module --force purge
+module load gcc/11.2.0 openmpi/4.1.6
+
+cd "$SLURM_SUBMIT_DIR"
+set -u
+
+DATA_DIR=${DATA_DIR:-datasets/csi300_master_replica_invdata_seq}
+WIDTH=${WIDTH:-32}
+LAYERS=${LAYERS:-2}
+RNN_TYPE=${RNN_TYPE:-gru}
+# Depth 1 = standard GRU. See note 2 above; do NOT raise this for the SEED.
+SEED_REC_DEPTH=${SEED_REC_DEPTH:-1}
+FINETUNE_EPOCHS=${FINETUNE_EPOCHS:-200}
+# MUST match EXAMM's backprop learning rate (WeightUpdate default 0.001, weight_update.cxx:17).
+# finetune_rnn's docstring suggests 0.0005 for fine-tuning an ALREADY-evolved genome at a reduced
+# rate, but here we are pretraining a seed that stage 2 will then refine -- pretraining at a
+# different rate than the refiner uses means stage 2 immediately pulls the weights away from the
+# optimum stage 1 found. One rate end to end. (The damage would be bounded either way: EXAMM's
+# backpropagate seeds best_validation_mse from the STARTING weights at rnn_genome.cxx:1370 and only
+# overwrites on strict improvement, so a genome can never finish worse than it began -- but bounded
+# is not the same as free.)
+LEARNING_RATE=${LEARNING_RATE:-0.001}
+NORMALIZE=${NORMALIZE:-avg_std_dev}
+INPUTS=${INPUTS:-"RET OPEN_C HIGH_C LOW_C VWAP_C VOLR"}
+OUTPUT=${OUTPUT:-LABEL_CSRANK}
+SEED_DIR=${SEED_DIR:-seeds}
+
+MK=build/rnn_examples/make_seed_genome
+FT=build/rnn_examples/finetune_rnn
+for b in "$MK" "$FT"; do
+  [ -x "$b" ] || { echo "ERROR: $b not found -- build it on Anvil first" >&2; exit 1; }
+done
+[ -d "$DATA_DIR" ] || { echo "ERROR: $DATA_DIR missing" >&2; exit 1; }
+
+# Same frozen 306-stock universe the GRU sweep and every EXAMM arm used. EXAMM pairs training and
+# validation filenames INDEX-WISE and segfaults on a count mismatch (515 train vs 364 val here), so
+# a glob is not an option.
+UNIV="$DATA_DIR/_train_universe.txt"
+[ -f "$UNIV" ] || { echo "ERROR: $UNIV missing" >&2; exit 1; }
+TRAIN=(); VAL=()
+while read -r s; do
+  case "$s" in ''|\#*) continue;; esac
+  TRAIN+=( "$DATA_DIR/${s}_train.csv" ); VAL+=( "$DATA_DIR/${s}_val.csv" )
+done < "$UNIV"
+[ "${#TRAIN[@]}" -eq "${#VAL[@]}" ] && [ "${#TRAIN[@]}" -gt 0 ] \
+  || { echo "ERROR: train/val mismatch (${#TRAIN[@]}/${#VAL[@]})" >&2; exit 1; }
+
+mkdir -p "$SEED_DIR"
+RAW="$SEED_DIR/${RNN_TYPE}_${LAYERS}x${WIDTH}_raw.bin"
+OUT_BIN="$SEED_DIR/${RNN_TYPE}_${LAYERS}x${WIDTH}_pretrained.bin"
+
+echo "### stage 1 | $RNN_TYPE ${LAYERS}x${WIDTH} | seed depth $SEED_REC_DEPTH | ${#TRAIN[@]} stocks | $FINETUNE_EPOCHS epochs"
+
+echo "--- emitting architecture (with normalization bounds) ---"
+"$MK" --rnn_type "$RNN_TYPE" --num_hidden_layers "$LAYERS" --num_hidden_nodes "$WIDTH" \
+  --max_recurrent_depth "$SEED_REC_DEPTH" \
+  --input_parameter_names $INPUTS --output_parameter_names "$OUTPUT" \
+  --training_filenames "${TRAIN[@]}" --validation_filenames "${VAL[@]}" \
+  --normalize "$NORMALIZE" --time_offset 0 \
+  --genome_bin_out "$RAW" --output_directory "$SEED_DIR" \
+  --std_message_level INFO --file_message_level NONE || exit 1
+
+# Hard-fail if bounds are absent: silently training on raw features is the exact failure this
+# script exists to prevent, and it produces no error of its own.
+if ! "$FT" --genome_file "$RAW" --output_genome /dev/null \
+     --training_filenames "${TRAIN[0]}" --validation_filenames "${VAL[0]}" \
+     --time_offset 0 --finetune_epochs 0 --output_directory "$SEED_DIR" \
+     --std_message_level INFO --file_message_level NONE 2>&1 | grep -q "normalize type '$NORMALIZE'"; then
+  echo "ERROR: seed does not carry '$NORMALIZE' bounds -- pretraining would use raw features" >&2
+  exit 1
+fi
+
+echo "--- pretraining to convergence ---"
+# finetune_rnn seeds best_validation_mse with the STARTING weights and only overwrites on strict
+# improvement, so this can never worsen validation MSE -- the downside is bounded at "no change".
+"$FT" --genome_file "$RAW" --output_genome "$OUT_BIN" \
+  --training_filenames "${TRAIN[@]}" --validation_filenames "${VAL[@]}" \
+  --time_offset 0 --finetune_epochs "$FINETUNE_EPOCHS" --learning_rate "$LEARNING_RATE" \
+  --output_directory "$SEED_DIR" \
+  --std_message_level INFO --file_message_level NONE
+rc=$?
+
+if [ "$rc" = "0" ] && [ -f "$OUT_BIN" ]; then
+  echo "### pretrained seed -> $OUT_BIN"
+  build/rnn_examples/rnn_statistics --rnn_filenames "$OUT_BIN" --output_directory /tmp/_gstats \
+    --std_message_level INFO --file_message_level NONE 2>&1 | grep "RNN INFO"
+else
+  echo "ERROR: pretraining failed rc=$rc" >&2; exit 1
+fi

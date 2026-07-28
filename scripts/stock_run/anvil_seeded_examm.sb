@@ -1,0 +1,175 @@
+#!/bin/bash -l
+# STAGE 2: neuroevolutionary refinement of a PRETRAINED GRU (seeded EXAMM).
+#
+# THE QUESTION
+# ------------
+# From scratch, EXAMM sits ON the GRU capacity curve, never above it. Four configs, all within 15bp
+# of the fitted line IC = 0.0092*log10(params) + 0.0131 (r=0.947):
+#     d45 3-seed ens  76w  +0.0289 | bpi30  74w +0.0297 | grow3 192w +0.0329
+# and growth-by-mutation cannot climb out: ~1 net hidden node per ~900 genomes, so GRU-2x32-level
+# capacity would need O(10^5) genomes. Seeding removes that compute wall and changes the question
+# from "can evolution CLIMB to scale?" to "GIVEN scale, can evolution IMPROVE a hand-designed net?"
+#
+# WHAT EVOLUTION CAN AND CANNOT DO HERE (measured, not assumed)
+# -------------------------------------------------------------
+# Node types enter ONLY via add_node / split_node / merge_node / split_edge (examm.cxx:152) and
+# existing nodes are NEVER retyped. With a 64-node GRU seed and ~1,700 genomes you should expect
+# ~2 new nodes -- the genome stays ~97% GRU. So this arm's claim is about EDGE-LEVEL structure:
+#   * add_recurrent_edge at depths 1..MAX_REC_DEPTH -- needs no node types, fully available, and is
+#     the ONE thing a fixed-depth GRU cannot express at any width. This is the hypothesis.
+#   * add_edge / disable_edge -- skip connections and rewiring
+#   * disable_node -- pruning (any efficiency result comes from here)
+# Do NOT claim "evolution mixes cell types" for this arm; that is a from-scratch property (grow3
+# reached 4 LSTM / 3 GRU / 2 UGRNN / 1 Elman from a MINIMAL seed). GROW_SHRINK is the one mechanism
+# that produces type turnover on a seeded genome, via merge_node (see below).
+#
+# THE CONTROL IS THE PAPER
+# ------------------------
+# Arm B (this script) gets pretraining PLUS N genomes of extra backprop. The seed got pretraining
+# only. So "we just trained it longer" is the obvious objection, and a bare "seed vs seeded-EXAMM"
+# comparison cannot answer it. The control is the SAME seed given the SAME CPU-hours of continued
+# finetune_rnn training, no evolution. Headline = B - A, paired, HAC, on the frozen eval index.
+# Also commit to the fixed-depth ablation: if evolution just picks one depth everywhere, a sweep
+# over --max_recurrent_depth would have found it cheaper and that is the honest conclusion.
+#
+# submit from the repo root on Anvil:
+#   mkdir -p slurm_logs
+#   # arm B1 -- standard EXAMM (no grow-shrink)
+#   sbatch --export=ALL,SEED_GENOME=seeds/gru_2x32_pretrained.bin,RUN_TAG=seed32_plain \
+#          --array=0-2 scripts/stock_run/anvil_seeded_examm.sb
+#   # arm B2 -- grow-shrink phases (adds merge_node type turnover + pruning pressure)
+#   sbatch --export=ALL,SEED_GENOME=seeds/gru_2x32_pretrained.bin,RUN_TAG=seed32_gs,GROW_SHRINK=1 \
+#          --array=0-2 scripts/stock_run/anvil_seeded_examm.sb
+#
+# Output: $OUT_ROOT/run_R/global_best_genome_*.bin   (+ .done, safe to resubmit)
+
+#SBATCH --account=cis251123
+#SBATCH --partition=shared
+#SBATCH --nodes=1
+#SBATCH --ntasks=32
+#SBATCH --cpus-per-task=1
+#SBATCH --time=12:00:00
+#SBATCH --job-name=seeded_examm
+#SBATCH --array=0-2
+#SBATCH --output=slurm_logs/seeded_%A_%a.out
+#SBATCH --error=slurm_logs/seeded_%A_%a.err
+
+module --force purge
+module load gcc/11.2.0 openmpi/4.1.6
+
+cd "$SLURM_SUBMIT_DIR"
+set -u
+
+DATA_DIR=${DATA_DIR:-datasets/csi300_master_replica_invdata_seq}
+SEED_GENOME=${SEED_GENOME:?set SEED_GENOME=<pretrained .bin from anvil_pretrain_seed.sb>}
+INPUTS=${INPUTS:-"RET OPEN_C HIGH_C LOW_C VWAP_C VOLR"}
+OUTPUT=${OUTPUT:-LABEL_CSRANK}
+
+# MAXG: budget must SHRINK with seed size or the job is a non-experiment. Measured from grow3:
+# ~48.2 CPU-s/genome at 192 weights, bp_iterations=30, scaling ~linearly in weights. Against
+# 12h x 31 workers that is ~1,700 genomes at 3,079w (2x32) and only ~520 at 10,247w (2x64).
+# ALSO: 10 islands x 10 needs 100 genomes just to FILL the population, so keep
+# MAXG >= 10 x ISLANDS x ISLAND_SIZE or there is no search, only initialisation.
+# These are extrapolations off ONE measured point -- run the canary (MAXG=100) and re-set from
+# observed genomes/hour before trusting them.
+MAXG=${MAXG:-1700}
+ISLANDS=${ISLANDS:-10}
+ISLAND_SIZE=${ISLAND_SIZE:-10}
+BP_ITERATIONS=${BP_ITERATIONS:-30}
+
+# num_mutations 3, not 1: with a large seed, one structural change per genome barely moves a
+# 64-node network. Three tripes structural turnover for the same genome count -- the cheapest
+# lever against the ~97%-GRU inertia documented above.
+NUM_MUTATIONS=${NUM_MUTATIONS:-3}
+
+# The seed is depth 1 (a standard GRU). Evolution runs at depth 45 so add_recurrent_edge can reach
+# scales the seed cannot -- that asymmetry IS the hypothesis. Depth 60 crashes EXAMM with
+# "inputs_fired ... total_inputs" (edge bookkeeping bug); 45 is verified clean.
+MAX_REC_DEPTH=${MAX_REC_DEPTH:-45}
+
+EXTINCTION=${EXTINCTION:-500}
+NORMALIZE=${NORMALIZE:-avg_std_dev}
+SAVE_GENOMES=${SAVE_GENOMES:-all_best_genomes}
+TL_VERSION=${TL_VERSION:-v1}
+
+# GROW_SHRINK=1 alternates pure-growth and pure-shrink operator windows (examm.cxx:460). It is the
+# ONLY mechanism that changes cell types on a seeded genome: shrink phases set merge_node_rate=1,
+# and merge_node collapses two nodes into one NEW node of a RANDOM type. Growth alone cannot retype
+# anything. G:50 / S:200 is the published configuration.
+GROW_SHRINK=${GROW_SHRINK:-0}
+GROWTH_PHASE=${GROWTH_PHASE:-50}
+REDUCTION_PHASE=${REDUCTION_PHASE:-200}
+GS_ARGS=()
+if [ "$GROW_SHRINK" != "0" ]; then
+  GS_ARGS=( --growth_phase_genomes "$GROWTH_PHASE" --reduction_phase_genomes "$REDUCTION_PHASE" )
+fi
+
+# --epigenetic_weights preserves the PRETRAINED weights through transfer_to. Without it the whole
+# point of stage 1 is discarded and this becomes a from-scratch run at a fixed architecture.
+EPIGENETIC=${EPIGENETIC:-1}
+EPI_ARGS=()
+[ "$EPIGENETIC" != "0" ] && EPI_ARGS=( --epigenetic_weights )
+
+RUN_TAG=${RUN_TAG:-seeded}
+OUT_ROOT=${OUT_ROOT:-test_output/seeded_examm_${RUN_TAG}}
+BIN=build/mpi/examm_mpi
+
+RUN=$(( ${SLURM_ARRAY_TASK_ID:-0} + 1 ))
+OUT=$OUT_ROOT/run_$RUN
+
+echo "### seeded EXAMM | seed $SEED_GENOME | run $RUN | genomes $MAXG | bpi $BP_ITERATIONS"
+echo "### mutations $NUM_MUTATIONS | evolve depth $MAX_REC_DEPTH | grow_shrink ${GS_ARGS[*]:-off} | epigenetic $EPIGENETIC"
+
+[ -x "$BIN" ] || { echo "ERROR: $BIN not found" >&2; exit 1; }
+[ -d "$DATA_DIR" ] || { echo "ERROR: $DATA_DIR missing" >&2; exit 1; }
+[ -f "$SEED_GENOME" ] || { echo "ERROR: seed '$SEED_GENOME' missing -- run anvil_pretrain_seed.sb first" >&2; exit 1; }
+if [ -f "$OUT/.done" ]; then echo "run $RUN already complete -- skipping"; exit 0; fi
+
+if [ "$MAXG" -lt $(( 10 * ISLANDS * ISLAND_SIZE )) ]; then
+  echo "WARNING: MAXG=$MAXG is under 10x the island population ($((ISLANDS*ISLAND_SIZE))) --" >&2
+  echo "         that is barely more than filling the population, not a search." >&2
+fi
+
+UNIV="$DATA_DIR/_train_universe.txt"
+[ -f "$UNIV" ] || { echo "ERROR: $UNIV missing" >&2; exit 1; }
+TRAIN=(); VAL=()
+while read -r s; do
+  case "$s" in ''|\#*) continue;; esac
+  TRAIN+=( "$DATA_DIR/${s}_train.csv" ); VAL+=( "$DATA_DIR/${s}_val.csv" )
+done < "$UNIV"
+[ "${#TRAIN[@]}" -eq "${#VAL[@]}" ] && [ "${#TRAIN[@]}" -gt 0 ] \
+  || { echo "ERROR: train/val mismatch (${#TRAIN[@]}/${#VAL[@]})" >&2; exit 1; }
+echo "### universe: ${#TRAIN[@]} matched train/val pairs"
+
+mkdir -p "$OUT"
+srun -n "${SLURM_NTASKS}" "$BIN" \
+  --training_filenames "${TRAIN[@]}" \
+  --validation_filenames "${VAL[@]}" \
+  --time_offset 0 \
+  --input_parameter_names $INPUTS \
+  --output_parameter_names $OUTPUT \
+  --genome_bin "$SEED_GENOME" \
+  --transfer_learning_version "$TL_VERSION" \
+  ${EPI_ARGS[@]+"${EPI_ARGS[@]}"} \
+  --number_islands "$ISLANDS" --island_size "$ISLAND_SIZE" \
+  --max_genomes "$MAXG" --bp_iterations "$BP_ITERATIONS" \
+  --num_mutations "$NUM_MUTATIONS" --normalize "$NORMALIZE" \
+  --max_recurrent_depth "$MAX_REC_DEPTH" \
+  --extinction_event_generation_number "$EXTINCTION" \
+  --islands_to_exterminate 1 --repopulation_method bestGenome \
+  --save_genome_option "$SAVE_GENOMES" \
+  ${GS_ARGS[@]+"${GS_ARGS[@]}"} \
+  --seed "$RUN" --output_directory "$OUT" \
+  --std_message_level ERROR --file_message_level NONE
+rc=$?
+
+gb=$(ls "$OUT"/global_best_genome_*.bin 2>/dev/null | wc -l | tr -d ' ')
+echo "### run $RUN finished rc=$rc global_best=$gb"
+if [ "$rc" = "0" ] && [ "$gb" != "0" ]; then
+  touch "$OUT/.done"
+else
+  # SAVE_GENOMES=all_best_genomes means a walltime kill is still recoverable:
+  #   python3 scripts/stock_run/salvage_best_genome.py --run-dir $OUT
+  echo "ERROR: run $RUN produced no global best (walltime kill? try salvage_best_genome.py)" >&2
+  exit 1
+fi

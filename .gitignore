@@ -38,3 +38,8 @@ datasets/_bundles/*
 # model must score -- both stay tracked so the benchmark is reproducible from git alone.
 datasets/csi300_master_replica*/*.csv
 !datasets/csi300_master_replica*/eval_index.csv
+
+# Seed genomes for the seeded-EXAMM experiment: regenerable build artifacts, not source.
+# anvil_pretrain_seed.sb emits and pretrains them on the cluster from the tracked scripts, so
+# committing ~3 MB of binaries would add nothing reproducible.
+seeds/

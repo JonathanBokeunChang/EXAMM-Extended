@@ -38,7 +38,13 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=32
 #SBATCH --cpus-per-task=1
-#SBATCH --time=04:00:00
+# 12h, not the 4h the depth-45 arms used. Those plateaued at 9-11 nodes and finished comfortably,
+# but the growth-biased arm (ADD_*_RATE=3.0) reaches 17+ nodes / 81+ edges and per-genome training
+# cost RISES as genomes grow -- grow3 run_1 was killed by the 4h wall at ~8,000/10,000 genomes,
+# losing the last 20% of the search. If a run is killed anyway, SAVE_GENOMES=all_best_genomes makes
+# it recoverable: scripts/stock_run/salvage_best_genome.py picks the argmin-best_validation_mse
+# saved island best, which is EXAMM's own global-best rule. Always set it on long/growth arms.
+#SBATCH --time=12:00:00
 #SBATCH --job-name=seq_examm
 #SBATCH --array=0-2
 #SBATCH --output=slurm_logs/seqexamm_%A_%a.out

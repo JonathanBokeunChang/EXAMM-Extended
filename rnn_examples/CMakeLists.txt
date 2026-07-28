@@ -22,3 +22,6 @@ target_link_libraries(evaluate_rnns_multi_offset examm_strategy exact_common exa
 add_executable(rnn_statistics rnn_statistics.cxx)
 target_link_libraries(rnn_statistics examm_strategy exact_common exact_time_series exact_weights examm_nn  ${MPI_LIBRARIES} ${MPI_EXTRA} ${MYSQL_LIBRARIES} pthread)
 
+add_executable(make_seed_genome make_seed_genome.cxx)
+target_link_libraries(make_seed_genome examm_strategy exact_common exact_time_series exact_weights examm_nn  ${MPI_LIBRARIES} ${MPI_EXTRA} ${MYSQL_LIBRARIES} pthread)
+
