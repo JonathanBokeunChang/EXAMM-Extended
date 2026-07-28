@@ -72,24 +72,56 @@ OUTPUT=${OUTPUT:-LABEL_CSRANK}
 # MAXG >= 10 x ISLANDS x ISLAND_SIZE or there is no search, only initialisation.
 # These are extrapolations off ONE measured point -- run the canary (MAXG=100) and re-set from
 # observed genomes/hour before trusting them.
-MAXG=${MAXG:-1700}
+MAXG=${MAXG:-3500}
 ISLANDS=${ISLANDS:-10}
 ISLAND_SIZE=${ISLAND_SIZE:-10}
-BP_ITERATIONS=${BP_ITERATIONS:-30}
 
-# num_mutations 3, not 1: with a large seed, one structural change per genome barely moves a
-# 64-node network. Three tripes structural turnover for the same genome count -- the cheapest
-# lever against the ~97%-GRU inertia documented above.
-NUM_MUTATIONS=${NUM_MUTATIONS:-3}
+# bp_iterations 10, NOT 30. The seed is already converged, so extra per-genome epochs are mostly
+# wasted and partly harmful: 30 epochs x 306 series is ~9,180 fresh Adam steps at lr 1e-3 from a
+# converged point, checkpointed by a max over 30 validation evaluations -- i.e. 30 draws of
+# validation noise per genome on a project where validation does not predict test IC (r=+0.065).
+# Dropping 30->10 also cuts cost/genome ~2.9x, buying ~2.9x more genomes. Structural turnover, not
+# per-genome convergence, is the bottleneck here (~2 new nodes per 1,700 genomes).
+BP_ITERATIONS=${BP_ITERATIONS:-10}
+
+# num_mutations 1, matching every prior arm. Raising it to 3 does NOT fix node-count inertia: with
+# EXAMM's default symmetric rates (examm.cxx:1215-1240, all 1.0 except split_edge=0) the drift is
+# add_node + split_node - merge_node - disable_node ~= 0, i.e. a zero-drift random walk. More
+# mutations per genome triples the VARIANCE, not the drift. What it does buy is ~1.5 destructive
+# edits per genome (disable_edge/disable_node/split_node/merge_node are 4 of 8 reachable ops),
+# geometrically lower acceptance, and -- fatally for the paper -- no way to attribute an accepted
+# improvement to add_recurrent_edge, which is the whole claim. Bias the OPERATOR instead:
+#   --clone_rate 0 --add_recurrent_edge_rate 3   (raises its share from 1/8 to ~1/3)
+# NOTE those overrides are silently DEAD in the grow-shrink arm: examm.cxx:460-493 hard-assigns all
+# eleven rates every mutate() call whenever both phase lengths are > 0. Use them in B1 only, or in
+# neither, or B1-vs-B2 stops being a clean contrast.
+NUM_MUTATIONS=${NUM_MUTATIONS:-1}
 
 # The seed is depth 1 (a standard GRU). Evolution runs at depth 45 so add_recurrent_edge can reach
 # scales the seed cannot -- that asymmetry IS the hypothesis. Depth 60 crashes EXAMM with
 # "inputs_fired ... total_inputs" (edge bookkeeping bug); 45 is verified clean.
 MAX_REC_DEPTH=${MAX_REC_DEPTH:-45}
 
+# Extinction kept at 500, MATCHING the from-scratch arms (d45/bpi30/grow3), deliberately.
+# The argument for disabling it is real but small: repopulation_method=bestGenome replaces an island
+# with 10 near-clones of the current global best (island_speciation_strategy.cxx:342-344), which
+# intensifies onto a VALIDATION-selected point, and validation does not predict test IC here
+# (r=+0.065, n=6). But at ~6 events x 10 genomes that is ~1.7% of a 3,500-genome budget with an
+# ambiguous sign, and changing it would add yet another uncontrolled difference from the prior arms
+# -- in a project whose notes already flag inconsistent extinction settings as a live bug. Not worth
+# spending a deviation on. Set EXTINCTION=0 explicitly if you want the no-extinction variant.
+# (Note the guard at island_speciation_strategy.cxx:224-225 also requires
+# max_genomes - evaluated >= extinction_interval, so the last event before MAXG never fires.)
 EXTINCTION=${EXTINCTION:-500}
 NORMALIZE=${NORMALIZE:-avg_std_dev}
 SAVE_GENOMES=${SAVE_GENOMES:-all_best_genomes}
+
+# v1 ONLY. v1's branches are guarded by `if (!new_inputs[i]) continue;` (rnn_genome.cxx:4398,4411),
+# so with the seed's parameter names matching the dataset exactly it is a verified no-op. v2 and v3
+# are NOT guarded (rnn_genome.cxx:4431,4437,4446,4452) -- they iterate EVERY input/output including
+# pre-existing ones and rewire them with fresh Lamarckian weights, silently altering the
+# architecture before evolution starts. The flag is mandatory when --genome_bin is given
+# (generate_nn.cxx:221, required=true), so it cannot simply be omitted.
 TL_VERSION=${TL_VERSION:-v1}
 
 # GROW_SHRINK=1 alternates pure-growth and pure-shrink operator windows (examm.cxx:460). It is the
@@ -104,11 +136,58 @@ if [ "$GROW_SHRINK" != "0" ]; then
   GS_ARGS=( --growth_phase_genomes "$GROWTH_PHASE" --reduction_phase_genomes "$REDUCTION_PHASE" )
 fi
 
-# --epigenetic_weights preserves the PRETRAINED weights through transfer_to. Without it the whole
-# point of stage 1 is discarded and this becomes a from-scratch run at a fixed architecture.
+# --epigenetic_weights preserves the PRETRAINED weights through transfer_to (rnn_genome.cxx:4503).
 EPIGENETIC=${EPIGENETIC:-1}
 EPI_ARGS=()
 [ "$EPIGENETIC" != "0" ] && EPI_ARGS=( --epigenetic_weights )
+
+# ---- --start_filled IS MANDATORY, NOT OPTIONAL --------------------------------------------------
+# --epigenetic_weights alone does NOT preserve the pretrained weights. It only gates transfer_to's
+# reset, which runs UPSTREAM of island population. Without --start_filled, islands are constructed
+# empty (island.cxx:28) so generate_for_initializing_island runs, and at
+# island_speciation_strategy.cxx:297-298 it does:
+#       new_genome = seed_genome->copy();
+#       new_genome->initialize_randomly();     // <-- UNCONDITIONAL
+# i.e. every island's founding genome keeps the seed's ARCHITECTURE and throws away its WEIGHTS,
+# and every later genome descends from that random-weight ancestor. The run silently becomes
+# from-scratch EXAMM at a fixed 2xN GRU topology -- guaranteed to lose to the compute-matched
+# control and to mean nothing. A smoke test CANNOT catch this by checking node/edge/weight COUNTS;
+# the structure survives, only the values die.
+# With --start_filled, Island::fill_with_mutated_genomes pushes weight-carrying copies and flips the
+# island to FILLED (island.cxx:443-471), so generate_for_initializing_island is never reached.
+# This matches anvil_vol_warm.sb:102, the warm-start invocation already proven in this repo.
+START_FILLED=${START_FILLED:-1}
+FILL_ARGS=()
+[ "$START_FILLED" != "0" ] && FILL_ARGS=( --start_filled )
+
+# NEVER pass --seed_stirs: Island::fill_with_mutated_genomes copies the genome and then mutates the
+# SHARED seed_genome rather than the copy (island.cxx:449-450), so the seed accumulates mutations
+# across all fill calls and later islands drift arbitrarily far from the pretrained weights. It is
+# harmless only at the default 0, where EXAMM::mutate breaks immediately.
+# NEVER pass --tl_epigenetic_weights: its live consumer is INVERTED -- island.cxx:452-454 calls
+# initialize_randomly() WHEN it is true, i.e. passing it randomizes the weights you are preserving.
+
+# Extinction flags are only meaningful together; omit all three when disabled. (island_ranking_method
+# is passed explicitly rather than relying on "" falling through to the EraseWorst branch at
+# island_speciation_strategy.cxx:226.)
+EXT_ARGS=()
+if [ "$EXTINCTION" != "0" ]; then
+  EXT_ARGS=( --extinction_event_generation_number "$EXTINCTION"
+             --islands_to_exterminate 1 --repopulation_method bestGenome
+             --island_ranking_method EraseWorst )
+fi
+
+# max_recurrent_depth must stay STRICTLY BELOW the shortest training series, or
+# RNN_Recurrent_Edge::first_propagate_forward writes inputs_fired[i] past the end
+# (rnn_recurrent_edge.cxx:150-155) and first_propagate_backward indexes negative -- heap corruption
+# surfacing as the "inputs_fired ... total_inputs" fatal. That, not an edge-bookkeeping bug, is why
+# depth 60 crashed: the shortest train series in this universe is 55 rows (SZ002252).
+MIN_SERIES=${MIN_SERIES:-55}
+if [ "$MAX_REC_DEPTH" -ge "$MIN_SERIES" ]; then
+  echo "ERROR: MAX_REC_DEPTH=$MAX_REC_DEPTH >= shortest train series ($MIN_SERIES) -- out-of-bounds" >&2
+  echo "       recurrent-edge propagation. Lower it, or re-measure MIN_SERIES if the universe changed." >&2
+  exit 1
+fi
 
 RUN_TAG=${RUN_TAG:-seeded}
 OUT_ROOT=${OUT_ROOT:-test_output/seeded_examm_${RUN_TAG}}
@@ -155,9 +234,9 @@ srun -n "${SLURM_NTASKS}" "$BIN" \
   --max_genomes "$MAXG" --bp_iterations "$BP_ITERATIONS" \
   --num_mutations "$NUM_MUTATIONS" --normalize "$NORMALIZE" \
   --max_recurrent_depth "$MAX_REC_DEPTH" \
-  --extinction_event_generation_number "$EXTINCTION" \
-  --islands_to_exterminate 1 --repopulation_method bestGenome \
+  ${EXT_ARGS[@]+"${EXT_ARGS[@]}"} \
   --save_genome_option "$SAVE_GENOMES" \
+  ${FILL_ARGS[@]+"${FILL_ARGS[@]}"} \
   ${GS_ARGS[@]+"${GS_ARGS[@]}"} \
   --seed "$RUN" --output_directory "$OUT" \
   --std_message_level ERROR --file_message_level NONE
