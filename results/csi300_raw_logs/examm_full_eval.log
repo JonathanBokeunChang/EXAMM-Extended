@@ -1,0 +1,31 @@
+[dataset] handler=seq content=9a5318e523f4cefe...  HAC lag=1
+[runs] 3 with a global_best_genome
+   run_1: global_best_genome_9060.bin  weights=49 nodes=9 edges=14 rec=5
+   run_2: global_best_genome_8942.bin  weights=102 nodes=11 edges=35 rec=5
+   run_3: global_best_genome_9008.bin  weights=78 nodes=9 edges=24 rec=9
+
+=== per-run (validation-selected global best, scored once) ===
+run_1                              IC +0.0277  HAC-SE 0.00534  t_HAC  +5.18  [95% +0.0172,+0.0382]  hit 56.0%  n=871   (naive t +5.07, x0.98)
+run_2                              IC +0.0278  HAC-SE 0.00563  t_HAC  +4.93  [95% +0.0167,+0.0388]  hit 55.3%  n=871   (naive t +4.90, x0.99)
+run_3                              IC +0.0246  HAC-SE 0.00587  t_HAC  +4.19  [95% +0.0131,+0.0361]  hit 55.5%  n=871   (naive t +4.07, x0.97)
+
+=== ENSEMBLE (3 runs) ===
+EXAMM 3-run ensemble               IC +0.0289  HAC-SE 0.00572  t_HAC  +5.06  [95% +0.0177,+0.0401]  hit 55.7%  n=871   (naive t +4.96, x0.98)
+
+=== same rows, same target, same HAC lag ===
+   gru    +0.0564  HAC t +11.71   (38,849 params)
+   EXAMM - GRU: -0.0275  HAC t -5.66
+
+=== EFFICIENCY (the claim this experiment exists to test) ===
+   EXAMM weights per genome : [49, 102, 78]  (mean 76)
+   GRU 2x64 parameters      : 38849
+   ratio                    : 509x fewer
+   NOTE: a parameter-count advantage only counts if accuracy is comparable --
+   read it against the paired IC delta above, never on its own.
+
+=== context (different encoding -- NOT a target) ===
+   published qlib GRU, Alpha360 flat : 0.0584
+   our GRU, Alpha360 flat            : +0.0581
+   published HIST (SOTA, Alpha360)   : 0.0667
+
+wrote /tmp/anvil_full/test_output/seq_examm_d45/_examm_result.json

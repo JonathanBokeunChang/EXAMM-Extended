@@ -1,0 +1,50 @@
+[dataset] MASTER AAAI24 replica v3 (research-grade)
+          bundle=invdata tag=2026-07-26 content=b6c1d955865f411e...
+  eval index: 250614 rows (261207 test rows available, 10593 outside the index)
+[gate] train 509,815 | val 145,783 | eval 250,614 rows | 434 stocks | 871 dates | 360 Alpha158 + 0 market
+
+HAC lag = 4 (label spans 5 trading days)
+
+=== headline: trained on LABEL_CSRANK (MASTER's own training target) ===
+   ridge alpha=100000 chosen on val (val IC +0.0736)
+full 360-feature ridge             IC +0.0329  HAC-SE 0.00554  t_HAC  +5.93  [95% +0.0220,+0.0437]  hit 57.9%  n=871   (naive t +5.67, x0.96)
+
+=== ablation: Alpha158 only, same target ===
+   ridge alpha=100000 chosen on val (val IC +0.0736)
+Alpha158-only ridge                IC +0.0329  HAC-SE 0.00554  t_HAC  +5.93  [95% +0.0220,+0.0437]  hit 57.9%  n=871   (naive t +5.67, x0.96)
+
+   market block adds: +0.0000  HAC t +nan  win-rate 0.0%
+
+=== ablation: raw-return training target (what v1 used) ===
+   ridge alpha=1000000 chosen on val (val IC +0.0319)
+full 360 ridge (raw target)        IC +0.0145  HAC-SE 0.00473  t_HAC  +3.08  [95% +0.0053,+0.0238]  hit 54.1%  n=871   (naive t +2.95, x0.96)
+
+   CSRankNorm target adds: +0.0183  HAC t +3.48  win-rate 54.9%
+
+=== top |standardised coefficient| (headline model) ===
+         VWAP0                  +0.017251
+         OPEN3                  +0.007997
+         VOLUME1                +0.007853
+         LOW0                   +0.007738
+         CLOSE3                 -0.007675
+         CLOSE1                 -0.007209
+         VWAP4                  +0.006997
+         VOLUME3                -0.006025
+         VWAP1                  +0.005990
+         LOW4                   +0.005938
+         HIGH3                  -0.005529
+         VOLUME53               +0.005481
+
+=== why HAC matters here ===
+   naive SE 0.00580 -> HAC SE 0.00554 (0.96x)
+   naive t  +5.67    -> HAC t  +5.93
+   The naive SE assumes independent daily ICs; the 4-day overlapping label makes them
+   strongly autocorrelated, so only the HAC number is reportable.
+
+=== context (different data/protocol -- NOT targets) ===
+   MASTER paper's own GRU column (their protocol) : +0.0520  RankIC
+   MASTER (published, own confidential data)       : +0.0760  RankIC
+   NOTE: the '+0.0584 Qlib GRU' quoted elsewhere in this project is a DIFFERENT
+   benchmark (20 filtered features, next-day label, step_len 20) -- not comparable.
+
+wrote datasets/csi300_master_replica_invdata_alpha360/_gate_result.json

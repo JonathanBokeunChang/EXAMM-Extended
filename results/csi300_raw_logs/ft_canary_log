@@ -1,0 +1,1336 @@
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600000_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600000_train.csv' with number rows: 1672
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600005_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600005_train.csv' with number rows: 1404
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600008_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600008_train.csv' with number rows: 1303
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600009_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600009_train.csv' with number rows: 1688
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600010_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600010_train.csv' with number rows: 1613
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600011_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600011_train.csv' with number rows: 1312
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600015_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600015_train.csv' with number rows: 1670
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600016_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600016_train.csv' with number rows: 1666
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600018_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600018_train.csv' with number rows: 1142
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600019_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600019_train.csv' with number rows: 1678
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600021_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600021_train.csv' with number rows: 356
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600022_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600022_train.csv' with number rows: 814
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600023_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600023_train.csv' with number rows: 125
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600027_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600027_train.csv' with number rows: 1191
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600028_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600028_train.csv' with number rows: 1680
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600029_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600029_train.csv' with number rows: 1648
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600030_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600030_train.csv' with number rows: 1659
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600031_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600031_train.csv' with number rows: 1658
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600036_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600036_train.csv' with number rows: 1667
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600037_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600037_train.csv' with number rows: 1316
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600048_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600048_train.csv' with number rows: 1680
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600050_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600050_train.csv' with number rows: 1675
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600058_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600058_train.csv' with number rows: 1556
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600060_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600060_train.csv' with number rows: 368
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600066_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600066_train.csv' with number rows: 1628
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600068_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600068_train.csv' with number rows: 1628
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600079_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600079_train.csv' with number rows: 239
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600085_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600085_train.csv' with number rows: 1688
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600089_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600089_train.csv' with number rows: 1646
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600098_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600098_train.csv' with number rows: 474
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600100_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600100_train.csv' with number rows: 1621
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600104_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600104_train.csv' with number rows: 1634
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600108_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600108_train.csv' with number rows: 1631
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600109_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600109_train.csv' with number rows: 1643
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600111_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600111_train.csv' with number rows: 1678
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600115_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600115_train.csv' with number rows: 1277
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600118_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600118_train.csv' with number rows: 1673
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600143_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600143_train.csv' with number rows: 1669
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600150_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600150_train.csv' with number rows: 1670
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600153_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600153_train.csv' with number rows: 1671
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600157_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600157_train.csv' with number rows: 406
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600166_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600166_train.csv' with number rows: 1183
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600170_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600170_train.csv' with number rows: 1621
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600177_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600177_train.csv' with number rows: 1657
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600188_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600188_train.csv' with number rows: 1663
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600196_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600196_train.csv' with number rows: 1662
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600208_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600208_train.csv' with number rows: 1551
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600221_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600221_train.csv' with number rows: 1635
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600252_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600252_train.csv' with number rows: 709
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600256_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600256_train.csv' with number rows: 1630
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600267_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600267_train.csv' with number rows: 839
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600271_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600271_train.csv' with number rows: 1682
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600276_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600276_train.csv' with number rows: 1201
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600277_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600277_train.csv' with number rows: 125
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600309_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600309_train.csv' with number rows: 1676
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600315_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600315_train.csv' with number rows: 599
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600316_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600316_train.csv' with number rows: 1658
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600332_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600332_train.csv' with number rows: 340
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600340_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600340_train.csv' with number rows: 475
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600348_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600348_train.csv' with number rows: 1669
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600350_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600350_train.csv' with number rows: 807
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600352_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600352_train.csv' with number rows: 1296
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600362_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600362_train.csv' with number rows: 1674
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600369_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600369_train.csv' with number rows: 1024
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600372_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600372_train.csv' with number rows: 714
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600376_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600376_train.csv' with number rows: 1535
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600383_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600383_train.csv' with number rows: 1664
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600395_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600395_train.csv' with number rows: 1326
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600406_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600406_train.csv' with number rows: 924
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600415_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600415_train.csv' with number rows: 1618
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600436_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600436_train.csv' with number rows: 368
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600489_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600489_train.csv' with number rows: 1659
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600497_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600497_train.csv' with number rows: 1501
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600498_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600498_train.csv' with number rows: 682
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600516_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600516_train.csv' with number rows: 1286
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600518_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600518_train.csv' with number rows: 1309
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600519_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600519_train.csv' with number rows: 1685
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600535_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600535_train.csv' with number rows: 1180
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600547_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600547_train.csv' with number rows: 1518
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600549_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600549_train.csv' with number rows: 1660
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600582_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600582_train.csv' with number rows: 948
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600583_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600583_train.csv' with number rows: 1658
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600585_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600585_train.csv' with number rows: 1670
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600588_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600588_train.csv' with number rows: 1421
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600597_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600597_train.csv' with number rows: 1072
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600600_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600600_train.csv' with number rows: 1679
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600633_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600633_train.csv' with number rows: 125
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600637_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600637_train.csv' with number rows: 349
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600642_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600642_train.csv' with number rows: 1677
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600648_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600648_train.csv' with number rows: 360
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600649_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600649_train.csv' with number rows: 1605
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600655_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600655_train.csv' with number rows: 1573
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600660_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600660_train.csv' with number rows: 1688
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600663_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600663_train.csv' with number rows: 1083
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600664_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600664_train.csv' with number rows: 1405
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600674_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600674_train.csv' with number rows: 1397
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600685_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600685_train.csv' with number rows: 722
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600688_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600688_train.csv' with number rows: 959
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600690_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600690_train.csv' with number rows: 1644
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600703_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600703_train.csv' with number rows: 936
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600705_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600705_train.csv' with number rows: 155
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600717_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600717_train.csv' with number rows: 954
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600718_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600718_train.csv' with number rows: 1562
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600737_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600737_train.csv' with number rows: 817
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600739_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600739_train.csv' with number rows: 1637
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600741_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600741_train.csv' with number rows: 1619
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600783_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600783_train.csv' with number rows: 720
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600795_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600795_train.csv' with number rows: 1632
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600804_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600804_train.csv' with number rows: 1535
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600809_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600809_train.csv' with number rows: 1682
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600816_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600816_train.csv' with number rows: 220
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600820_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600820_train.csv' with number rows: 715
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600827_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600827_train.csv' with number rows: 605
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600832_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600832_train.csv' with number rows: 1553
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600837_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600837_train.csv' with number rows: 1671
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600839_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600839_train.csv' with number rows: 1639
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600863_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600863_train.csv' with number rows: 1401
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600867_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600867_train.csv' with number rows: 125
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600873_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600873_train.csv' with number rows: 658
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600875_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600875_train.csv' with number rows: 1670
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600880_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600880_train.csv' with number rows: 119
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600886_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600886_train.csv' with number rows: 1123
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600887_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600887_train.csv' with number rows: 1300
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600893_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600893_train.csv' with number rows: 858
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600895_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600895_train.csv' with number rows: 1670
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600900_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600900_train.csv' with number rows: 1421
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600998_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600998_train.csv' with number rows: 246
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600999_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600999_train.csv' with number rows: 1078
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601006_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601006_train.csv' with number rows: 1662
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601009_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601009_train.csv' with number rows: 1677
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601018_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601018_train.csv' with number rows: 847
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601088_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601088_train.csv' with number rows: 1690
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601098_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601098_train.csv' with number rows: 843
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601099_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601099_train.csv' with number rows: 952
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601106_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601106_train.csv' with number rows: 837
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601111_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601111_train.csv' with number rows: 1642
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601117_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601117_train.csv' with number rows: 1086
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601118_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601118_train.csv' with number rows: 839
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601158_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601158_train.csv' with number rows: 957
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601166_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601166_train.csv' with number rows: 1673
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601168_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601168_train.csv' with number rows: 1664
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601169_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601169_train.csv' with number rows: 1673
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601179_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601179_train.csv' with number rows: 833
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601186_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601186_train.csv' with number rows: 1422
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601216_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601216_train.csv' with number rows: 454
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601225_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601225_train.csv' with number rows: 125
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601231_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601231_train.csv' with number rows: 239
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601238_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601238_train.csv' with number rows: 481
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601258_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601258_train.csv' with number rows: 704
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601288_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601288_train.csv' with number rows: 960
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601299_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601299_train.csv' with number rows: 1019
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601318_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601318_train.csv' with number rows: 1620
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601328_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601328_train.csv' with number rows: 1675
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601333_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601333_train.csv' with number rows: 1684
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601336_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601336_train.csv' with number rows: 607
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601377_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601377_train.csv' with number rows: 837
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601390_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601390_train.csv' with number rows: 1563
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601398_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601398_train.csv' with number rows: 1669
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601555_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601555_train.csv' with number rows: 605
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601600_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601600_train.csv' with number rows: 1667
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601601_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601601_train.csv' with number rows: 1568
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601607_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601607_train.csv' with number rows: 1195
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601618_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601618_train.csv' with number rows: 1197
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601628_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601628_train.csv' with number rows: 1684
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601633_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601633_train.csv' with number rows: 605
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601668_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601668_train.csv' with number rows: 1196
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601669_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601669_train.csv' with number rows: 505
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601688_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601688_train.csv' with number rows: 1078
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601699_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601699_train.csv' with number rows: 1676
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601718_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601718_train.csv' with number rows: 364
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601727_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601727_train.csv' with number rows: 717
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601766_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601766_train.csv' with number rows: 1267
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601788_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601788_train.csv' with number rows: 828
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601800_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601800_train.csv' with number rows: 481
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601808_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601808_train.csv' with number rows: 1680
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601818_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601818_train.csv' with number rows: 956
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601857_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601857_train.csv' with number rows: 1682
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601866_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601866_train.csv' with number rows: 1562
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601872_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601872_train.csv' with number rows: 722
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601888_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601888_train.csv' with number rows: 1078
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601898_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601898_train.csv' with number rows: 1560
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601899_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601899_train.csv' with number rows: 1429
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601901_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601901_train.csv' with number rows: 499
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601919_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601919_train.csv' with number rows: 1199
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601928_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601928_train.csv' with number rows: 555
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601929_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601929_train.csv' with number rows: 125
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601933_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601933_train.csv' with number rows: 832
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601939_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601939_train.csv' with number rows: 1557
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601958_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601958_train.csv' with number rows: 1442
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601988_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601988_train.csv' with number rows: 1673
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601989_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601989_train.csv' with number rows: 963
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601991_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601991_train.csv' with number rows: 1312
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601992_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601992_train.csv' with number rows: 710
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601998_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601998_train.csv' with number rows: 1667
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH603000_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH603000_train.csv' with number rows: 244
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH603699_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH603699_train.csv' with number rows: 125
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH603993_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH603993_train.csv' with number rows: 363
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000001_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000001_train.csv' with number rows: 1592
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000002_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000002_train.csv' with number rows: 1666
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000009_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000009_train.csv' with number rows: 1546
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000024_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000024_train.csv' with number rows: 1624
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000027_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000027_train.csv' with number rows: 1307
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000039_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000039_train.csv' with number rows: 1647
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000046_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000046_train.csv' with number rows: 1292
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000060_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000060_train.csv' with number rows: 1658
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000061_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000061_train.csv' with number rows: 1635
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000063_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000063_train.csv' with number rows: 1667
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000069_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000069_train.csv' with number rows: 1652
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000100_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000100_train.csv' with number rows: 1357
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000156_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000156_train.csv' with number rows: 331
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000157_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000157_train.csv' with number rows: 1609
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000333_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000333_train.csv' with number rows: 293
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000338_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000338_train.csv' with number rows: 1627
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000400_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000400_train.csv' with number rows: 292
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000401_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000401_train.csv' with number rows: 1626
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000402_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000402_train.csv' with number rows: 1670
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000413_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000413_train.csv' with number rows: 90
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000423_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000423_train.csv' with number rows: 1672
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000425_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000425_train.csv' with number rows: 1621
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000503_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000503_train.csv' with number rows: 479
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000536_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000536_train.csv' with number rows: 283
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000538_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000538_train.csv' with number rows: 1673
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000539_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000539_train.csv' with number rows: 477
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000559_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000559_train.csv' with number rows: 1061
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000568_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000568_train.csv' with number rows: 1669
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000581_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000581_train.csv' with number rows: 962
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000598_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000598_train.csv' with number rows: 244
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000623_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000623_train.csv' with number rows: 1426
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000625_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000625_train.csv' with number rows: 1534
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000629_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000629_train.csv' with number rows: 1152
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000630_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000630_train.csv' with number rows: 1655
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000651_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000651_train.csv' with number rows: 1670
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000686_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000686_train.csv' with number rows: 1544
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000709_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000709_train.csv' with number rows: 1550
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000725_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000725_train.csv' with number rows: 1187
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000728_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000728_train.csv' with number rows: 1552
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000729_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000729_train.csv' with number rows: 1664
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000750_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000750_train.csv' with number rows: 471
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000768_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000768_train.csv' with number rows: 1611
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000776_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000776_train.csv' with number rows: 950
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000778_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000778_train.csv' with number rows: 1665
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000783_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000783_train.csv' with number rows: 1545
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000792_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000792_train.csv' with number rows: 1475
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000793_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000793_train.csv' with number rows: 778
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000800_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000800_train.csv' with number rows: 1655
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000825_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000825_train.csv' with number rows: 1300
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000826_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000826_train.csv' with number rows: 229
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000831_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000831_train.csv' with number rows: 244
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000839_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000839_train.csv' with number rows: 1677
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000858_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000858_train.csv' with number rows: 1669
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000869_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000869_train.csv' with number rows: 847
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000876_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000876_train.csv' with number rows: 1620
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000878_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000878_train.csv' with number rows: 1590
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000883_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000883_train.csv' with number rows: 330
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000895_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000895_train.csv' with number rows: 1475
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000898_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000898_train.csv' with number rows: 1305
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000917_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000917_train.csv' with number rows: 699
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000937_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000937_train.csv' with number rows: 1631
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000960_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000960_train.csv' with number rows: 1589
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000963_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000963_train.csv' with number rows: 353
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000970_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000970_train.csv' with number rows: 599
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000983_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000983_train.csv' with number rows: 1674
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000999_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000999_train.csv' with number rows: 1240
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002001_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002001_train.csv' with number rows: 1430
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002007_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002007_train.csv' with number rows: 1187
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002008_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002008_train.csv' with number rows: 113
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002024_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002024_train.csv' with number rows: 1669
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002038_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002038_train.csv' with number rows: 844
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002051_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002051_train.csv' with number rows: 365
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002065_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002065_train.csv' with number rows: 152
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002081_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002081_train.csv' with number rows: 578
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002129_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002129_train.csv' with number rows: 242
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002142_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002142_train.csv' with number rows: 1670
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002146_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002146_train.csv' with number rows: 1182
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002152_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002152_train.csv' with number rows: 116
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002202_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002202_train.csv' with number rows: 1540
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002230_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002230_train.csv' with number rows: 241
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002236_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002236_train.csv' with number rows: 478
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002241_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002241_train.csv' with number rows: 604
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002252_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002252_train.csv' with number rows: 55
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002292_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002292_train.csv' with number rows: 125
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002294_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002294_train.csv' with number rows: 610
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002304_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002304_train.csv' with number rows: 1076
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002310_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002310_train.csv' with number rows: 831
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002344_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002344_train.csv' with number rows: 712
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002353_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002353_train.csv' with number rows: 594
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002375_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002375_train.csv' with number rows: 456
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002385_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002385_train.csv' with number rows: 944
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002399_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002399_train.csv' with number rows: 891
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002400_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002400_train.csv' with number rows: 125
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002410_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002410_train.csv' with number rows: 125
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002415_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002415_train.csv' with number rows: 956
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002416_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002416_train.csv' with number rows: 123
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002422_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002422_train.csv' with number rows: 940
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002429_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002429_train.csv' with number rows: 125
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002450_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002450_train.csv' with number rows: 339
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002456_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002456_train.csv' with number rows: 207
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002465_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002465_train.csv' with number rows: 110
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002470_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002470_train.csv' with number rows: 125
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002475_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002475_train.csv' with number rows: 125
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002500_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002500_train.csv' with number rows: 734
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002570_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002570_train.csv' with number rows: 541
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002594_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002594_train.csv' with number rows: 722
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002603_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002603_train.csv' with number rows: 715
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002653_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002653_train.csv' with number rows: 244
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002673_train.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002673_train.csv' with number rows: 475
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600000_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600000_val.csv' with number rows: 451
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600005_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600005_val.csv' with number rows: 293
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600008_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600008_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600009_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600009_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600010_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600010_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600011_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600011_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600015_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600015_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600016_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600016_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600018_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600018_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600019_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600019_val.csv' with number rows: 411
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600021_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600021_val.csv' with number rows: 171
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600022_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600022_val.csv' with number rows: 123
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600023_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600023_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600027_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600027_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600028_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600028_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600029_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600029_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600030_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600030_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600031_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600031_val.csv' with number rows: 484
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600036_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600036_val.csv' with number rows: 480
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600037_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600037_val.csv' with number rows: 123
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600048_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600048_val.csv' with number rows: 476
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600050_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600050_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600058_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600058_val.csv' with number rows: 118
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600060_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600060_val.csv' with number rows: 482
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600066_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600066_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600068_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600068_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600079_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600079_val.csv' with number rows: 113
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600085_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600085_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600089_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600089_val.csv' with number rows: 480
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600098_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600098_val.csv' with number rows: 123
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600100_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600100_val.csv' with number rows: 475
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600104_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600104_val.csv' with number rows: 465
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600108_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600108_val.csv' with number rows: 243
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600109_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600109_val.csv' with number rows: 474
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600111_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600111_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600115_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600115_val.csv' with number rows: 469
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600118_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600118_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600143_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600143_val.csv' with number rows: 118
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600150_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600150_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600153_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600153_val.csv' with number rows: 251
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600157_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600157_val.csv' with number rows: 435
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600166_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600166_val.csv' with number rows: 358
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600170_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600170_val.csv' with number rows: 465
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600177_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600177_val.csv' with number rows: 466
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600188_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600188_val.csv' with number rows: 484
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600196_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600196_val.csv' with number rows: 468
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600208_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600208_val.csv' with number rows: 480
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600221_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600221_val.csv' with number rows: 473
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600252_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600252_val.csv' with number rows: 465
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600256_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600256_val.csv' with number rows: 471
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600267_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600267_val.csv' with number rows: 118
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600271_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600271_val.csv' with number rows: 339
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600276_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600276_val.csv' with number rows: 484
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600277_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600277_val.csv' with number rows: 155
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600309_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600309_val.csv' with number rows: 477
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600315_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600315_val.csv' with number rows: 315
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600316_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600316_val.csv' with number rows: 243
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600332_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600332_val.csv' with number rows: 476
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600340_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600340_val.csv' with number rows: 470
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600348_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600348_val.csv' with number rows: 243
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600350_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600350_val.csv' with number rows: 120
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600352_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600352_val.csv' with number rows: 466
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600362_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600362_val.csv' with number rows: 477
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600369_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600369_val.csv' with number rows: 483
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600372_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600372_val.csv' with number rows: 480
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600376_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600376_val.csv' with number rows: 123
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600383_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600383_val.csv' with number rows: 484
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600395_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600395_val.csv' with number rows: 102
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600406_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600406_val.csv' with number rows: 484
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600415_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600415_val.csv' with number rows: 475
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600436_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600436_val.csv' with number rows: 116
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600489_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600489_val.csv' with number rows: 476
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600497_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600497_val.csv' with number rows: 235
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600498_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600498_val.csv' with number rows: 112
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600516_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600516_val.csv' with number rows: 195
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600518_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600518_val.csv' with number rows: 468
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600519_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600519_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600535_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600535_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600547_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600547_val.csv' with number rows: 479
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600549_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600549_val.csv' with number rows: 363
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600582_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600582_val.csv' with number rows: 123
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600583_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600583_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600585_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600585_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600588_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600588_val.csv' with number rows: 481
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600597_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600597_val.csv' with number rows: 167
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600600_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600600_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600633_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600633_val.csv' with number rows: 277
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600637_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600637_val.csv' with number rows: 466
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600642_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600642_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600648_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600648_val.csv' with number rows: 481
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600649_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600649_val.csv' with number rows: 256
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600655_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600655_val.csv' with number rows: 102
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600660_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600660_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600663_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600663_val.csv' with number rows: 365
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600664_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600664_val.csv' with number rows: 88
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600674_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600674_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600685_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600685_val.csv' with number rows: 123
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600688_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600688_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600690_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600690_val.csv' with number rows: 409
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600703_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600703_val.csv' with number rows: 466
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600705_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600705_val.csv' with number rows: 470
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600717_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600717_val.csv' with number rows: 245
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600718_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600718_val.csv' with number rows: 470
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600737_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600737_val.csv' with number rows: 107
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600739_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600739_val.csv' with number rows: 357
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600741_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600741_val.csv' with number rows: 457
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600783_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600783_val.csv' with number rows: 484
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600795_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600795_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600804_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600804_val.csv' with number rows: 449
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600809_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600809_val.csv' with number rows: 243
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600816_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600816_val.csv' with number rows: 123
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600820_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600820_val.csv' with number rows: 243
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600827_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600827_val.csv' with number rows: 450
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600832_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600832_val.csv' with number rows: 67
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600837_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600837_val.csv' with number rows: 484
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600839_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600839_val.csv' with number rows: 481
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600863_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600863_val.csv' with number rows: 475
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600867_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600867_val.csv' with number rows: 454
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600873_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600873_val.csv' with number rows: 363
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600875_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600875_val.csv' with number rows: 470
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600880_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600880_val.csv' with number rows: 118
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600886_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600886_val.csv' with number rows: 425
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600887_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600887_val.csv' with number rows: 465
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600893_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600893_val.csv' with number rows: 460
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600895_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600895_val.csv' with number rows: 243
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600900_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600900_val.csv' with number rows: 376
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600998_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600998_val.csv' with number rows: 472
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH600999_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH600999_val.csv' with number rows: 479
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601006_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601006_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601009_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601009_val.csv' with number rows: 480
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601018_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601018_val.csv' with number rows: 347
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601088_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601088_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601098_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601098_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601099_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601099_val.csv' with number rows: 361
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601106_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601106_val.csv' with number rows: 359
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601111_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601111_val.csv' with number rows: 464
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601117_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601117_val.csv' with number rows: 482
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601118_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601118_val.csv' with number rows: 477
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601158_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601158_val.csv' with number rows: 355
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601166_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601166_val.csv' with number rows: 480
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601168_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601168_val.csv' with number rows: 243
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601169_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601169_val.csv' with number rows: 453
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601179_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601179_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601186_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601186_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601216_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601216_val.csv' with number rows: 465
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601225_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601225_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601231_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601231_val.csv' with number rows: 360
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601238_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601238_val.csv' with number rows: 120
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601258_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601258_val.csv' with number rows: 478
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601288_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601288_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601299_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601299_val.csv' with number rows: 71
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601318_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601318_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601328_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601328_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601333_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601333_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601336_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601336_val.csv' with number rows: 460
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601377_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601377_val.csv' with number rows: 477
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601390_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601390_val.csv' with number rows: 472
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601398_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601398_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601555_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601555_val.csv' with number rows: 478
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601600_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601600_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601601_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601601_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601607_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601607_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601618_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601618_val.csv' with number rows: 413
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601628_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601628_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601633_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601633_val.csv' with number rows: 470
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601668_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601668_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601669_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601669_val.csv' with number rows: 469
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601688_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601688_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601699_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601699_val.csv' with number rows: 343
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601718_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601718_val.csv' with number rows: 243
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601727_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601727_val.csv' with number rows: 354
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601766_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601766_val.csv' with number rows: 444
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601788_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601788_val.csv' with number rows: 368
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601800_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601800_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601808_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601808_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601818_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601818_val.csv' with number rows: 473
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601857_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601857_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601866_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601866_val.csv' with number rows: 387
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601872_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601872_val.csv' with number rows: 243
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601888_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601888_val.csv' with number rows: 429
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601898_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601898_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601899_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601899_val.csv' with number rows: 458
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601901_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601901_val.csv' with number rows: 482
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601919_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601919_val.csv' with number rows: 275
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601928_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601928_val.csv' with number rows: 483
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601929_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601929_val.csv' with number rows: 234
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601933_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601933_val.csv' with number rows: 479
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601939_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601939_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601958_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601958_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601988_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601988_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601989_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601989_val.csv' with number rows: 462
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601991_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601991_val.csv' with number rows: 357
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601992_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601992_val.csv' with number rows: 470
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH601998_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH601998_val.csv' with number rows: 483
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH603000_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH603000_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH603699_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH603699_val.csv' with number rows: 118
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SH603993_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SH603993_val.csv' with number rows: 466
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000001_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000001_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000002_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000002_val.csv' with number rows: 355
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000009_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000009_val.csv' with number rows: 454
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000024_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000024_val.csv' with number rows: 95
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000027_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000027_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000039_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000039_val.csv' with number rows: 484
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000046_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000046_val.csv' with number rows: 361
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000060_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000060_val.csv' with number rows: 478
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000061_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000061_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000063_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000063_val.csv' with number rows: 459
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000069_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000069_val.csv' with number rows: 440
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000100_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000100_val.csv' with number rows: 395
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000156_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000156_val.csv' with number rows: 484
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000157_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000157_val.csv' with number rows: 484
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000333_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000333_val.csv' with number rows: 471
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000338_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000338_val.csv' with number rows: 483
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000400_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000400_val.csv' with number rows: 363
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000401_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000401_val.csv' with number rows: 118
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000402_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000402_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000413_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000413_val.csv' with number rows: 452
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000423_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000423_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000425_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000425_val.csv' with number rows: 467
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000503_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000503_val.csv' with number rows: 412
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000536_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000536_val.csv' with number rows: 102
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000538_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000538_val.csv' with number rows: 374
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000539_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000539_val.csv' with number rows: 231
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000559_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000559_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000568_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000568_val.csv' with number rows: 467
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000581_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000581_val.csv' with number rows: 358
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000598_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000598_val.csv' with number rows: 363
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000623_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000623_val.csv' with number rows: 484
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000625_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000625_val.csv' with number rows: 432
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000629_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000629_val.csv' with number rows: 324
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000630_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000630_val.csv' with number rows: 331
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000651_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000651_val.csv' with number rows: 333
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000686_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000686_val.csv' with number rows: 477
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000709_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000709_val.csv' with number rows: 446
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000725_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000725_val.csv' with number rows: 480
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000728_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000728_val.csv' with number rows: 460
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000729_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000729_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000750_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000750_val.csv' with number rows: 466
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000768_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000768_val.csv' with number rows: 480
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000776_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000776_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000778_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000778_val.csv' with number rows: 422
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000783_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000783_val.csv' with number rows: 471
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000792_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000792_val.csv' with number rows: 480
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000793_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000793_val.csv' with number rows: 399
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000800_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000800_val.csv' with number rows: 482
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000825_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000825_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000826_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000826_val.csv' with number rows: 444
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000831_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000831_val.csv' with number rows: 357
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000839_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000839_val.csv' with number rows: 242
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000858_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000858_val.csv' with number rows: 425
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000869_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000869_val.csv' with number rows: 118
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000876_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000876_val.csv' with number rows: 349
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000878_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000878_val.csv' with number rows: 179
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000883_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000883_val.csv' with number rows: 404
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000895_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000895_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000898_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000898_val.csv' with number rows: 484
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000917_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000917_val.csv' with number rows: 326
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000937_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000937_val.csv' with number rows: 363
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000960_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000960_val.csv' with number rows: 233
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000963_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000963_val.csv' with number rows: 457
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000970_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000970_val.csv' with number rows: 237
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000983_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000983_val.csv' with number rows: 363
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ000999_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ000999_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002001_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002001_val.csv' with number rows: 231
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002007_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002007_val.csv' with number rows: 482
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002008_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002008_val.csv' with number rows: 479
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002024_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002024_val.csv' with number rows: 476
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002038_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002038_val.csv' with number rows: 359
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002051_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002051_val.csv' with number rows: 243
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002065_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002065_val.csv' with number rows: 343
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002081_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002081_val.csv' with number rows: 456
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002129_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002129_val.csv' with number rows: 283
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002142_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002142_val.csv' with number rows: 484
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002146_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002146_val.csv' with number rows: 461
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002152_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002152_val.csv' with number rows: 123
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002202_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002202_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002230_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002230_val.csv' with number rows: 421
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002236_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002236_val.csv' with number rows: 482
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002241_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002241_val.csv' with number rows: 472
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002252_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002252_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002292_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002292_val.csv' with number rows: 406
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002294_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002294_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002304_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002304_val.csv' with number rows: 486
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002310_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002310_val.csv' with number rows: 109
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002344_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002344_val.csv' with number rows: 219
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002353_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002353_val.csv' with number rows: 257
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002375_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002375_val.csv' with number rows: 340
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002385_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002385_val.csv' with number rows: 465
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002399_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002399_val.csv' with number rows: 427
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002400_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002400_val.csv' with number rows: 115
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002410_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002410_val.csv' with number rows: 323
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002415_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002415_val.csv' with number rows: 441
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002416_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002416_val.csv' with number rows: 77
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002422_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002422_val.csv' with number rows: 481
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002429_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002429_val.csv' with number rows: 94
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002450_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002450_val.csv' with number rows: 439
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002456_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002456_val.csv' with number rows: 468
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002465_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002465_val.csv' with number rows: 360
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002470_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002470_val.csv' with number rows: 465
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002475_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002475_val.csv' with number rows: 469
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002500_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002500_val.csv' with number rows: 480
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002570_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002570_val.csv' with number rows: 231
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002594_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002594_val.csv' with number rows: 474
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002603_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002603_val.csv' with number rows: 118
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002653_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002653_val.csv' with number rows: 237
+[INFO    main                 ] 	datasets/csi300_master_replica_invdata_seq/SZ002673_val.csv
+[INFO    main                 ] read time series 'datasets/csi300_master_replica_invdata_seq/SZ002673_val.csv' with number rows: 477
+[INFO    main                 ] loaded 306 training series and 306 validation series, normalize type 'avg_std_dev'
+[INFO    main                 ] BEFORE fine-tune: validation MSE 0.3332783065 (49 weights)
+[INFO    main                 ] Getting infomation on weight update methods for backprop
+[INFO    main                 ] Backprop weight update method not set, using default method adam and default parameters
+[INFO    main                 ] Backprop learning rate: 0.001000
+[INFO    main                 ] Use high norm is set to True, high norm is 1.000000
+[INFO    main                 ] Use low norm is set to True, low norm is 0.050000
+[INFO    main                 ] fine-tuning for 100 epochs
+[INFO    main                 ] initial validation_mse: 0.333278, best validation mse: 0.333278
+[INFO    main                 ] iteration    0, mse: 0.3500529123, v_mse: 0.3336816312, bv_mse: 0.3332783065, avg_norm: 12.6149120996
+[INFO    main                 ] iteration    1, mse: 0.3500337217, v_mse: 0.3336981010, bv_mse: 0.3332783065, avg_norm: 12.6542672018
+[INFO    main                 ] iteration    2, mse: 0.3503409802, v_mse: 0.3338421741, bv_mse: 0.3332783065, avg_norm: 12.9759379871
+[INFO    main                 ] iteration    3, mse: 0.3499961383, v_mse: 0.3337087671, bv_mse: 0.3332783065, avg_norm: 12.7372194619
+[INFO    main                 ] iteration    4, mse: 0.3502237992, v_mse: 0.3337967758, bv_mse: 0.3332783065, avg_norm: 12.7162803689
+[INFO    main                 ] iteration    5, mse: 0.3498276261, v_mse: 0.3336373770, bv_mse: 0.3332783065, avg_norm: 12.6900423158
+[INFO    main                 ] iteration    6, mse: 0.3499659656, v_mse: 0.3340308947, bv_mse: 0.3332783065, avg_norm: 12.9375469144
+[INFO    main                 ] iteration    7, mse: 0.3505179142, v_mse: 0.3347750259, bv_mse: 0.3332783065, avg_norm: 12.6421229736
+[INFO    main                 ] iteration    8, mse: 0.3497775197, v_mse: 0.3336966334, bv_mse: 0.3332783065, avg_norm: 13.2582082461
+[INFO    main                 ] iteration    9, mse: 0.3497677550, v_mse: 0.3336689797, bv_mse: 0.3332783065, avg_norm: 12.9386776527
+[INFO    main                 ] iteration   10, mse: 0.3497973253, v_mse: 0.3337530094, bv_mse: 0.3332783065, avg_norm: 13.0271322240
+[INFO    main                 ] iteration   11, mse: 0.3498809367, v_mse: 0.3335437664, bv_mse: 0.3332783065, avg_norm: 13.0319296989
+[INFO    main                 ] iteration   12, mse: 0.3497573764, v_mse: 0.3335547407, bv_mse: 0.3332783065, avg_norm: 12.8283275618
+[INFO    main                 ] iteration   13, mse: 0.3498690830, v_mse: 0.3337848427, bv_mse: 0.3332783065, avg_norm: 12.8757682264
+[INFO    main                 ] iteration   14, mse: 0.3498437274, v_mse: 0.3336274031, bv_mse: 0.3332783065, avg_norm: 13.3021434056
+[INFO    main                 ] iteration   15, mse: 0.3499935379, v_mse: 0.3336819305, bv_mse: 0.3332783065, avg_norm: 12.8887383280
+[INFO    main                 ] iteration   16, mse: 0.3499441939, v_mse: 0.3338139117, bv_mse: 0.3332783065, avg_norm: 13.1379091362
+[INFO    main                 ] iteration   17, mse: 0.3503376130, v_mse: 0.3344276374, bv_mse: 0.3332783065, avg_norm: 13.5067864204
+[INFO    main                 ] iteration   18, mse: 0.3501938530, v_mse: 0.3337791370, bv_mse: 0.3332783065, avg_norm: 13.3752139079
+[INFO    main                 ] iteration   19, mse: 0.3504020716, v_mse: 0.3339986139, bv_mse: 0.3332783065, avg_norm: 13.4005462478
+[INFO    main                 ] iteration   20, mse: 0.3502660528, v_mse: 0.3341639524, bv_mse: 0.3332783065, avg_norm: 13.8841176930
+[INFO    main                 ] iteration   21, mse: 0.3503792294, v_mse: 0.3344842279, bv_mse: 0.3332783065, avg_norm: 13.7636023863
+[INFO    main                 ] iteration   22, mse: 0.3502573402, v_mse: 0.3344958989, bv_mse: 0.3332783065, avg_norm: 14.4291256478
+[INFO    main                 ] iteration   23, mse: 0.3501205459, v_mse: 0.3341687434, bv_mse: 0.3332783065, avg_norm: 14.0883364596
+[INFO    main                 ] iteration   24, mse: 0.3501760799, v_mse: 0.3343801368, bv_mse: 0.3332783065, avg_norm: 14.0507001580
+[INFO    main                 ] iteration   25, mse: 0.3502330370, v_mse: 0.3343358410, bv_mse: 0.3332783065, avg_norm: 13.6857405320
+[INFO    main                 ] iteration   26, mse: 0.3506499811, v_mse: 0.3345134886, bv_mse: 0.3332783065, avg_norm: 13.9814544073
+[INFO    main                 ] iteration   27, mse: 0.3504672261, v_mse: 0.3347273427, bv_mse: 0.3332783065, avg_norm: 14.0423377591
+[INFO    main                 ] iteration   28, mse: 0.3505214904, v_mse: 0.3349509954, bv_mse: 0.3332783065, avg_norm: 13.5242125554
+[INFO    main                 ] iteration   29, mse: 0.3507692082, v_mse: 0.3356633617, bv_mse: 0.3332783065, avg_norm: 14.2705676394
+[INFO    main                 ] iteration   30, mse: 0.3508149710, v_mse: 0.3352651311, bv_mse: 0.3332783065, avg_norm: 13.6424271733
+[INFO    main                 ] iteration   31, mse: 0.3508119294, v_mse: 0.3355722007, bv_mse: 0.3332783065, avg_norm: 14.1220439198
+[INFO    main                 ] iteration   32, mse: 0.3508993724, v_mse: 0.3357610334, bv_mse: 0.3332783065, avg_norm: 13.7189253769
+[INFO    main                 ] iteration   33, mse: 0.3509788836, v_mse: 0.3358207693, bv_mse: 0.3332783065, avg_norm: 13.6696412266
+[INFO    main                 ] iteration   34, mse: 0.3511538885, v_mse: 0.3358833473, bv_mse: 0.3332783065, avg_norm: 13.6559996745
+[INFO    main                 ] iteration   35, mse: 0.3511528141, v_mse: 0.3360601202, bv_mse: 0.3332783065, avg_norm: 14.0472993841
+[INFO    main                 ] iteration   36, mse: 0.3512337583, v_mse: 0.3360563638, bv_mse: 0.3332783065, avg_norm: 13.6906403459
+[INFO    main                 ] iteration   37, mse: 0.3514074717, v_mse: 0.3367086293, bv_mse: 0.3332783065, avg_norm: 13.8645652080
+[INFO    main                 ] iteration   38, mse: 0.3512567681, v_mse: 0.3361271578, bv_mse: 0.3332783065, avg_norm: 13.8949697531
+[INFO    main                 ] iteration   39, mse: 0.3511793085, v_mse: 0.3361621329, bv_mse: 0.3332783065, avg_norm: 14.0903997515
+[INFO    main                 ] iteration   40, mse: 0.3513545436, v_mse: 0.3366108274, bv_mse: 0.3332783065, avg_norm: 14.3646655660
+[INFO    main                 ] iteration   41, mse: 0.3513231255, v_mse: 0.3365111459, bv_mse: 0.3332783065, avg_norm: 14.1876907159
+[INFO    main                 ] iteration   42, mse: 0.3512782303, v_mse: 0.3363811189, bv_mse: 0.3332783065, avg_norm: 14.3291615862
+[INFO    main                 ] iteration   43, mse: 0.3514503673, v_mse: 0.3363559061, bv_mse: 0.3332783065, avg_norm: 14.1832347808
+[INFO    main                 ] iteration   44, mse: 0.3512591686, v_mse: 0.3362480482, bv_mse: 0.3332783065, avg_norm: 14.0802781012
+[INFO    main                 ] iteration   45, mse: 0.3512674993, v_mse: 0.3362542833, bv_mse: 0.3332783065, avg_norm: 14.8222386903
+[INFO    main                 ] iteration   46, mse: 0.3512184547, v_mse: 0.3363602630, bv_mse: 0.3332783065, avg_norm: 14.2513751284
+[INFO    main                 ] iteration   47, mse: 0.3513342277, v_mse: 0.3362283203, bv_mse: 0.3332783065, avg_norm: 14.6747749539
+[INFO    main                 ] iteration   48, mse: 0.3512606179, v_mse: 0.3363904725, bv_mse: 0.3332783065, avg_norm: 15.0534398673
+[INFO    main                 ] iteration   49, mse: 0.3512884827, v_mse: 0.3363305946, bv_mse: 0.3332783065, avg_norm: 14.1123349701
+[INFO    main                 ] iteration   50, mse: 0.3513574963, v_mse: 0.3366192157, bv_mse: 0.3332783065, avg_norm: 14.7614457796
+[INFO    main                 ] iteration   51, mse: 0.3514179112, v_mse: 0.3366892219, bv_mse: 0.3332783065, avg_norm: 13.8185005590
+[INFO    main                 ] iteration   52, mse: 0.3522374706, v_mse: 0.3380297246, bv_mse: 0.3332783065, avg_norm: 14.5592267731
+[INFO    main                 ] iteration   53, mse: 0.3513692408, v_mse: 0.3366968215, bv_mse: 0.3332783065, avg_norm: 14.5859788608
+[INFO    main                 ] iteration   54, mse: 0.3521444222, v_mse: 0.3379593216, bv_mse: 0.3332783065, avg_norm: 14.5735679837
+[INFO    main                 ] iteration   55, mse: 0.3513590234, v_mse: 0.3365483412, bv_mse: 0.3332783065, avg_norm: 14.5514181257
+[INFO    main                 ] iteration   56, mse: 0.3515462624, v_mse: 0.3366199031, bv_mse: 0.3332783065, avg_norm: 14.5129837666
+[INFO    main                 ] iteration   57, mse: 0.3516083741, v_mse: 0.3371705572, bv_mse: 0.3332783065, avg_norm: 14.6802641481
+[INFO    main                 ] iteration   58, mse: 0.3513553775, v_mse: 0.3365744624, bv_mse: 0.3332783065, avg_norm: 14.5969699582
+[INFO    main                 ] iteration   59, mse: 0.3515097206, v_mse: 0.3370448114, bv_mse: 0.3332783065, avg_norm: 14.5427162893
+[INFO    main                 ] iteration   60, mse: 0.3516761397, v_mse: 0.3367476705, bv_mse: 0.3332783065, avg_norm: 14.6797523699
+[INFO    main                 ] iteration   61, mse: 0.3515271239, v_mse: 0.3366713141, bv_mse: 0.3332783065, avg_norm: 14.4298912805
+[INFO    main                 ] iteration   62, mse: 0.3513968721, v_mse: 0.3365866626, bv_mse: 0.3332783065, avg_norm: 15.1194780789
+[INFO    main                 ] iteration   63, mse: 0.3515997800, v_mse: 0.3366677402, bv_mse: 0.3332783065, avg_norm: 14.6077891079
+[INFO    main                 ] iteration   64, mse: 0.3515584978, v_mse: 0.3371682831, bv_mse: 0.3332783065, avg_norm: 15.3279767568
+[INFO    main                 ] iteration   65, mse: 0.3516796749, v_mse: 0.3365581939, bv_mse: 0.3332783065, avg_norm: 14.5258885402
+[INFO    main                 ] iteration   66, mse: 0.3515011358, v_mse: 0.3370631588, bv_mse: 0.3332783065, avg_norm: 14.4529118227
+[INFO    main                 ] iteration   67, mse: 0.3511752275, v_mse: 0.3363730260, bv_mse: 0.3332783065, avg_norm: 14.6103715448
+[INFO    main                 ] iteration   68, mse: 0.3518223325, v_mse: 0.3374788555, bv_mse: 0.3332783065, avg_norm: 13.9697727160
+[INFO    main                 ] iteration   69, mse: 0.3511439169, v_mse: 0.3363732163, bv_mse: 0.3332783065, avg_norm: 14.9554925566
+[INFO    main                 ] iteration   70, mse: 0.3510342196, v_mse: 0.3361502859, bv_mse: 0.3332783065, avg_norm: 14.8507827183
+[INFO    main                 ] iteration   71, mse: 0.3511020612, v_mse: 0.3361491412, bv_mse: 0.3332783065, avg_norm: 14.3547561876
+[INFO    main                 ] iteration   72, mse: 0.3510628290, v_mse: 0.3361569650, bv_mse: 0.3332783065, avg_norm: 15.1137706197
+[INFO    main                 ] iteration   73, mse: 0.3513388232, v_mse: 0.3367580924, bv_mse: 0.3332783065, avg_norm: 14.6791706775
+[INFO    main                 ] iteration   74, mse: 0.3509956203, v_mse: 0.3361197180, bv_mse: 0.3332783065, avg_norm: 14.7468544113
+[INFO    main                 ] iteration   75, mse: 0.3509432745, v_mse: 0.3359890204, bv_mse: 0.3332783065, avg_norm: 14.4991870242
+[INFO    main                 ] iteration   76, mse: 0.3510919146, v_mse: 0.3358286167, bv_mse: 0.3332783065, avg_norm: 14.2535456991
+[INFO    main                 ] iteration   77, mse: 0.3514117749, v_mse: 0.3358978206, bv_mse: 0.3332783065, avg_norm: 15.6721854661
+[INFO    main                 ] iteration   78, mse: 0.3509015311, v_mse: 0.3360467310, bv_mse: 0.3332783065, avg_norm: 14.8485957416
+[INFO    main                 ] iteration   79, mse: 0.3512445675, v_mse: 0.3357503499, bv_mse: 0.3332783065, avg_norm: 14.4913834112
+[INFO    main                 ] iteration   80, mse: 0.3507028268, v_mse: 0.3356271147, bv_mse: 0.3332783065, avg_norm: 14.7214653505
+[INFO    main                 ] iteration   81, mse: 0.3507641491, v_mse: 0.3355481828, bv_mse: 0.3332783065, avg_norm: 14.2998019922
+[INFO    main                 ] iteration   82, mse: 0.3507901911, v_mse: 0.3357902705, bv_mse: 0.3332783065, avg_norm: 14.5491873770
+[INFO    main                 ] iteration   83, mse: 0.3507255295, v_mse: 0.3356143966, bv_mse: 0.3332783065, avg_norm: 14.7585305108
+[INFO    main                 ] iteration   84, mse: 0.3511355083, v_mse: 0.3356645247, bv_mse: 0.3332783065, avg_norm: 14.4599575403
+[INFO    main                 ] iteration   85, mse: 0.3507719872, v_mse: 0.3357823591, bv_mse: 0.3332783065, avg_norm: 14.1309929369
+[INFO    main                 ] iteration   86, mse: 0.3507348512, v_mse: 0.3356846175, bv_mse: 0.3332783065, avg_norm: 14.6178498063
+[INFO    main                 ] iteration   87, mse: 0.3507669595, v_mse: 0.3356218853, bv_mse: 0.3332783065, avg_norm: 14.0339176420
+[INFO    main                 ] iteration   88, mse: 0.3509090825, v_mse: 0.3355807994, bv_mse: 0.3332783065, avg_norm: 14.5688478536
+[INFO    main                 ] iteration   89, mse: 0.3510704011, v_mse: 0.3363282642, bv_mse: 0.3332783065, avg_norm: 14.5911129500
+[INFO    main                 ] iteration   90, mse: 0.3508289349, v_mse: 0.3356124363, bv_mse: 0.3332783065, avg_norm: 14.6571884509
+[INFO    main                 ] iteration   91, mse: 0.3513611254, v_mse: 0.3358548663, bv_mse: 0.3332783065, avg_norm: 14.4828640470
+[INFO    main                 ] iteration   92, mse: 0.3508374139, v_mse: 0.3356480647, bv_mse: 0.3332783065, avg_norm: 15.0217817317
+[INFO    main                 ] iteration   93, mse: 0.3507712219, v_mse: 0.3357963247, bv_mse: 0.3332783065, avg_norm: 14.4873801733
+[INFO    main                 ] iteration   94, mse: 0.3507082482, v_mse: 0.3355517491, bv_mse: 0.3332783065, avg_norm: 14.3182742677
+[INFO    main                 ] iteration   95, mse: 0.3508544004, v_mse: 0.3359466306, bv_mse: 0.3332783065, avg_norm: 14.7541803026
+[INFO    main                 ] iteration   96, mse: 0.3507530974, v_mse: 0.3355318348, bv_mse: 0.3332783065, avg_norm: 14.5610956449
+[INFO    main                 ] iteration   97, mse: 0.3507761271, v_mse: 0.3354599750, bv_mse: 0.3332783065, avg_norm: 14.1974490986
+[INFO    main                 ] iteration   98, mse: 0.3507241767, v_mse: 0.3356385664, bv_mse: 0.3332783065, avg_norm: 14.3275922261
+[INFO    main                 ] iteration   99, mse: 0.3506578092, v_mse: 0.3355142035, bv_mse: 0.3332783065, avg_norm: 14.6884190768
+[INFO    main                 ] backpropagation completed, getting mu/sigma
+[INFO    main                 ] AFTER  fine-tune: validation MSE 0.3332783065  (delta +0.0000000000)
+[INFO    main                 ] wrote fine-tuned genome to /tmp/ft_canary/finetuned.bin

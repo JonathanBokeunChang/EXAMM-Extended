@@ -1,0 +1,15 @@
+[device] mps (torch threads 8)
+[dataset] MASTER AAAI24 replica v3 (research-grade)  bundle=invdata handler=seq content=9a5318e523f4cefe...
+[universe] training restricted to 306 stocks (306 contribute train rows); eval index unchanged
+[fit] 712 stocks, 6 cols -> mode=window, input=(60 timesteps x 6 feat), target=LABEL_CSRANK, hidden=16x2, seeds=1, HAC lag=1
+[fit] windows train (307658, 60, 6) val (106125, 60, 6) eval (235277, 60, 6)
+[fit] eval rows match eval_index exactly (235277)
+  gru seed 0: 20 epochs, lr=0.0002, 702s
+  gru: 2801 params, 702s
+gru (2x16, 1-seed ens)             IC +0.0453  HAC-SE 0.00496  t_HAC  +9.14  [95% +0.0356,+0.0550]  hit 61.8%  n=871   (naive t +9.13, x1.00)
+
+=== context (different data/protocol -- NOT targets) ===
+   MASTER's own GRU column (their protocol) : +0.0520 RankIC
+   MASTER (published, confidential data)     : +0.0760 RankIC
+
+wrote datasets/csi300_master_replica_invdata_seq/_lstm_gru_result.json

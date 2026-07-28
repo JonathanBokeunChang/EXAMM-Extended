@@ -1,0 +1,28 @@
+OUT_ROOT=/tmp/ic_mse/test_output/mse_cohort_2021_aligned  SPLIT=test  DATA_DIR=datasets/walkforward/cohort_2021_aligned  TARGET=RET
+  run_1: genome=global_best_genome_9769.bin  evaluated 50 stocks
+  run_10: genome=global_best_genome_9516.bin  evaluated 50 stocks
+  run_2: genome=global_best_genome_9901.bin  evaluated 50 stocks
+  run_3: genome=global_best_genome_9862.bin  evaluated 50 stocks
+  run_4: genome=global_best_genome_9720.bin  evaluated 50 stocks
+  run_5: genome=global_best_genome_9880.bin  evaluated 50 stocks
+  run_6: genome=global_best_genome_9755.bin  evaluated 50 stocks
+  run_7: genome=global_best_genome_9011.bin  evaluated 50 stocks
+  run_8: genome=global_best_genome_9643.bin  evaluated 50 stocks
+  run_9: genome=global_best_genome_9855.bin  evaluated 50 stocks
+
+ensembling 10 run(s): ['run_1', 'run_10', 'run_2', 'run_3', 'run_4', 'run_5', 'run_6', 'run_7', 'run_8', 'run_9']
+
+=== ENSEMBLE cross-sectional IC (test) ===
+universe      : 50 stocks
+dates         : 249
+runs ensembled: 10
+mean IC       : +0.019496
+IC info ratio : +1.712
+hit rate      : 53.8%
+
+wrote ensembled predictions -> /tmp/ic_mse/test_output/mse_cohort_2021_aligned/ensemble_test  (feed to trade_portfolio.py --pred-dir)
+
+To trade the ensemble (test only):
+  python3 scripts/stock_run/trade_portfolio.py \
+    --pred-dir /tmp/ic_mse/test_output/mse_cohort_2021_aligned/ensemble_test --data-dir datasets/walkforward/cohort_2021_aligned \
+    --align suffix --expect-n 50 --long 10 --short 10

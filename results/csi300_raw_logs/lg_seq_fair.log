@@ -1,0 +1,35 @@
+[device] mps (torch threads 8)
+[dataset] MASTER AAAI24 replica v3 (research-grade)  bundle=invdata handler=seq content=9a5318e523f4cefe...
+[universe] training restricted to 306 stocks (306 contribute train rows); eval index unchanged
+[fit] 712 stocks, 6 cols -> mode=window, input=(60 timesteps x 6 feat), target=LABEL_CSRANK, hidden=64x2, seeds=2, HAC lag=1
+[fit] windows train (307658, 60, 6) val (106125, 60, 6) eval (235277, 60, 6)
+[fit] eval rows match eval_index exactly (235277)
+      [gru s0] epoch   1  val 0.975010  best 0.975010  patience 0/10  73s (73s/ep)
+      [gru s0] epoch   2  val 0.973880  best 0.973880  patience 0/10  145s (73s/ep)
+      [gru s0] epoch   3  val 0.973285  best 0.973285  patience 0/10  242s (81s/ep)
+      [gru s0] epoch   6  val 0.975092  best 0.973285  patience 3/10  626s (104s/ep)
+      [gru s0] epoch  11  val 0.975210  best 0.973285  patience 8/10  1398s (127s/ep)
+      [gru s0] epoch  13  val 0.974741  best 0.973285  patience 10/10  1641s (126s/ep)
+  gru seed 0: 13 epochs, lr=0.0002, 1655s
+      [gru s1] epoch   1  val 0.974738  best 0.974738  patience 0/10  169s (169s/ep)
+      [gru s1] epoch   2  val 0.973669  best 0.973669  patience 0/10  359s (179s/ep)
+      [gru s1] epoch   4  val 0.973366  best 0.973366  patience 0/10  569s (142s/ep)
+      [gru s1] epoch   6  val 0.973287  best 0.973287  patience 0/10  718s (120s/ep)
+      [gru s1] epoch  11  val 0.974035  best 0.973287  patience 5/10  1212s (110s/ep)
+      [gru s1] epoch  12  val 0.972846  best 0.972846  patience 0/10  1360s (113s/ep)
+      [gru s1] epoch  13  val 0.972645  best 0.972645  patience 0/10  1532s (118s/ep)
+      [gru s1] epoch  16  val 0.973775  best 0.972645  patience 3/10  2010s (126s/ep)
+      [gru s1] epoch  21  val 0.973870  best 0.972645  patience 8/10  2204s (105s/ep)
+      [gru s1] epoch  22  val 0.972576  best 0.972576  patience 0/10  2243s (102s/ep)
+      [gru s1] epoch  26  val 0.973575  best 0.972576  patience 4/10  2403s (92s/ep)
+      [gru s1] epoch  31  val 0.976863  best 0.972576  patience 9/10  2620s (85s/ep)
+      [gru s1] epoch  32  val 0.975909  best 0.972576  patience 10/10  2667s (83s/ep)
+  gru seed 1: 32 epochs, lr=0.0002, 4332s
+  gru: 38849 params, 4334s
+gru (2x64, 2-seed ens)             IC +0.0564  HAC-SE 0.00482  t_HAC +11.71  [95% +0.0470,+0.0659]  hit 65.8%  n=871   (naive t +11.72, x1.00)
+
+=== context (different data/protocol -- NOT targets) ===
+   MASTER's own GRU column (their protocol) : +0.0520 RankIC
+   MASTER (published, confidential data)     : +0.0760 RankIC
+
+wrote datasets/csi300_master_replica_invdata_seq/_lstm_gru_result.json

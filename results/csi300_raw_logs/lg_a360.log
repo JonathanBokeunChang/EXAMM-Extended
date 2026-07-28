@@ -1,0 +1,84 @@
+[device] mps (torch threads 8)
+==============================================================================
+DIAGNOSTIC MODE: test IC is printed every epoch.
+This run's numbers are NOT reportable. Watching test during training makes any
+subsequent choice (epochs, patience, seeds, architecture) contaminated by test
+knowledge -- the winner's-curse pattern this project already hit once with a live
+tracker (+0.0188 live vs +0.0113 honest). Use it to SEE the training dynamics;
+bank reportable numbers from a run WITHOUT this flag.
+==============================================================================
+[dataset] MASTER AAAI24 replica v3 (research-grade)  bundle=invdata handler=alpha360 content=b6c1d955865f411e...
+[fit] 712 stocks, 360 cols -> mode=reshape, input=(60 timesteps x 6 feat), target=LABEL_CSRANK, hidden=64x2, seeds=2, HAC lag=1
+[fit] windows train (509815, 60, 6) val (145783, 60, 6) eval (250614, 60, 6)
+[fit] eval rows match eval_index exactly (250614)
+      [gru s0] epoch   1  val 0.996669  best 0.996669  patience 0/10  TEST-IC +0.0324  71s (71s/ep)
+      [gru s0] epoch   2  val 0.995891  best 0.995891  patience 0/10  TEST-IC +0.0367  141s (71s/ep)
+      [gru s0] epoch   3  val 0.995541  best 0.995541  patience 0/10  TEST-IC +0.0405  221s (74s/ep)
+      [gru s0] epoch   4  val 0.995509  best 0.995509  patience 0/10  TEST-IC +0.0429  297s (74s/ep)
+      [gru s0] epoch   5  val 0.995315  best 0.995315  patience 0/10  TEST-IC +0.0450  370s (74s/ep)
+      [gru s0] epoch   6  val 0.996208  best 0.995315  patience 1/10  TEST-IC +0.0476  443s (74s/ep)
+      [gru s0] epoch   7  val 0.995484  best 0.995315  patience 2/10  TEST-IC +0.0469  528s (75s/ep)
+      [gru s0] epoch   8  val 0.994623  best 0.994623  patience 0/10  TEST-IC +0.0494  606s (76s/ep)
+      [gru s0] epoch   9  val 0.994693  best 0.994623  patience 1/10  TEST-IC +0.0478  678s (75s/ep)
+      [gru s0] epoch  10  val 0.994637  best 0.994623  patience 2/10  TEST-IC +0.0501  757s (76s/ep)
+      [gru s0] epoch  11  val 0.994376  best 0.994376  patience 0/10  TEST-IC +0.0540  835s (76s/ep)
+      [gru s0] epoch  12  val 0.994542  best 0.994376  patience 1/10  TEST-IC +0.0528  915s (76s/ep)
+      [gru s0] epoch  13  val 0.994006  best 0.994006  patience 0/10  TEST-IC +0.0535  990s (76s/ep)
+      [gru s0] epoch  14  val 0.993689  best 0.993689  patience 0/10  TEST-IC +0.0553  1063s (76s/ep)
+      [gru s0] epoch  15  val 0.994781  best 0.993689  patience 1/10  TEST-IC +0.0532  1143s (76s/ep)
+      [gru s0] epoch  16  val 0.994051  best 0.993689  patience 2/10  TEST-IC +0.0567  1217s (76s/ep)
+      [gru s0] epoch  17  val 0.993428  best 0.993428  patience 0/10  TEST-IC +0.0552  1290s (76s/ep)
+      [gru s0] epoch  18  val 0.994050  best 0.993428  patience 1/10  TEST-IC +0.0584  1366s (76s/ep)
+      [gru s0] epoch  19  val 0.994053  best 0.993428  patience 2/10  TEST-IC +0.0535  1447s (76s/ep)
+      [gru s0] epoch  20  val 0.995327  best 0.993428  patience 3/10  TEST-IC +0.0523  1521s (76s/ep)
+      [gru s0] epoch  21  val 0.994238  best 0.993428  patience 4/10  TEST-IC +0.0593  1597s (76s/ep)
+      [gru s0] epoch  22  val 0.994456  best 0.993428  patience 5/10  TEST-IC +0.0556  1670s (76s/ep)
+      [gru s0] epoch  23  val 0.994049  best 0.993428  patience 6/10  TEST-IC +0.0591  1745s (76s/ep)
+      [gru s0] epoch  24  val 0.994435  best 0.993428  patience 7/10  TEST-IC +0.0574  1818s (76s/ep)
+      [gru s0] epoch  25  val 0.994318  best 0.993428  patience 8/10  TEST-IC +0.0610  1892s (76s/ep)
+      [gru s0] epoch  26  val 0.994680  best 0.993428  patience 9/10  TEST-IC +0.0579  1965s (76s/ep)
+      [gru s0] epoch  27  val 0.994903  best 0.993428  patience 10/10  TEST-IC +0.0587  2038s (75s/ep)
+  gru seed 0: 27 epochs, lr=0.0002, 2046s
+      [gru s1] epoch   1  val 0.996329  best 0.996329  patience 0/10  TEST-IC +0.0290  73s (73s/ep)
+      [gru s1] epoch   2  val 0.995795  best 0.995795  patience 0/10  TEST-IC +0.0364  144s (72s/ep)
+      [gru s1] epoch   3  val 0.996052  best 0.995795  patience 1/10  TEST-IC +0.0402  215s (72s/ep)
+      [gru s1] epoch   4  val 0.996210  best 0.995795  patience 2/10  TEST-IC +0.0429  287s (72s/ep)
+      [gru s1] epoch   5  val 0.995516  best 0.995516  patience 0/10  TEST-IC +0.0471  362s (72s/ep)
+      [gru s1] epoch   6  val 0.995174  best 0.995174  patience 0/10  TEST-IC +0.0495  435s (73s/ep)
+      [gru s1] epoch   7  val 0.994946  best 0.994946  patience 0/10  TEST-IC +0.0484  507s (72s/ep)
+      [gru s1] epoch   8  val 0.995037  best 0.994946  patience 1/10  TEST-IC +0.0488  579s (72s/ep)
+      [gru s1] epoch   9  val 0.995278  best 0.994946  patience 2/10  TEST-IC +0.0512  651s (72s/ep)
+      [gru s1] epoch  10  val 0.994316  best 0.994316  patience 0/10  TEST-IC +0.0493  727s (73s/ep)
+      [gru s1] epoch  11  val 0.994103  best 0.994103  patience 0/10  TEST-IC +0.0503  801s (73s/ep)
+      [gru s1] epoch  12  val 0.994249  best 0.994103  patience 1/10  TEST-IC +0.0534  873s (73s/ep)
+      [gru s1] epoch  13  val 0.994549  best 0.994103  patience 2/10  TEST-IC +0.0527  950s (73s/ep)
+      [gru s1] epoch  14  val 0.993438  best 0.993438  patience 0/10  TEST-IC +0.0557  1023s (73s/ep)
+      [gru s1] epoch  15  val 0.994524  best 0.993438  patience 1/10  TEST-IC +0.0544  1098s (73s/ep)
+      [gru s1] epoch  16  val 0.993719  best 0.993438  patience 2/10  TEST-IC +0.0524  1171s (73s/ep)
+      [gru s1] epoch  17  val 0.993683  best 0.993438  patience 3/10  TEST-IC +0.0554  1245s (73s/ep)
+      [gru s1] epoch  18  val 0.993984  best 0.993438  patience 4/10  TEST-IC +0.0554  1322s (73s/ep)
+      [gru s1] epoch  19  val 0.993994  best 0.993438  patience 5/10  TEST-IC +0.0517  1400s (74s/ep)
+      [gru s1] epoch  20  val 0.993004  best 0.993004  patience 0/10  TEST-IC +0.0583  1475s (74s/ep)
+      [gru s1] epoch  21  val 0.993087  best 0.993004  patience 1/10  TEST-IC +0.0585  1580s (75s/ep)
+      [gru s1] epoch  22  val 0.993130  best 0.993004  patience 2/10  TEST-IC +0.0597  1675s (76s/ep)
+      [gru s1] epoch  23  val 0.993483  best 0.993004  patience 3/10  TEST-IC +0.0575  1760s (77s/ep)
+      [gru s1] epoch  24  val 0.993892  best 0.993004  patience 4/10  TEST-IC +0.0589  1844s (77s/ep)
+      [gru s1] epoch  25  val 0.993266  best 0.993004  patience 5/10  TEST-IC +0.0612  1925s (77s/ep)
+      [gru s1] epoch  26  val 0.994729  best 0.993004  patience 6/10  TEST-IC +0.0581  2009s (77s/ep)
+      [gru s1] epoch  27  val 0.993759  best 0.993004  patience 7/10  TEST-IC +0.0608  2099s (78s/ep)
+      [gru s1] epoch  28  val 0.993367  best 0.993004  patience 8/10  TEST-IC +0.0600  2185s (78s/ep)
+      [gru s1] epoch  29  val 0.994439  best 0.993004  patience 9/10  TEST-IC +0.0615  2269s (78s/ep)
+      [gru s1] epoch  30  val 0.995734  best 0.993004  patience 10/10  TEST-IC +0.0595  2355s (78s/ep)
+  gru seed 1: 30 epochs, lr=0.0002, 4413s
+  gru: 38849 params, 4413s
+gru (2x64, 2-seed ens)             IC +0.0581  HAC-SE 0.00438  t_HAC +13.24  [95% +0.0495,+0.0666]  hit 67.6%  n=871   (naive t +13.15, x0.99)
+
+=== same eval rows, from the linear gate ===
+   ridge (221, CSRankNorm target) : +0.0329  HAC t +5.93
+   ridge (Alpha158 only)           : +0.0329  HAC t +5.93
+
+=== context (different data/protocol -- NOT targets) ===
+   MASTER's own GRU column (their protocol) : +0.0520 RankIC
+   MASTER (published, confidential data)     : +0.0760 RankIC
+
+wrote datasets/csi300_master_replica_invdata_alpha360/_lstm_gru_result.json

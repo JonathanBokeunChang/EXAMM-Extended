@@ -1,0 +1,55 @@
+[device] mps (torch threads 8)
+[dataset] MASTER AAAI24 replica v3 (research-grade)  bundle=invdata handler=seq content=9a5318e523f4cefe...
+[fit] 712 stocks, 6 cols -> mode=window, input=(60 timesteps x 6 feat), target=LABEL_CSRANK, hidden=64x2, seeds=2, HAC lag=1
+[fit] windows train (439624, 60, 6) val (118075, 60, 6) eval (235277, 60, 6)
+[fit] eval rows match eval_index exactly (235277)
+      [gru s0] epoch   1  val 0.985118  best 0.985118  patience 0/10  61s (61s/ep)
+      [gru s0] epoch   2  val 0.984643  best 0.984643  patience 0/10  122s (61s/ep)
+      [gru s0] epoch   3  val 0.984367  best 0.984367  patience 0/10  183s (61s/ep)
+      [gru s0] epoch   4  val 0.984983  best 0.984367  patience 1/10  244s (61s/ep)
+      [gru s0] epoch   5  val 0.984461  best 0.984367  patience 2/10  303s (61s/ep)
+      [gru s0] epoch   6  val 0.984527  best 0.984367  patience 3/10  368s (61s/ep)
+      [gru s0] epoch   7  val 0.984242  best 0.984242  patience 0/10  435s (62s/ep)
+      [gru s0] epoch   8  val 0.984647  best 0.984242  patience 1/10  496s (62s/ep)
+      [gru s0] epoch   9  val 0.983187  best 0.983187  patience 0/10  554s (62s/ep)
+      [gru s0] epoch  10  val 0.983478  best 0.983187  patience 1/10  613s (61s/ep)
+      [gru s0] epoch  11  val 0.983092  best 0.983092  patience 0/10  671s (61s/ep)
+      [gru s0] epoch  12  val 0.983367  best 0.983092  patience 1/10  728s (61s/ep)
+      [gru s0] epoch  13  val 0.985433  best 0.983092  patience 2/10  787s (61s/ep)
+      [gru s0] epoch  14  val 0.983387  best 0.983092  patience 3/10  846s (60s/ep)
+      [gru s0] epoch  15  val 0.983907  best 0.983092  patience 4/10  906s (60s/ep)
+      [gru s0] epoch  16  val 0.984667  best 0.983092  patience 5/10  964s (60s/ep)
+      [gru s0] epoch  17  val 0.985105  best 0.983092  patience 6/10  1024s (60s/ep)
+      [gru s0] epoch  18  val 0.987701  best 0.983092  patience 7/10  1085s (60s/ep)
+      [gru s0] epoch  19  val 0.984120  best 0.983092  patience 8/10  1144s (60s/ep)
+      [gru s0] epoch  20  val 0.984155  best 0.983092  patience 9/10  1202s (60s/ep)
+      [gru s0] epoch  21  val 0.987572  best 0.983092  patience 10/10  1261s (60s/ep)
+  gru seed 0: 21 epochs, lr=0.0002, 1270s
+      [gru s1] epoch   1  val 0.985627  best 0.985627  patience 0/10  60s (60s/ep)
+      [gru s1] epoch   2  val 0.985358  best 0.985358  patience 0/10  118s (59s/ep)
+      [gru s1] epoch   3  val 0.986022  best 0.985358  patience 1/10  175s (58s/ep)
+      [gru s1] epoch   4  val 0.984702  best 0.984702  patience 0/10  237s (59s/ep)
+      [gru s1] epoch   5  val 0.984299  best 0.984299  patience 0/10  301s (60s/ep)
+      [gru s1] epoch   6  val 0.984154  best 0.984154  patience 0/10  361s (60s/ep)
+      [gru s1] epoch   7  val 0.983265  best 0.983265  patience 0/10  421s (60s/ep)
+      [gru s1] epoch   8  val 0.984120  best 0.983265  patience 1/10  480s (60s/ep)
+      [gru s1] epoch   9  val 0.983068  best 0.983068  patience 0/10  542s (60s/ep)
+      [gru s1] epoch  10  val 0.983756  best 0.983068  patience 1/10  611s (61s/ep)
+      [gru s1] epoch  11  val 0.983338  best 0.983068  patience 2/10  670s (61s/ep)
+      [gru s1] epoch  12  val 0.984495  best 0.983068  patience 3/10  731s (61s/ep)
+      [gru s1] epoch  13  val 0.983604  best 0.983068  patience 4/10  791s (61s/ep)
+      [gru s1] epoch  14  val 0.983636  best 0.983068  patience 5/10  849s (61s/ep)
+      [gru s1] epoch  15  val 0.983215  best 0.983068  patience 6/10  907s (60s/ep)
+      [gru s1] epoch  16  val 0.983153  best 0.983068  patience 7/10  965s (60s/ep)
+      [gru s1] epoch  17  val 0.983725  best 0.983068  patience 8/10  1024s (60s/ep)
+      [gru s1] epoch  18  val 0.983617  best 0.983068  patience 9/10  1086s (60s/ep)
+      [gru s1] epoch  19  val 0.984199  best 0.983068  patience 10/10  1146s (60s/ep)
+  gru seed 1: 19 epochs, lr=0.0002, 2421s
+  gru: 38849 params, 2422s
+gru (2x64, 2-seed ens)             IC +0.0571  HAC-SE 0.00462  t_HAC +12.35  [95% +0.0480,+0.0662]  hit 67.7%  n=871   (naive t +12.42, x1.01)
+
+=== context (different data/protocol -- NOT targets) ===
+   MASTER's own GRU column (their protocol) : +0.0520 RankIC
+   MASTER (published, confidential data)     : +0.0760 RankIC
+
+wrote datasets/csi300_master_replica_invdata_seq/_lstm_gru_result.json

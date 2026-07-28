@@ -1,0 +1,27 @@
+[dataset] handler=seq content=9a5318e523f4cefe...  HAC lag=1
+[runs] 1 with a global_best_genome
+   run_1: global_best_genome_9581.bin  weights=74 nodes=11 edges=20 rec=7
+
+=== per-run (validation-selected global best, scored once) ===
+run_1                              IC +0.0297  HAC-SE 0.00574  t_HAC  +5.17  [95% +0.0185,+0.0410]  hit 56.5%  n=871   (naive t +5.22, x1.01)
+
+=== ENSEMBLE (1 runs) ===
+EXAMM 1-run ensemble               IC +0.0297  HAC-SE 0.00574  t_HAC  +5.17  [95% +0.0185,+0.0410]  hit 56.5%  n=871   (naive t +5.22, x1.01)
+
+=== same rows, same target, same HAC lag ===
+   gru    +0.0488  HAC t +10.70   (38,849 params)
+   EXAMM - GRU: -0.0191  HAC t -3.01
+
+=== EFFICIENCY (the claim this experiment exists to test) ===
+   EXAMM weights per genome : [74]  (mean 74)
+   GRU 2x64 parameters      : 38849
+   ratio                    : 525x fewer
+   NOTE: a parameter-count advantage only counts if accuracy is comparable --
+   read it against the paired IC delta above, never on its own.
+
+=== context (different encoding -- NOT a target) ===
+   published qlib GRU, Alpha360 flat : 0.0584
+   our GRU, Alpha360 flat            : +0.0581
+   published HIST (SOTA, Alpha360)   : 0.0667
+
+wrote /tmp/anvil_bpi30/test_output/seq_examm_bpi30/_examm_result.json

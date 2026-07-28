@@ -1,0 +1,13 @@
+  eval index: 251217 rows (253631 test rows available, 2414 outside the index)
+=== PLACEBO: shuffle LABEL_CSRANK WITHIN each date on TRAIN, then refit ===
+    train 488,867 rows | eval 251,217 rows | 200 features
+
+    rows whose label happened to stay put: 0.37% (must be small)
+
+   ridge alpha=1 chosen on val (val IC -0.0352)
+PLACEBO (shuffled train label)     IC +0.0019  HAC-SE 0.00492  t_HAC  +0.38  [95% -0.0078,+0.0115]  hit 51.1%  n=871   (naive t +0.54, x1.42)
+
+   expected: IC ~ 0 with a 95% interval spanning zero
+   observed: IC +0.0019, 95% [-0.0078, +0.0115]
+
+   PASS -- no structural leakage detected
