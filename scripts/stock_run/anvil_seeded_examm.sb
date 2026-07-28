@@ -10,18 +10,26 @@
 # capacity would need O(10^5) genomes. Seeding removes that compute wall and changes the question
 # from "can evolution CLIMB to scale?" to "GIVEN scale, can evolution IMPROVE a hand-designed net?"
 #
-# WHAT EVOLUTION CAN AND CANNOT DO HERE (measured, not assumed)
-# -------------------------------------------------------------
-# Node types enter ONLY via add_node / split_node / merge_node / split_edge (examm.cxx:152) and
-# existing nodes are NEVER retyped. With a 64-node GRU seed and ~1,700 genomes you should expect
-# ~2 new nodes -- the genome stays ~97% GRU. So this arm's claim is about EDGE-LEVEL structure:
-#   * add_recurrent_edge at depths 1..MAX_REC_DEPTH -- needs no node types, fully available, and is
-#     the ONE thing a fixed-depth GRU cannot express at any width. This is the hypothesis.
-#   * add_edge / disable_edge -- skip connections and rewiring
-#   * disable_node -- pruning (any efficiency result comes from here)
-# Do NOT claim "evolution mixes cell types" for this arm; that is a from-scratch property (grow3
-# reached 4 LSTM / 3 GRU / 2 UGRNN / 1 Elman from a MINIMAL seed). GROW_SHRINK is the one mechanism
-# that produces type turnover on a seeded genome, via merge_node (see below).
+# WHAT EVOLUTION ACTUALLY DOES HERE (measured on the canary, not assumed)
+# -----------------------------------------------------------------------
+# add_node IS THE DOMINANT SUPPLIER OF MULTI-SCALE RECURRENCE -- not add_recurrent_edge.
+# A new node's fan-in/fan-out is drawn as fmax(1, 2 + N(avg_inputs, sigma)) from the GENOME-WIDE
+# average (rnn_genome.cxx:2868-2869), and its connections are split plain/recurrent by
+# recurrent_probability = enabled_rec / (enabled_rec + enabled_edges) (rnn_genome.cxx:2875-2876).
+# On this seed that average is (1248+1248)/71 = 35.2 and the probability is exactly 0.500, so ONE
+# add_node event creates ~37 plain + ~34 recurrent edges + 1 bias = ~72 weights.
+# The canary confirms it exactly: 3151 - 3079 = 72 weights, +1 node, +37 edges, +34 rec. That was a
+# SINGLE mutation event, not 169 genomes of accumulation.
+# add_node and add_recurrent_edge are drawn with equal probability (1/8 of reachable ops,
+# examm.cxx:1219-1240), but add_node delivers ~34 recurrent edges per event against
+# add_recurrent_edge's 1. Attribute the recurrence claim accordingly.
+# Expect ~11 accepted add_nodes over 1800 genomes -> ~+780 connections, mildly compounding (each
+# event raises avg_inputs, so the next node is wider).
+# Node TYPES still enter only via add_node / split_node / merge_node / split_edge (examm.cxx:152)
+# and existing nodes are never retyped, so the genome stays overwhelmingly GRU. Do NOT claim
+# "evolution mixes cell types" for this arm -- that is a from-scratch property (grow3 reached
+# 4 LSTM / 3 GRU / 2 UGRNN / 1 Elman from a MINIMAL seed). GROW_SHRINK is the only mechanism that
+# retypes nodes on a seeded genome, via merge_node (see below).
 #
 # THE CONTROL IS THE PAPER
 # ------------------------
@@ -48,7 +56,12 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=32
 #SBATCH --cpus-per-task=1
-#SBATCH --time=12:00:00
+# 24h, not 12. The 227 genomes/hr canary rate was measured under 2-WAY node sharing. On the shared
+# partition the 6 array tasks (3x B1 + 3x B2) can pack four 32-rank jobs onto one 128-core node; at
+# ~150/hr, 1800 genomes is 12h + startup and gets walltime-killed. That matters more than losing the
+# tail: if B1 and B2 truncate at DIFFERENT genome counts the arms are confounded, not just short.
+# SLURM bills actual usage, so the only cost of the larger request is queue priority.
+#SBATCH --time=24:00:00
 #SBATCH --job-name=seeded_examm
 #SBATCH --array=0-2
 #SBATCH --output=slurm_logs/seeded_%A_%a.out
@@ -65,13 +78,8 @@ SEED_GENOME=${SEED_GENOME:?set SEED_GENOME=<pretrained .bin from anvil_pretrain_
 INPUTS=${INPUTS:-"RET OPEN_C HIGH_C LOW_C VWAP_C VOLR"}
 OUTPUT=${OUTPUT:-LABEL_CSRANK}
 
-# MAXG: budget must SHRINK with seed size or the job is a non-experiment. Measured from grow3:
-# ~48.2 CPU-s/genome at 192 weights, bp_iterations=30, scaling ~linearly in weights. Against
-# 12h x 31 workers that is ~1,700 genomes at 3,079w (2x32) and only ~520 at 10,247w (2x64).
-# ALSO: 10 islands x 10 needs 100 genomes just to FILL the population, so keep
-# MAXG >= 10 x ISLANDS x ISLAND_SIZE or there is no search, only initialisation.
-# These are extrapolations off ONE measured point -- run the canary (MAXG=100) and re-set from
-# observed genomes/hour before trusting them.
+# MAXG: budget must SHRINK with seed size or the job is a non-experiment; re-measure whenever the
+# seed size or bp_iterations changes.
 # MEASURED, not extrapolated. Canary (1h, 32 ranks, gru_2x32 seed, bp_iterations=10, contending with
 # a second canary on the same node): 169 genomes in 53 min, steady-state ~227 genomes/hr once the
 # ~20-min startup (32 ranks x 612 CSVs) amortizes. Over 12h that is ~2,650; at a 30% margin -> 1800.
@@ -112,15 +120,16 @@ NUM_MUTATIONS=${NUM_MUTATIONS:-1}
 MAX_REC_DEPTH=${MAX_REC_DEPTH:-45}
 
 # Extinction kept at 500, MATCHING the from-scratch arms (d45/bpi30/grow3), deliberately.
-# The argument for disabling it is real but small: repopulation_method=bestGenome replaces an island
-# with 10 near-clones of the current global best (island_speciation_strategy.cxx:342-344), which
-# intensifies onto a VALIDATION-selected point, and validation does not predict test IC here
-# (r=+0.065, n=6). But at ~6 events x 10 genomes that is ~1.7% of a 3,500-genome budget with an
-# ambiguous sign, and changing it would add yet another uncontrolled difference from the prior arms
-# -- in a project whose notes already flag inconsistent extinction settings as a live bug. Not worth
-# spending a deviation on. Set EXTINCTION=0 explicitly if you want the no-extinction variant.
-# (Note the guard at island_speciation_strategy.cxx:224-225 also requires
-# max_genomes - evaluated >= extinction_interval, so the last event before MAXG never fires.)
+# It fires exactly TWICE at MAXG=1800: the guard at island_speciation_strategy.cxx:224-225 requires
+# max_genomes - evaluated >= 500, so events land at evaluated=500 and 1000, and 1500 is suppressed
+# (1800-1500 = 300 < 500).
+# The real cost is NOT the ~20 repopulated genomes. While any island is REPOPULATING, islands_full()
+# returns false (island_speciation_strategy.cxx:149-157), and line 416 then forces MUTATION-ONLY for
+# every island in the run. Refilling an erased island takes ~100 generated genomes at 1-in-10
+# round-robin, so each event disables crossover globally for ~100 genomes -- roughly 200 of 1800
+# (11%) of the budget runs mutation-only.
+# Kept anyway: it matches the from-scratch arms' per-500-genome cadence, and mutation-only windows
+# are arguably MORE on-hypothesis, not less. Set EXTINCTION=0 for the no-extinction variant.
 EXTINCTION=${EXTINCTION:-500}
 NORMALIZE=${NORMALIZE:-avg_std_dev}
 SAVE_GENOMES=${SAVE_GENOMES:-all_best_genomes}
