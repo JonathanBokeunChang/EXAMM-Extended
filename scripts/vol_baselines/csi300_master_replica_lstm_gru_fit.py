@@ -110,6 +110,13 @@ def build_windows(panel, FX, target, seq, eval_keys, mode, n_field=6):
         by the dataset's eval index, so each row's embedded history is genuine.
     """
     Xtr, ytr, Xva, yva, Xte, meta = [], [], [], [], [], []
+    # Train/val DATES, collected alongside the samples. Needed by any model whose batch composition
+    # is semantically meaningful -- a cross-sectional/relational model computes attention ACROSS the
+    # batch, so a batch must be exactly one date's cross-section or it attends over unrelated dates.
+    # These are appended to the return tuple, which is now EIGHT values: every caller must unpack
+    # eight (tuple unpacking is strict, so a stale six-name caller raises ValueError rather than
+    # silently dropping them).
+    dtr, dva = [], []
     for s, g in panel.items():
         for _, seg in g.groupby("segment_id", sort=True):
             seg = seg.reset_index(drop=True)
@@ -130,13 +137,14 @@ def build_windows(panel, FX, target, seq, eval_keys, mode, n_field=6):
             for i in idx:
                 w = W[i] if mode == "reshape" else X[i - seq + 1:i + 1]
                 if sp[i] == "train":
-                    Xtr.append(w); ytr.append(y[i])
+                    Xtr.append(w); ytr.append(y[i]); dtr.append(dt[i])
                 elif sp[i] == "val":
-                    Xva.append(w); yva.append(y[i])
+                    Xva.append(w); yva.append(y[i]); dva.append(dt[i])
                 elif (dt[i], s) in eval_keys:
                     Xte.append(w); meta.append((s, dt[i], lb[i]))
     return (np.asarray(Xtr), np.asarray(ytr), np.asarray(Xva), np.asarray(yva),
-            np.asarray(Xte), pd.DataFrame(meta, columns=["instrument", "date", "LABEL"]))
+            np.asarray(Xte), pd.DataFrame(meta, columns=["instrument", "date", "LABEL"]),
+            np.asarray(dtr), np.asarray(dva))
 
 
 def main():
@@ -228,7 +236,10 @@ def main():
           f"input=({t_steps} timesteps x {n_in} feat), target={a.target}, "
           f"hidden={a.hidden}x{a.layers}, seeds={a.seeds}, HAC lag={a.hac_lag}")
 
-    Xtr, ytr, Xva, yva, Xte, md = build_windows(panel, FX, a.target, seq, eval_keys, mode, n_field)
+    # trailing _dtr/_dva are train/val dates, unused here (this model batches by shuffled index,
+    # not by cross-section); they exist for relational models where batch composition matters.
+    Xtr, ytr, Xva, yva, Xte, md, _dtr, _dva = build_windows(
+        panel, FX, a.target, seq, eval_keys, mode, n_field)
     del panel                      # ~1.3 GB of DataFrames no longer needed once sampled
     import gc; gc.collect()
     print(f"[fit] windows train {Xtr.shape} val {Xva.shape} eval {Xte.shape}")
