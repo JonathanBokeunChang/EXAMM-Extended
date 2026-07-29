@@ -319,7 +319,11 @@ def main():
         for s_ in range(a.seeds):
             p, npar, e = train_one(kind, s_)
             P.append(p)
-            print(f"  {kind} seed {s_}: {e} epochs, lr={lr_used:g}, {time.time()-t0:.0f}s")
+            # recompute rather than reuse train_one's local: that name is scoped to the inner
+            # function and is NOT visible here (this raised NameError after a full seed had
+            # already trained -- 851s wasted before the failure surfaced).
+            print(f"  {kind} seed {s_}: {e} epochs, "
+                  f"lr={(a.lr if a.lr is not None else LR[kind]):g}, {time.time()-t0:.0f}s")
         ics = daily_ic(md.assign(pred=np.mean(P, axis=0)),
                         pred_col="pred", label_col="LABEL", date_col="date")
         print(f"  {kind}: {npar} params, {time.time()-t0:.0f}s")
