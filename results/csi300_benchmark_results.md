@@ -139,8 +139,30 @@ GRU ± 9 peer features (k=20 train-selected), Alpha360, matched architecture/lr/
 Within-seed (same init, only inputs differ): s0 −0.0061 (t −2.22), s1 −0.0084 (t −2.76), both same sign.
 
 **Mechanism:** CS features made val MSE *better* (0.993286→0.991461) and test rank IC *worse*
-(+0.0552→+0.0491). Peer aggregates carry the **common** component, which **cancels in cross-sectional
-ranking by construction** — so the model spends capacity on signal that provably cannot help ordering.
+(+0.0552→+0.0491).
+
+> **CORRECTION (2026-07-29).** The explanation previously given here — *"peer aggregates carry the
+> common component, which cancels in cross-sectional ranking by construction"* — is **FALSE**, and is
+> refuted by `_cs_features.csv` in this repo. Date-fixed-effect variance decomposition of the nine
+> features:
+>
+> | feature | between-date | within-date |
+> |---|---|---|
+> | `CS_PEER{1,5,20}` | 0.81 | 0.18 |
+> | `CS_REL{1,5,20}` | 0.01–0.02 | **0.98–0.99** |
+> | `CS_BETAADJ{1,5,20}` | 0.00 | **1.00** |
+>
+> **Six of nine features are 98–100% cross-sectionally varying**; nothing cancels. Only three are
+> aggregates, and even those retain 18% within-date variance. `csi300_cs_operator_gate.py:178-188`
+> asserts non-cancellation as a hard precondition of the very test that produced the −0.0078.
+>
+> Untested alternatives: input-width dilution (6→15 channels on a fixed 2×64 GRU, the CS block
+> broadcast identically across all 60 timesteps); objective mismatch (val MSE improved while test IC
+> fell — see §12); and redundancy, since `span{own, peer} = span{own, own−peer}` and own cumulative
+> returns are linearly recoverable from the 60 close-ratio lags.
+>
+> Note also these were **k=20 train-CORRELATION-selected** peers, not concept/industry-membership
+> peers. This result does not speak to concept-based grouping.
 
 **Contrast:** HIST's *learned* relational structure = **+0.0083**; our *hand-specified* peer features
 = **−0.0078**. Near-equal magnitude, opposite sign. The *learning* of relational structure appears to
@@ -216,10 +238,29 @@ resolvable — so a TopkDropoutStrategy backtest alongside IC is worth running.
    of evidence repeated three times with a shared blind spot.
 4. **"EXAMM is undertrained / training budget is the bottleneck"** — ruled out by finetune (delta 0.0)
    and bpi30 (no change).
+5. **"Peer aggregates cancel in cross-sectional ranking by construction"** (§7) — FALSE; 6 of 9
+   features are 98–100% within-date varying. See the correction box in §7.
+6. **"Seeded EXAMM degrades the seed by −0.0023"** (2026-07-29) — OVERSTATED. Every date-level
+   paired contrast has |t| < 2. Supported: *fails to improve*, run-level t(5) = −4.25, sign 6/6
+   p = 0.031. Not supported: any magnitude claim.
+7. **"The seeded arms fell off the capacity curve"** (2026-07-29) — FALSE. The curve's own GRU
+   residual sd is **0.00305**, so −0.0023 is 0.75 sd, inside its scatter. Relatedly, the seed's
+   "exact" agreement with the curve (+0.04524 vs +0.04521 predicted) is coincidence at a resolution
+   a 6-point, 1-seed fit cannot support.
+8. **"Seeded degradation is a 20:1 train-budget mismatch (200 pretrain epochs vs 10 bp_iterations)"**
+   (2026-07-29) — REFUTED three ways: lineages accumulate **17,500–17,770 total BP epochs**, not 10;
+   corr(Δweights, ΔIC) = **+0.28**, positive when damage predicts negative; and `gs_run_2` shows the
+   full deficit at **+12 weights** from the seed, i.e. with nothing to damage. Validation also
+   improved *population-wide*, not just for the selected genome.
 
 **The recurring error:** running a test structurally incapable of showing the effect, then reading
 its null as evidence against the effect. *Before trusting any null, ask: could this test have
 produced a positive result if the hypothesis were true?*
+
+**A second recurring error, added 2026-07-29:** quoting a **date-level** HAC t for an effect whose
+unit of randomisation is the **seed**. The attention gate's "attn − mean = −0.0036, HAC t −2.93" is
+t = **−0.82** across its 3 seeds (one seed at −0.0124 against two zeros). Report both, and gate on
+the seed-level statistic.
 
 ---
 
@@ -240,3 +281,64 @@ Ranked next tests:
 5. Multi-objective NSGA-II *(heavily demoted — would retrace the GRU curve)*
 6. Rank-IC fitness *(5/5 prior failures, incl. soft-rank Spearman at −0.0001)*
 7. Learned relational operator *(only path to SOTA; weeks of C++)*
+
+---
+
+## 12. Validation does not predict test rank IC — four independent inversions
+
+The single most reproducible finding on this venue. Across EXAMM configurations the measured
+correlation is **r = +0.065 (n=6)**. Worse than uninformative, it repeatedly ranks *backwards*:
+
+| # | experiment | validation says | test rank IC says |
+|---|---|---|---|
+| 1 | grow3 (192w) vs pretrained seed (3,079w) | grow3 better (0.332738 vs 0.333237) | grow3 **worse** by 0.0123 |
+| 2 | §7 CS features | better (0.993286 → 0.991461) | **worse** (+0.0552 → +0.0491) |
+| 3 | attention gate readouts | `last` **worst** of three | `last` **best** of three |
+| 4 | seeded EXAMM (2026-07-29) | improved 0.333237 → 0.332578 | **fell** +0.0452 → +0.0429 |
+
+**Why it matters beyond this project:** in any NAS system validation fitness *is* the search signal.
+Case 4 is the cleanest demonstration — 1,800 genomes and ~17,600 accumulated BP epochs moved
+validation **down** 0.00058 and test rank IC **down** 0.0042 *across the whole population*, while
+selection contributed nothing: the three validation-selected global bests (mean +0.0405) are
+indistinguishable from a random island champion (+0.0411).
+
+**Resolution floor.** Six seeded architectures differing by up to 4 nodes were separated by **3e-5**
+on validation MSE — thirty to sixty times smaller than differences already shown here to carry no
+test information. Selection at that spread is selection on noise.
+
+**Readout dependence.** The apparent seeded deficit is partly an artifact of the narrowest readout:
+
+| readout | plain arm test IC |
+|---|---|
+| 3 validation-selected global bests | +0.0429 |
+| 30 island champions | **+0.0440** |
+| seed | +0.0452 |
+
+---
+
+## 13. Controls run 2026-07-29
+
+**LR control — the GRU baseline is correctly tuned.** `LR["gru"] = 2e-4` is sourced from
+`workflow_config_gru_Alpha158.yaml` but used on Alpha360, so it was checked directly:
+
+| | epochs | test IC | HAC t |
+|---|---|---|---|
+| lr 2e-4 (banked config) | 27, 30 | **+0.0581** | +13.24 |
+| lr 1e-3 | 13, 15 | +0.0565 | +12.88 |
+| paired (1e-3 − 2e-4) | | **−0.0015** | **−0.92** |
+
+The banked +0.0581 reproduced to four decimals, and the higher rate is *not* better. **§4, §5 and §7
+stand as written.** Mechanism: the slower rate trains ~2× longer before validation turns.
+
+**Still unexplained:** the attention gate's no-attention control arm scored **+0.0616** — the highest
+number measured on this venue, above published GRU (0.0584). Learning rate is now ruled out.
+Remaining confounds: an `fc_in` Linear(6,64)+Tanh projection, a doubled readout, 3 seeds vs 2, no
+input/target standardisation, batch 2000 vs 512. Worth a controlled follow-up.
+
+**Ensemble breadth does not pay.** Volatility venue, 238 stocks, 10 → 100 → 1000 members: median R²
+moves ±0.002, and in one arm the widest ensemble was *worse* than the narrowest. Today's global-best
+ensembles gained +2.9% (gs) and +6.2% (plain) over their mean single run — under the +8% precedent.
+
+**Attention/pooling — no effect detected, underpowered.** `last` +0.0616, `mean` +0.0611,
+`attn` +0.0575. Seed-level t: attn−mean **−0.82**, mean−last **−0.05**. Report as underpowered, never
+as a negative effect.
