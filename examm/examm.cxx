@@ -324,6 +324,16 @@ void EXAMM::update_log() {
 //     log_file.close();
 // }
 
+void EXAMM::set_mutation_weight_scale(double scale) {
+    if (scale <= 0.0) {
+        Log::fatal("mutation_weight_scale must be > 0 (got %lf); 0 would make every new component\n"
+                   "exactly dead -- its incoming weights would receive no gradient forever.\n", scale);
+        exit(1);
+    }
+    mutation_weight_scale = scale;
+    Log::info("Mutation weight scale set to %lf\n", scale);
+}
+
 void EXAMM::set_possible_node_types(vector<string> possible_node_type_strings) {
     possible_node_types.clear();
 
@@ -513,6 +523,31 @@ void EXAMM::mutate(int32_t max_mutations, RNN_Genome* g) {
         g->set_weights(g->best_parameters);
         g->get_mu_sigma(g->best_parameters, mu, sigma);
     }
+
+    // ---- mutation_weight_scale: how hard a mutation perturbs a TRAINED parent ---------------
+    // Every new component -- edges, recurrent edges, and each node type's internal weights -- is
+    // drawn from N(mu, sigma) where mu/sigma are the PARENT'S OWN weight statistics. So a new
+    // component enters at the magnitude of a fully-trained weight. Measured on an evolved genome:
+    // |w| mean 0.895, sd 1.236, so a fresh component lands around 1.2.
+    //
+    // That is fine when growing from a minimal seed -- there is no optimum to disturb. It is the
+    // wrong scale when refining a CONVERGED network: the child is not a nudge off the parent, it is
+    // the parent plus a full-strength random component, and it must spend its bp_iterations
+    // clawing back rather than exploring.
+    //
+    // Scaling here rather than at each of the ~20 per-node-type draw sites is deliberate: mu/sigma
+    // flow from this one place into every mutation operator, so one multiplication covers all of
+    // them and cannot drift out of sync.
+    //
+    // Default 1.0 reproduces historical behaviour bit-for-bit. For seeded/fine-tuning runs try
+    // ~0.05, which puts a new component near 0.06 instead of 1.2.
+    //
+    // NOTE this is deliberately NOT an exact function-preserving morphism (which would zero the new
+    // component's OUTGOING weights so the child computes the parent's function exactly). Exact zeros
+    // give the new node's INCOMING weights zero gradient -- a permanently dead unit -- which is why
+    // the network-morphism literature uses "noisy" variants. A small non-zero scale is that noisy
+    // variant, and it captures most of the benefit for one line.
+    sigma *= mutation_weight_scale;
 
     int32_t number_mutations = 0;
 

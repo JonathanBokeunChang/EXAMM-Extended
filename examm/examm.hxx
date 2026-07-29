@@ -92,6 +92,12 @@ class EXAMM {
     // initializers are load-bearing: an unset value > 0 would silently activate
     // grow-shrink (same failure mode as the uninitialized weight_decay bug), so
     // these MUST default to 0 regardless of constructor path.
+    // Scales sigma for every NEW mutated component (edges, recurrent edges, node-internal
+    // weights). 1.0 = historical behaviour: a new component enters at the magnitude of a fully
+    // trained weight. Lower values (~0.05) make a mutation a nudge rather than a full-strength
+    // random injection, which is what refining a CONVERGED parent requires. See EXAMM::mutate.
+    double mutation_weight_scale = 1.0;
+
     int32_t growth_phase_genomes = 0;     // length of each growth window (genomes)
     int32_t reduction_phase_genomes = 0;  // length of each shrink window (genomes)
 
@@ -112,6 +118,7 @@ class EXAMM {
     void update_log();
 
     void set_possible_node_types(vector<string> possible_node_type_strings);
+    void set_mutation_weight_scale(double scale);
 
     uniform_int_distribution<int32_t> get_recurrent_depth_dist();
 

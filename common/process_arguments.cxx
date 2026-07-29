@@ -142,6 +142,10 @@ EXAMM* generate_examm_from_arguments(
         growth_phase_genomes, reduction_phase_genomes
     );
     if (!rate_overrides.empty()) examm->override_mutation_rates(rate_overrides);
+    double mutation_weight_scale = 1.0;
+    if (get_argument(arguments, "--mutation_weight_scale", false, mutation_weight_scale)) {
+        examm->set_mutation_weight_scale(mutation_weight_scale);
+    }
     if (possible_node_types.size() > 0) {
         examm->set_possible_node_types(possible_node_types);
     }
