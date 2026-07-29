@@ -349,3 +349,48 @@ ensembles gained +2.9% (gs) and +6.2% (plain) over their mean single run — und
 **Attention/pooling — no effect detected, underpowered.** `last` +0.0616, `mean` +0.0611,
 `attn` +0.0575. Seed-level t: attn−mean **−0.82**, mean−last **−0.05**. Report as underpowered, never
 as a negative effect.
+
+---
+
+## 14. Seed replication — the seeded result dissolves (2026-07-29)
+
+Four independently pretrained `gru_2x32` seeds (identical config; the RNG is clock-seeded at
+`rnn/rnn_genome.cxx:132`, so re-invoking gives independent inits), all scored on the frozen index:
+
+| seed | val MSE | test IC | vs population mean |
+|---|---|---|---|
+| rep2 | 0.3335318 | +0.0411 | −0.0026 |
+| rep3 | 0.3334513 | +0.0420 | −0.0017 |
+| **original** (used for every seeded arm) | **0.3332371** | **+0.0452** | **+0.0015** |
+| rep4 | 0.3334645 | +0.0465 | +0.0028 |
+
+**Seed-to-seed sd = 0.0026, range = 0.0054.** The original seed had the lowest val MSE of the four
+and the second-highest test IC — **it drew high.**
+
+Re-referencing the seeded arms against the seed *population* instead of that single draw:
+
+| arm | vs original seed | vs seed mean | z (seed sd) |
+|---|---|---|---|
+| plain, 3 global bests | −0.0023 | −0.0008 | −0.31 |
+| gs, 3 global bests | −0.0021 | −0.0006 | −0.23 |
+| plain, 30 island champions | −0.0012 | +0.0003 | +0.12 |
+| gs, 30 island champions | −0.0001 | +0.0014 | +0.55 |
+
+**Every arm is within ±0.55 seed-sd of the seed population.** The correct claim is that seeded EXAMM
+is **statistically indistinguishable from its seed** — not that it fails to improve it, and certainly
+not that it degrades it. The earlier run-level t(5) = −4.25 treated one lucky draw as a fixed
+constant; with the seed's own variance included, the comparison is null.
+
+**Consequences beyond this experiment:**
+
+- The previously unexplained **+0.0051** between the lr-control GRU (+0.0565) and the attention-gate
+  control arm (+0.0616) is ~2 seed-sd — ordinary scatter, not a mystery (§13).
+- **Any single-seed number on this venue carries ±0.0026.** The capacity sweep (§4) is 1 seed per
+  size; its "residual sd 0.00305" is therefore mostly seed noise, and the curve should not be read
+  to a precision finer than that.
+- The val-IC reselection (§15) still stands on its own terms: within a *single* seed's population,
+  33 genomes had test-IC sd 0.00184 and only 1 beat their own parent — but that parent's advantage
+  is itself a draw.
+
+**Retraction 9:** "seeded EXAMM fails to improve the seed (t(5) = −4.25, 6/6)". The test lacked the
+reference's error bar. Corrected claim: indistinguishable.
