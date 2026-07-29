@@ -308,11 +308,18 @@ test information. Selection at that spread is selection on noise.
 
 **Readout dependence.** The apparent seeded deficit is partly an artifact of the narrowest readout:
 
-| readout | plain arm test IC |
-|---|---|
-| 3 validation-selected global bests | +0.0429 |
-| 30 island champions | **+0.0440** |
-| seed | +0.0452 |
+| readout | plain | grow-shrink |
+|---|---|---|
+| 3 validation-selected global bests | +0.0429 | +0.0431 |
+| 30 island champions | **+0.0440** | **+0.0451** |
+| seed | +0.0452 | +0.0452 |
+
+**The grow-shrink island ensemble ties the seed (+0.0451 vs +0.0452).** So "all six runs below the
+seed" is a property of the 3-genome readout, not of the arm: picking three champions with a selector
+whose val→test correlation is +0.065 is a winner's-curse operation, and sampling the population more
+broadly recovers nearly the whole deficit. Report the seeded arms as **matching, not improving,** the
+seed — and report the readout dependence as part of the finding, since it is what demonstrates the
+search added variance rather than signal.
 
 ---
 
