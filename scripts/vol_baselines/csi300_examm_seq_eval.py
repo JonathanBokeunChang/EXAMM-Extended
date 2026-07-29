@@ -155,6 +155,17 @@ def main():
     ap.add_argument("--runs-root")
     ap.add_argument("--data", default=f"{REPO}/datasets/csi300_master_replica_invdata_seq")
     ap.add_argument("--hac-lag", type=int, default=None)
+    # island_best ensembles each island's champion (island_<i>_genome_0.bin, written by
+    # --save_genome_option entire_population; islands keep genomes fitness-sorted so j=0 is the
+    # champion). That is n_islands genomes per run instead of one, and it is the ONLY readout that
+    # tests architectural diversity -- islands are separate lineages, whereas runs differ only by
+    # seed. Prior evidence says expect little: on the volatility venue the 10 -> 100 -> 1000 member
+    # dose-response moved median R2 by +-0.002, and the WIDEST ensemble was slightly worse than the
+    # narrowest. Running it here tests whether that flat response replicates on returns/rank IC.
+    # NOT 'population' (all 100/run): 600 genomes x 452 test files is ~271k evaluate_rnn calls, and
+    # the vol dose-response says island mates within a lineage add nothing over the champion.
+    ap.add_argument("--members", choices=["global_best", "island_best"], default="global_best",
+                    help="global_best: 1 genome/run (default). island_best: each island's champion")
     ap.add_argument("--allow-salvage", action="store_true",
                     help="for runs killed before their genome budget: fall back to the "
                          "argmin-best_validation_mse saved island best (EXAMM's own global-best "
@@ -186,12 +197,26 @@ def main():
         return
 
     runs = sorted(d for d in glob.glob(f"{a.runs_root}/run_*") if os.path.isdir(d))
-    resolved = [(d,) + global_best(d, a.allow_salvage) for d in runs]
-    missing = [d for d, g, _ in resolved if g is None]
-    pairs = [(d, g) for d, g, _ in resolved if g]
-    salvaged = [os.path.basename(d) for d, g, src in resolved if src == "salvaged"]
-    print(f"[runs] {len(pairs)} usable genome(s)"
-          + (f"; MISSING in {[os.path.basename(m) for m in missing]}" if missing else ""))
+    if a.members == "island_best":
+        pairs, missing, salvaged = [], [], []
+        for d in runs:
+            champs = sorted(glob.glob(f"{d}/island_*_genome_0.bin"),
+                            key=lambda p: int(re.search(r"island_(\d+)_", p).group(1)))
+            if not champs:
+                missing.append(d)
+                continue
+            # tag must be unique per genome: the prediction cache is keyed on it, so a collision
+            # would silently score one genome and reuse its predictions for another.
+            pairs += [(f"{os.path.basename(d)}_i{i}", g) for i, g in enumerate(champs)]
+        print(f"[runs] {len(runs)} runs -> {len(pairs)} island champions"
+              + (f"; NONE found in {[os.path.basename(m) for m in missing]}" if missing else ""))
+    else:
+        resolved = [(d,) + global_best(d, a.allow_salvage) for d in runs]
+        missing = [d for d, g, _ in resolved if g is None]
+        pairs = [(os.path.basename(d), g) for d, g, _ in resolved if g]
+        salvaged = [os.path.basename(d) for d, g, src in resolved if src == "salvaged"]
+        print(f"[runs] {len(pairs)} usable genome(s)"
+              + (f"; MISSING in {[os.path.basename(m) for m in missing]}" if missing else ""))
     if not pairs:
         sys.exit("ERROR: no global_best_genome_*.bin found -- did the runs finish? "
                  "If a run was killed by walltime, re-run with --allow-salvage.")
@@ -201,8 +226,7 @@ def main():
 
     cache = f"{a.runs_root}/_eval_cache"
     per_run, ics_per_run, sizes = {}, {}, {}
-    for d, g in pairs:
-        tag = os.path.basename(d)
+    for tag, g in pairs:
         df = eval_genome(g, a.data, cache, tag)
         if df is None:
             print(f"   {tag}: no predictions produced -- skipped")
