@@ -1,0 +1,125 @@
+#!/bin/bash -l
+# EXAMM on the 2018 coal dataset -- noise floor first, then fine-tuning arms.
+#
+# WHY COAL, AND WHY THIS ORDER
+# ----------------------------
+# The CSI300 returns venue defeated every architectural experiment for one measurable reason: its
+# noise exceeded its signal. Seed-to-seed sd was 0.0026 while the architecture spread within a
+# population was 0.0018 -- the random seed mattered 1.4x more than the architecture, so no search
+# could rank anything (results doc sections 12 and 14). That was discovered only AFTER spending the
+# compute, because the reference had no error bar.
+#
+# So on this venue the FIRST run is not an experiment, it is a measurement:
+#
+#   MODE=noise   4 identical configs, different --seed. Gives the seed-to-seed spread.
+#   MODE=finetune  seeded refinement vs a control, ONLY worth running if the noise floor permits.
+#
+# THE GATE, decided before looking at any fine-tuning result:
+#   seed-to-seed sd must be COMFORTABLY SMALLER than the spread among genomes within a run.
+#   If it is not, stop -- the venue cannot resolve architecture and no amount of search fixes that.
+#
+# Coal is the right venue to retry on because it is a physical process: high signal-to-noise, and
+# it is EXAMM's own published domain. The data is small (12 files x 14,401 rows, all equal length)
+# and tracked in git, so it is already present after a pull -- no transfer needed.
+#
+# submit from the repo root on Anvil:
+#   mkdir -p slurm_logs
+#   sbatch --array=0-3 scripts/base_run/anvil_coal.sb                      # NOISE FLOOR (do first)
+#   sbatch --export=ALL,MODE=finetune,SEED_GENOME=<pretrained.bin>,MWS=0.05,RUN_TAG=mws005 \
+#          --array=0-2 scripts/base_run/anvil_coal.sb                      # fine-tune arm
+#   sbatch --export=ALL,MODE=finetune,SEED_GENOME=<pretrained.bin>,MWS=1.0,RUN_TAG=mws100 \
+#          --array=0-2 scripts/base_run/anvil_coal.sb                      # matched control
+
+#SBATCH --account=cis251123
+#SBATCH --partition=shared
+#SBATCH --nodes=1
+#SBATCH --ntasks=32
+#SBATCH --cpus-per-task=1
+#SBATCH --time=04:00:00
+#SBATCH --job-name=coal_examm
+#SBATCH --array=0-3
+#SBATCH --output=slurm_logs/coal_%A_%a.out
+#SBATCH --error=slurm_logs/coal_%A_%a.err
+
+module --force purge
+module load gcc/11.2.0 openmpi/4.1.6
+
+cd "$SLURM_SUBMIT_DIR"
+set -u
+
+DATA_DIR=${DATA_DIR:-datasets/2018_coal}
+MODE=${MODE:-noise}
+MAXG=${MAXG:-2000}
+ISLANDS=${ISLANDS:-10}
+ISLAND_SIZE=${ISLAND_SIZE:-10}
+BP_ITERATIONS=${BP_ITERATIONS:-10}
+NUM_MUTATIONS=${NUM_MUTATIONS:-1}
+SAVE_GENOMES=${SAVE_GENOMES:-all_best_genomes}
+
+# mutation_weight_scale. 1.0 = historical: a new component enters at the magnitude of a fully
+# TRAINED weight (measured |w| mean 0.895, sd 1.236 on an evolved genome). That is right when
+# growing from a minimal seed and wrong when refining a converged one. ~0.05 makes a mutation a
+# nudge instead. Smoke-tested from scratch on this dataset: default 0.00366 val MSE vs 0.00621 at
+# 0.05 -- the scaled arm is WORSE from a minimal seed, as intended. Only lower it for MODE=finetune.
+MWS=${MWS:-1.0}
+
+# The coal columns. MUST be a bash array: zsh does not word-split an unquoted $VAR, and passing all
+# 12 names as one argument fails with "could not find specified field '<all twelve>'".
+INPUTS=( Conditioner_Inlet_Temp Conditioner_Outlet_Temp Coal_Feeder_Rate Primary_Air_Flow
+         Primary_Air_Split System_Secondary_Air_Flow_Total Secondary_Air_Flow Secondary_Air_Split
+         Tertiary_Air_Split Total_Comb_Air_Flow Supp_Fuel_Flow Main_Flm_Int )
+OUTPUT=${OUTPUT:-Main_Flm_Int}
+
+RUN_TAG=${RUN_TAG:-${MODE}}
+OUT_ROOT=${OUT_ROOT:-test_output/coal_${RUN_TAG}}
+BIN=build/mpi/examm_mpi
+
+RUN=$(( ${SLURM_ARRAY_TASK_ID:-0} + 1 ))
+OUT=$OUT_ROOT/run_$RUN
+
+[ -x "$BIN" ] || { echo "ERROR: $BIN not found -- build examm_mpi on Anvil first" >&2; exit 1; }
+[ -d "$DATA_DIR" ] || { echo "ERROR: $DATA_DIR missing" >&2; exit 1; }
+if [ -f "$OUT/.done" ]; then echo "run $RUN already complete -- skipping"; exit 0; fi
+
+# burner_0..9 train / burner_10..11 val, matching scripts/base_run/coal_{mt,mpi}.sh
+TRAIN=( "$DATA_DIR"/burner_[0-9].csv )
+VAL=( "$DATA_DIR"/burner_1[0-1].csv )
+[ "${#TRAIN[@]}" -eq 10 ] && [ "${#VAL[@]}" -eq 2 ] \
+  || { echo "ERROR: expected 10 train / 2 val, got ${#TRAIN[@]}/${#VAL[@]}" >&2; exit 1; }
+
+SEED_ARGS=()
+if [ "$MODE" = "finetune" ]; then
+  : "${SEED_GENOME:?MODE=finetune requires SEED_GENOME=<pretrained .bin>}"
+  [ -f "$SEED_GENOME" ] || { echo "ERROR: seed '$SEED_GENOME' missing" >&2; exit 1; }
+  # --start_filled is MANDATORY with a seed: without it island_speciation_strategy.cxx:297-298
+  # calls initialize_randomly() unconditionally on the founding genome, keeping the seed's
+  # ARCHITECTURE and discarding its WEIGHTS. That silently turns a warm start into a from-scratch
+  # run at a fixed topology, and no count-based smoke test can detect it.
+  SEED_ARGS=( --genome_bin "$SEED_GENOME" --transfer_learning_version v1
+              --epigenetic_weights --start_filled )
+fi
+
+echo "### coal | mode $MODE | run $RUN | genomes $MAXG | bpi $BP_ITERATIONS | mws $MWS | out $OUT"
+mkdir -p "$OUT"
+
+srun -n "${SLURM_NTASKS}" "$BIN" \
+  --training_filenames "${TRAIN[@]}" \
+  --validation_filenames "${VAL[@]}" \
+  --time_offset 1 \
+  --input_parameter_names "${INPUTS[@]}" \
+  --output_parameter_names "$OUTPUT" \
+  --number_islands "$ISLANDS" --island_size "$ISLAND_SIZE" \
+  --max_genomes "$MAXG" --bp_iterations "$BP_ITERATIONS" \
+  --num_mutations "$NUM_MUTATIONS" \
+  --mutation_weight_scale "$MWS" \
+  --save_genome_option "$SAVE_GENOMES" \
+  ${SEED_ARGS[@]+"${SEED_ARGS[@]}"} \
+  --seed "$RUN" --output_directory "$OUT" \
+  --std_message_level ERROR --file_message_level NONE
+rc=$?
+
+gb=$(ls "$OUT"/global_best_genome_*.bin 2>/dev/null | wc -l | tr -d ' ')
+echo "### run $RUN finished rc=$rc global_best=$gb"
+if [ "$rc" = "0" ] && [ "$gb" != "0" ]; then touch "$OUT/.done"; else
+  echo "ERROR: run $RUN produced no global best" >&2; exit 1
+fi
