@@ -1,0 +1,147 @@
+#!/bin/bash
+# EXAMM hyperparameter arms vs the baseline config, 10 seeds x 2 cohorts.
+#
+# THREE CORRECTIONS TO THE REQUESTED KNOB LIST
+# --------------------------------------------
+#  1. There is no --training_sequence_length. The real flag is --train_sequence_length (plus
+#     --validation_sequence_length), handled in common/process_arguments.cxx:280-288. A separate
+#     --random_sequence_length exists but only in the standalone train_rnn binary; the equivalent
+#     block in mpi/examm_mpi.cxx:67-69 is commented out, so it is unavailable in the MPI search.
+#  2. Normalization is ALREADY ON in the baseline (anvil_ic.sb:186, --normalize avg_std_dev).
+#     There is nothing to switch on; it is carried here unchanged so the arms stay comparable.
+#  3. "repopulation 150/200" is --extinction_event_generation_number (baseline 500).
+#
+# WHAT --train_sequence_length ACTUALLY DOES, AND WHY IT IS THE INTERESTING KNOB
+# ------------------------------------------------------------------------------
+# slice_input_data() cuts each stock's series into NON-OVERLAPPING chunks and discards the
+# remainder, after the time_offset shift is applied (so no target corruption at chunk edges).
+# It is close to compute-neutral but changes the optimizer completely:
+#
+#   train_sequence_length | sequences | steps/epoch | WEIGHT UPDATES/epoch
+#   ----------------------|-----------|-------------|---------------------
+#   (none, baseline 3290) |        50 |     164,500 |                   50
+#   50                    |     3,250 |     162,500 |                3,250
+#   25                    |     6,550 |     163,750 |                6,550
+#
+# Same total backprop work, 131x more gradient steps. It also makes EXAMM's context length
+# comparable to the transformers' L=20 window instead of a full 3,290-step BPTT.
+#
+# THE RISK, STATED UP FRONT: evaluate_rnn has no slicing flag, so TEST is always scored as one
+# unsliced 501-step sequence. A genome trained on 25-step chunks is then run with hidden state
+# accumulating 20x longer than anything it saw in training. If a sliced arm underperforms on test,
+# that mismatch is a confound and not evidence the knob is bad. --validation_sequence_length is set
+# to match the training slice so at least model SELECTION is done in the trained regime.
+#
+# CAVEAT ON INTERPRETATION
+# ------------------------
+# Measured on this venue: seed-to-seed sd of test IC is 0.0026, larger than the architecture spread
+# within a population (0.0018), and validation fitness correlates with test IC at r = +0.065 over 6
+# configs. Ten seeds gives SEM 0.0008, so a two-arm difference below ~0.003 is not resolvable. Arm B
+# changes four knobs at once and cannot attribute a result to any one of them. These arms answer
+# "does a different config land somewhere different", not "which knob helped".
+#
+# SUBMIT (from the repo root on Anvil)
+#   # Arm A -- sequence slicing only, the one knob with a mechanism
+#   for C in cohort_2020_aligned cohort_2021_aligned; do
+#     sbatch --export=ALL,ARM=seq50,COHORT=$C --array=0-9 scripts/stock_run/anvil_examm_hpsweep.sb
+#   done
+#   # Arm B -- the bundled search-config change
+#   for C in cohort_2020_aligned cohort_2021_aligned; do
+#     sbatch --export=ALL,ARM=search,COHORT=$C --array=0-9 scripts/stock_run/anvil_examm_hpsweep.sb
+#   done
+#   # any single knob, e.g.
+#   sbatch --export=ALL,ARM=custom,RUN_TAG=seq25,SEQLEN=25 --array=0-9 ...
+
+#SBATCH --account=cis251123
+#SBATCH --partition=shared
+#SBATCH --nodes=1
+#SBATCH --ntasks=32
+#SBATCH --cpus-per-task=1
+#SBATCH --time=08:00:00
+#SBATCH --job-name=hpsweep
+#SBATCH --array=0-9
+#SBATCH --output=slurm_logs/hp_%A_%a.out
+#SBATCH --error=slurm_logs/hp_%A_%a.err
+
+module --force purge
+module load gcc/11.2.0 openmpi/4.1.6
+cd "$SLURM_SUBMIT_DIR"
+set -u
+
+COHORT=${COHORT:-cohort_2020_aligned}
+ARM=${ARM:-seq50}
+
+# ---- baseline, matching anvil_ic.sb exactly. Arms override only what they name.
+ISLANDS=10; ISLAND_SIZE=10; MUTATIONS=1; EXTINCTION=500; SEQLEN=0
+MAXG=${MAXG:-10000}; BPI=${BPI:-10}
+
+case "$ARM" in
+  seq50)  SEQLEN=50;  RUN_TAG=${RUN_TAG:-seq50} ;;
+  seq25)  SEQLEN=25;  RUN_TAG=${RUN_TAG:-seq25} ;;
+  # the bundled request: 20 islands, 2 mutations, repopulate every 200, slice at 50
+  search) ISLANDS=20; MUTATIONS=2; EXTINCTION=200; SEQLEN=50; RUN_TAG=${RUN_TAG:-search} ;;
+  custom) : "${RUN_TAG:?ARM=custom requires RUN_TAG}"
+          ISLANDS=${ISLANDS_OVERRIDE:-$ISLANDS}; MUTATIONS=${MUTATIONS_OVERRIDE:-$MUTATIONS}
+          EXTINCTION=${EXTINCTION_OVERRIDE:-$EXTINCTION}; SEQLEN=${SEQLEN:-0} ;;
+  *) echo "ERROR: unknown ARM '$ARM' (seq50|seq25|search|custom)" >&2; exit 1 ;;
+esac
+
+DATA=datasets/walkforward/$COHORT
+BIN=build/mpi/examm_mpi
+RUN=$(( ${SLURM_ARRAY_TASK_ID:-0} + 1 ))
+OUT=test_output/hp_${RUN_TAG}_${COHORT}/run_$RUN
+
+[ -x "$BIN" ] || { echo "ERROR: $BIN missing -- build examm_mpi first" >&2; exit 1; }
+[ -d "$DATA" ] || { echo "ERROR: $DATA missing" >&2; exit 1; }
+[ -f "$OUT/.done" ] && { echo "run $RUN done -- skipping"; exit 0; }
+
+# Bash arrays: zsh does not word-split unquoted vars, and this has bitten the project three times.
+TRAIN=( "$DATA"/*_train.csv ); VAL=( "$DATA"/*_val.csv )
+[ "${#TRAIN[@]}" -eq 50 ] && [ "${#VAL[@]}" -eq 50 ] \
+  || { echo "ERROR: expected 50 train/50 val, got ${#TRAIN[@]}/${#VAL[@]}" >&2; exit 1; }
+
+# Slice validation to match training so selection happens in the trained regime (see header).
+SEQ_ARGS=()
+[ "$SEQLEN" -gt 0 ] && SEQ_ARGS=( --train_sequence_length "$SEQLEN" --validation_sequence_length "$SEQLEN" )
+
+mkdir -p "$OUT"
+echo "### arm $ARM | $COHORT | run $RUN | islands ${ISLANDS}x${ISLAND_SIZE} | mut $MUTATIONS"
+echo "### extinction $EXTINCTION | seqlen ${SEQLEN:-none} | genomes $MAXG | bpi $BPI"
+
+srun --kill-on-bad-exit -n "${SLURM_NTASKS}" "$BIN" \
+    --training_filenames "${TRAIN[@]}" \
+    --validation_filenames "${VAL[@]}" \
+    --seed "$RUN" \
+    --time_offset 1 \
+    --input_parameter_names RET VOL_CHANGE BA_SPREAD ILLIQUIDITY sprtrn TURNOVER \
+    --output_parameter_names RET \
+    --number_islands "$ISLANDS" \
+    --island_size "$ISLAND_SIZE" \
+    --max_genomes "$MAXG" \
+    --bp_iterations "$BPI" \
+    --num_mutations "$MUTATIONS" \
+    --normalize avg_std_dev \
+    --extinction_event_generation_number "$EXTINCTION" \
+    --islands_to_exterminate 1 \
+    --repopulation_method bestGenome \
+    ${SEQ_ARGS[@]+"${SEQ_ARGS[@]}"} \
+    --output_directory "$OUT" \
+    --save_genome_option all_best_genomes \
+    --std_message_level INFO \
+    --file_message_level NONE > "$OUT/train.log" 2>&1
+RC=$?
+
+GB=$(ls "$OUT"/global_best_genome_*.bin 2>/dev/null | wc -l | tr -d ' ')
+echo "### run $RUN rc=$RC global_best=$GB"
+if [ "$RC" = "0" ] && [ "$GB" != "0" ]; then
+  # confirm the slice actually took effect -- a silently ignored flag would make this arm a
+  # duplicate of the baseline and the logs would look completely normal
+  if [ "$SEQLEN" -gt 0 ]; then
+    grep -q "Slicing input training data" "$OUT/train.log" \
+      || { echo "ERROR: --train_sequence_length had no effect (no slicing line in log)" >&2; exit 1; }
+    grep -m1 "After slicing" "$OUT/train.log"
+  fi
+  touch "$OUT/.done"
+else
+  echo "ERROR: run $RUN produced no global best" >&2; exit 1
+fi
