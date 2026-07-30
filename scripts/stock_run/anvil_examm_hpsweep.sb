@@ -76,6 +76,10 @@ ISLANDS=10; ISLAND_SIZE=10; MUTATIONS=1; EXTINCTION=500; SEQLEN=0
 MAXG=${MAXG:-10000}; BPI=${BPI:-10}
 
 case "$ARM" in
+  # Untouched baseline -- byte-for-byte the anvil_ic.sb search config. Needed as the CONTROL for
+  # any cohort that does not already have one (cohort_2019 does not; 2020 and 2021 do, in
+  # test_output/mse_cohort_*_aligned, and must NOT be re-run).
+  baseline) RUN_TAG=${RUN_TAG:-baseline} ;;
   seq50)  SEQLEN=50;  RUN_TAG=${RUN_TAG:-seq50} ;;
   seq25)  SEQLEN=25;  RUN_TAG=${RUN_TAG:-seq25} ;;
   # the bundled request: 20 islands, 2 mutations, repopulate every 200, slice at 50
@@ -83,7 +87,7 @@ case "$ARM" in
   custom) : "${RUN_TAG:?ARM=custom requires RUN_TAG}"
           ISLANDS=${ISLANDS_OVERRIDE:-$ISLANDS}; MUTATIONS=${MUTATIONS_OVERRIDE:-$MUTATIONS}
           EXTINCTION=${EXTINCTION_OVERRIDE:-$EXTINCTION}; SEQLEN=${SEQLEN:-0} ;;
-  *) echo "ERROR: unknown ARM '$ARM' (seq50|seq25|search|custom)" >&2; exit 1 ;;
+  *) echo "ERROR: unknown ARM '$ARM' (baseline|seq50|seq25|search|custom)" >&2; exit 1 ;;
 esac
 
 DATA=datasets/walkforward/$COHORT
