@@ -44,7 +44,12 @@ COHORT=${COHORT:-cohort_2020_aligned}
 
 REPO=$SLURM_SUBMIT_DIR
 TF_HARNESS=${TF_HARNESS:-$REPO/external/DeformTime}
-ENV_DIR=${ENV_DIR:-$REPO/external/tfenv}
+# The venv is normally on scratch, not in the repo: $HOME on Anvil is quota-limited (~25 GB) and the
+# CUDA torch wheels exceed it. setup_anvil.sh records wherever it actually built it.
+if [ -z "${TF_ENV_DIR:-}" ] && [ -f "$REPO/external/.tfenv_path" ]; then
+  TF_ENV_DIR=$(cat "$REPO/external/.tfenv_path")
+fi
+TF_ENV_DIR=${TF_ENV_DIR:-$REPO/external/tfenv}
 DATA=$REPO/datasets/walkforward/$COHORT
 
 # SMOKE must never write where a real seed writes, or a 2-epoch pred.npy sits at the path the
@@ -63,7 +68,7 @@ module load modtree/gpu 2>/dev/null || module load modtree/cpu 2>/dev/null || tr
 # setup_anvil.sh records which python module it built the venv against; loading a different one (or
 # none) can leave the venv interpreter unable to find libpython.
 [ -f "$REPO/external/.pymodule" ] && module load "$(cat "$REPO/external/.pymodule")"
-PY=$ENV_DIR/bin/python
+PY=$TF_ENV_DIR/bin/python
 
 for p in "$PY" "$TF_HARNESS/run.py" "$DATA"; do
   [ -e "$p" ] || { echo "ERROR: missing $p -- run setup_anvil.sh first" >&2; exit 1; }

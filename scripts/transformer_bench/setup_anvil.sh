@@ -39,14 +39,20 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-# NOT named WORK. Anvil defines $WORK as a standard environment variable pointing at the shared
-# project space (/anvil/projects/x-<alloc>), so `WORK=${WORK:-...}` silently inherited it and this
-# script tried to `git clone` a third-party repo straight into the shared allocation. It only
-# failed because that directory was non-empty -- had it been empty the clone would have succeeded.
-# Any variable this script default-inherits must have a name that cannot collide with the cluster
-# environment; the guard below enforces the containment regardless.
+# TF_ prefixed, NOT named WORK or ENV_DIR. Anvil defines $WORK as a standard environment variable
+# pointing at the shared project space (/anvil/projects/x-<alloc>), so `WORK=${WORK:-...}` silently
+# inherited it and this script tried to git clone a third-party repo straight into the shared
+# allocation. It failed only because that directory was non-empty.
+#
+# WHERE TO PUT THE VENV: $HOME on Anvil is quota-limited (~25 GB) and the CUDA torch wheels are
+# several GB, so a home-directory venv hits "Disk quota exceeded" mid-install. Point TF_ENV_DIR at
+# scratch, which is large and is the right home for a regenerable build artifact:
+#
+#   TF_ENV_DIR=$SCRATCH/tfenv bash scripts/transformer_bench/setup_anvil.sh
+#
+# The harness clone is only a few MB and can stay in the repo. Check headroom with `myquota`.
 TF_HARNESS=${TF_HARNESS:-$REPO_ROOT/external/DeformTime}
-ENV_DIR=${ENV_DIR:-$REPO_ROOT/external/tfenv}
+TF_ENV_DIR=${TF_ENV_DIR:-$REPO_ROOT/external/tfenv}
 
 # Slurm opens the --output/--error files BEFORE the job script runs. If slurm_logs/ is missing the
 # job dies at launch with no log saying why.
@@ -54,7 +60,7 @@ mkdir -p "$REPO_ROOT/slurm_logs"
 
 echo "### repo root : $REPO_ROOT"
 echo "### harness   : $TF_HARNESS"
-echo "### venv      : $ENV_DIR"
+echo "### venv      : $TF_ENV_DIR"
 
 # ---------------------------------------------------------------- 1. modules
 # Anvil GPU jobs need the GPU module tree. Module names differ across RCAC clusters, so we probe
@@ -79,17 +85,24 @@ fi
 python3 -c 'import sys; print("### python", sys.version.split()[0])'
 
 # ---------------------------------------------------------------- 2. clone
-# Containment guard: refuse to touch anything outside this repo's external/ directory. Without it,
-# an inherited or mistyped TF_HARNESS/ENV_DIR can make this script write into shared project space.
-for p in "$TF_HARNESS" "$ENV_DIR"; do
-  case "$p" in
-    "$REPO_ROOT"/external/*) ;;
-    *) echo "ERROR: refusing to operate on '$p' -- must live under $REPO_ROOT/external/." >&2
-       echo "       (is the variable inherited from the cluster environment?)" >&2; exit 1 ;;
-  esac
-done
+# Clobber guard. The real hazard is not the LOCATION -- putting the venv on scratch is correct and
+# necessary -- it is writing into a pre-existing populated directory that belongs to something else,
+# which is exactly what the inherited $WORK would have done to the shared allocation. So: allow any
+# path, but refuse one that already exists, is non-empty, and does not already look like ours.
+guard() {  # path, marker-that-proves-it-is-ours, description
+  local p=$1 marker=$2 what=$3
+  [ -e "$p" ] || return 0                      # does not exist -- we will create it
+  [ -e "$p/$marker" ] && return 0              # already ours from a previous run
+  [ -z "$(ls -A "$p" 2>/dev/null)" ] && return 0   # exists but empty -- fine
+  echo "ERROR: refusing to use '$p' for the $what." >&2
+  echo "       It already exists, is not empty, and has no $marker -- it belongs to something else." >&2
+  echo "       If this came from the cluster environment, set TF_HARNESS / TF_ENV_DIR explicitly." >&2
+  exit 1
+}
+guard "$TF_HARNESS" ".git"       "harness clone"
+guard "$TF_ENV_DIR" "bin/python" "python venv"
 
-mkdir -p "$(dirname "$TF_HARNESS")"
+mkdir -p "$(dirname "$TF_HARNESS")" "$(dirname "$TF_ENV_DIR")"
 if [ -d "$TF_HARNESS/.git" ]; then
   echo "### harness already cloned -- skipping"
 else
@@ -101,21 +114,25 @@ echo "### harness commit $(git rev-parse --short HEAD)"
 # ---------------------------------------------------------------- 3. environment
 # CUDA 11.8 wheels bundle their own runtime, so no separate cuda module is loaded (and per RCAC
 # guidance the ml-toolkit modules must NOT be mixed with a custom torch install).
-if [ ! -x "$ENV_DIR/bin/python" ]; then
-  python3 -m venv "$ENV_DIR"
-  "$ENV_DIR/bin/pip" install --quiet --upgrade pip
-  "$ENV_DIR/bin/pip" install --quiet torch --index-url https://download.pytorch.org/whl/cu118
-  "$ENV_DIR/bin/pip" install --quiet numpy pandas scikit-learn einops timm matplotlib
+if [ ! -x "$TF_ENV_DIR/bin/python" ]; then
+  python3 -m venv "$TF_ENV_DIR"
+  "$TF_ENV_DIR/bin/pip" install --quiet --upgrade pip
+  "$TF_ENV_DIR/bin/pip" install --quiet torch --index-url https://download.pytorch.org/whl/cu118
+  "$TF_ENV_DIR/bin/pip" install --quiet numpy pandas scikit-learn einops timm matplotlib
 else
   echo "### venv exists -- skipping install"
 fi
-"$ENV_DIR/bin/python" -c 'import torch; print("### torch", torch.__version__)'
+"$TF_ENV_DIR/bin/python" -c 'import torch; print("### torch", torch.__version__)'
+# Record where the venv landed. It may be on scratch rather than in the repo, so the batch job
+# cannot assume a fixed path -- anvil_transformer.sb reads this file.
+printf '%s' "$TF_ENV_DIR" > "$REPO_ROOT/external/.tfenv_path"
+echo "### recorded venv path -> external/.tfenv_path"
 
 # ---------------------------------------------------------------- 4. patches
 cp "$REPO_ROOT/scripts/transformer_bench/stock_pooled_loader.py" \
    "$TF_HARNESS/data/data_provider/stock_pooled_loader.py"
 
-"$ENV_DIR/bin/python" - "$TF_HARNESS" <<'PYEOF'
+"$TF_ENV_DIR/bin/python" - "$TF_HARNESS" <<'PYEOF'
 import re, sys, pathlib
 work = pathlib.Path(sys.argv[1])
 
@@ -203,7 +220,7 @@ PYEOF
 
 # ---------------------------------------------------------------- 5. verify
 cd "$TF_HARNESS"
-"$ENV_DIR/bin/python" - <<'PYEOF'
+"$TF_ENV_DIR/bin/python" - <<'PYEOF'
 import sys; sys.path.insert(0, ".")
 from data.data_provider.data_factory import data_dict
 assert "stock_pooled" in data_dict, "loader did not register"
