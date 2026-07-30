@@ -53,7 +53,13 @@ TAG=$([ "$SMOKE" = "1" ] && echo "smoke" || echo "seed_${SEED}")
 OUT=$REPO/results/transformer_bench/$COHORT/${MODEL}/${TAG}
 
 module --force purge
-module load modtree/gpu
+# modtree/gpu is only meaningful on a GPU node. This job can also be submitted to a CPU partition to
+# validate the whole pipeline before GPU hours exist -- run.py:85 does
+#   args.use_gpu = torch.cuda.is_available() and args.use_gpu
+# so it silently and correctly falls back to CPU. Override on the command line:
+#   sbatch --account=cis251123 --partition=shared --gpus-per-node=0 --cpus-per-task=16 \
+#          --time=04:00:00 --export=ALL,MODEL=DeformTime,SMOKE=1 --array=1 <this script>
+module load modtree/gpu 2>/dev/null || module load modtree/cpu 2>/dev/null || true
 # setup_anvil.sh records which python module it built the venv against; loading a different one (or
 # none) can leave the venv interpreter unable to find libpython.
 [ -f "$REPO/external/.pymodule" ] && module load "$(cat "$REPO/external/.pymodule")"

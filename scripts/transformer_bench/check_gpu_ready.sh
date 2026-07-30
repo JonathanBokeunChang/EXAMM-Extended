@@ -46,7 +46,11 @@ fi
 
 hr; echo "3. GPU PARTITIONS  (sinfo)"; hr
 sinfo -p gpu,gpu-debug -o "   %.12P %.6a %.10l %.6D %.6t %N" 2>/dev/null || echo "   sinfo failed"
-echo "   idle gpu nodes: $(sinfo -h -p gpu -t idle -o %D 2>/dev/null | paste -sd+ - | bc 2>/dev/null || echo '?')"
+# GPU nodes are SHARED, so they sit in 'mix' whenever any GPU on them is in use. Counting 'idle'
+# nodes is the wrong metric here -- it is normally zero even when GPUs are free. Count nodes that
+# are usable (not down/drain) instead.
+up=$(sinfo -h -p gpu -o "%t %D" 2>/dev/null | grep -Ev 'down|drain|fail' | awk '{s+=$2} END {print s+0}')
+echo "   usable gpu nodes (mix/alloc/idle, excluding down+drain): ${up:-?}"
 
 hr; echo "4. QUOTA REMINDERS"; hr
 echo "   max 12 GPUs in use per user, 32 per allocation"
