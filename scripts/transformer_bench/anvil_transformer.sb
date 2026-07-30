@@ -43,7 +43,7 @@ SEED=${SLURM_ARRAY_TASK_ID:-1}
 COHORT=${COHORT:-cohort_2020_aligned}
 
 REPO=$SLURM_SUBMIT_DIR
-WORK=${WORK:-$REPO/external/DeformTime}
+TF_HARNESS=${TF_HARNESS:-$REPO/external/DeformTime}
 ENV_DIR=${ENV_DIR:-$REPO/external/tfenv}
 DATA=$REPO/datasets/walkforward/$COHORT
 
@@ -65,7 +65,7 @@ module load modtree/gpu 2>/dev/null || module load modtree/cpu 2>/dev/null || tr
 [ -f "$REPO/external/.pymodule" ] && module load "$(cat "$REPO/external/.pymodule")"
 PY=$ENV_DIR/bin/python
 
-for p in "$PY" "$WORK/run.py" "$DATA"; do
+for p in "$PY" "$TF_HARNESS/run.py" "$DATA"; do
   [ -e "$p" ] || { echo "ERROR: missing $p -- run setup_anvil.sh first" >&2; exit 1; }
 done
 "$PY" -c 'import torch' || { echo "ERROR: venv python cannot import torch" >&2; exit 1; }
@@ -118,7 +118,7 @@ echo "### $MODEL | cohort $COHORT | $TAG | L=20 h=1 | pooled 50 stocks | lradj $
 echo "### tokenizer: ${EXTRA[*]:-none}"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || true
 
-cd "$WORK"
+cd "$TF_HARNESS"
 export RUN_SEED=$SEED
 export STOCK_META_DIR=$OUT
 export STOCK_NORM_SCOPE=${STOCK_NORM_SCOPE:-train_val}
@@ -135,7 +135,7 @@ grep -q "^\s*#\s*args\.stride = args\.patch_len" run.py \
 rc=${PIPESTATUS[0]}
 [ "$rc" = "0" ] || { echo "ERROR: $TAG failed rc=$rc" >&2; exit 1; }
 
-# ---- collect. exp_MTS_forecasting.py:248 hardcodes './results/' and CWD is the SHARED $WORK, so all
+# ---- collect. exp_MTS_forecasting.py:248 hardcodes './results/' and CWD is the SHARED $TF_HARNESS, so all
 # array tasks write into one tree. Copy only this task's setting dir -- a blanket `cp -r results/*`
 # would pull in up to 9 other tasks' pred.npy, some mid-write.
 #

@@ -39,7 +39,13 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-WORK=${WORK:-$REPO_ROOT/external/DeformTime}
+# NOT named WORK. Anvil defines $WORK as a standard environment variable pointing at the shared
+# project space (/anvil/projects/x-<alloc>), so `WORK=${WORK:-...}` silently inherited it and this
+# script tried to `git clone` a third-party repo straight into the shared allocation. It only
+# failed because that directory was non-empty -- had it been empty the clone would have succeeded.
+# Any variable this script default-inherits must have a name that cannot collide with the cluster
+# environment; the guard below enforces the containment regardless.
+TF_HARNESS=${TF_HARNESS:-$REPO_ROOT/external/DeformTime}
 ENV_DIR=${ENV_DIR:-$REPO_ROOT/external/tfenv}
 
 # Slurm opens the --output/--error files BEFORE the job script runs. If slurm_logs/ is missing the
@@ -47,7 +53,7 @@ ENV_DIR=${ENV_DIR:-$REPO_ROOT/external/tfenv}
 mkdir -p "$REPO_ROOT/slurm_logs"
 
 echo "### repo root : $REPO_ROOT"
-echo "### harness   : $WORK"
+echo "### harness   : $TF_HARNESS"
 echo "### venv      : $ENV_DIR"
 
 # ---------------------------------------------------------------- 1. modules
@@ -73,13 +79,23 @@ fi
 python3 -c 'import sys; print("### python", sys.version.split()[0])'
 
 # ---------------------------------------------------------------- 2. clone
-mkdir -p "$(dirname "$WORK")"
-if [ -d "$WORK/.git" ]; then
+# Containment guard: refuse to touch anything outside this repo's external/ directory. Without it,
+# an inherited or mistyped TF_HARNESS/ENV_DIR can make this script write into shared project space.
+for p in "$TF_HARNESS" "$ENV_DIR"; do
+  case "$p" in
+    "$REPO_ROOT"/external/*) ;;
+    *) echo "ERROR: refusing to operate on '$p' -- must live under $REPO_ROOT/external/." >&2
+       echo "       (is the variable inherited from the cluster environment?)" >&2; exit 1 ;;
+  esac
+done
+
+mkdir -p "$(dirname "$TF_HARNESS")"
+if [ -d "$TF_HARNESS/.git" ]; then
   echo "### harness already cloned -- skipping"
 else
-  git clone --depth 1 https://github.com/ClaudiaShu/DeformTime.git "$WORK"
+  git clone --depth 1 https://github.com/ClaudiaShu/DeformTime.git "$TF_HARNESS"
 fi
-cd "$WORK"
+cd "$TF_HARNESS"
 echo "### harness commit $(git rev-parse --short HEAD)"
 
 # ---------------------------------------------------------------- 3. environment
@@ -97,9 +113,9 @@ fi
 
 # ---------------------------------------------------------------- 4. patches
 cp "$REPO_ROOT/scripts/transformer_bench/stock_pooled_loader.py" \
-   "$WORK/data/data_provider/stock_pooled_loader.py"
+   "$TF_HARNESS/data/data_provider/stock_pooled_loader.py"
 
-"$ENV_DIR/bin/python" - "$WORK" <<'PYEOF'
+"$ENV_DIR/bin/python" - "$TF_HARNESS" <<'PYEOF'
 import re, sys, pathlib
 work = pathlib.Path(sys.argv[1])
 
@@ -186,7 +202,7 @@ print("### patches applied")
 PYEOF
 
 # ---------------------------------------------------------------- 5. verify
-cd "$WORK"
+cd "$TF_HARNESS"
 "$ENV_DIR/bin/python" - <<'PYEOF'
 import sys; sys.path.insert(0, ".")
 from data.data_provider.data_factory import data_dict
