@@ -1,0 +1,156 @@
+#!/bin/bash
+# Pooled transformer benchmark vs EXAMM -- one model, 10 seeds, Anvil GPU.
+#
+# PROTOCOL (fixed across every model; only --model and the tokenizer args change)
+#   input  t[i..i+19]  ->  target RET at t[i+20]      L = 20, horizon = 1
+#   pooled: 50 stocks, one shared model, no stock identifier
+#   test targets t[21]..t[N]; EXAMM is truncated to the same range (drop its first 19 of 500)
+#
+# SUBMIT (from the repo root on Anvil, after setup_anvil.sh)
+#
+#   # 1. MINI RUN FIRST -- gpu-debug caps at 30 min. Do this for every model before any array.
+#   sbatch --export=ALL,MODEL=Crossformer,SMOKE=1 --partition=gpu-debug --time=00:25:00 \
+#          --array=1 scripts/transformer_bench/anvil_transformer.sb
+#   sbatch --export=ALL,MODEL=DeformTime,SMOKE=1  --partition=gpu-debug --time=00:25:00 \
+#          --array=1 scripts/transformer_bench/anvil_transformer.sb
+#
+#   # 2. then the full 10-seed arrays
+#   sbatch --export=ALL,MODEL=Crossformer --array=1-10 scripts/transformer_bench/anvil_transformer.sb
+#   sbatch --export=ALL,MODEL=DeformTime  --array=1-10 scripts/transformer_bench/anvil_transformer.sb
+#   sbatch --export=ALL,MODEL=PatchTST    --array=1-10 scripts/transformer_bench/anvil_transformer.sb
+#
+# ACCOUNT: Anvil bills GPU against a SEPARATE allocation from CPU, named with a -gpu suffix. Our CPU
+# account is cis251123, so GPU jobs use cis251123-gpu. Confirm with `mybalance` -- if that line is
+# absent or has no hours, nothing below queues and the error is a cryptic account rejection.
+
+#SBATCH --account=cis251123-gpu
+#SBATCH --partition=gpu
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --gpus-per-node=1
+#SBATCH --time=04:00:00
+#SBATCH --job-name=tfbench
+#SBATCH --array=1-10
+#SBATCH --output=slurm_logs/tf_%A_%a.out
+#SBATCH --error=slurm_logs/tf_%A_%a.err
+
+set -uo pipefail
+
+: "${MODEL:?set MODEL=Crossformer|DeformTime|PatchTST|iTransformer|DLinear}"
+SMOKE=${SMOKE:-0}
+SEED=${SLURM_ARRAY_TASK_ID:-1}
+COHORT=${COHORT:-cohort_2020_aligned}
+
+REPO=$SLURM_SUBMIT_DIR
+WORK=${WORK:-$REPO/external/DeformTime}
+ENV_DIR=${ENV_DIR:-$REPO/external/tfenv}
+DATA=$REPO/datasets/walkforward/$COHORT
+
+# SMOKE must never write where a real seed writes, or a 2-epoch pred.npy sits at the path the
+# analysis script expects for seed 1.
+TAG=$([ "$SMOKE" = "1" ] && echo "smoke" || echo "seed_${SEED}")
+OUT=$REPO/results/transformer_bench/$COHORT/${MODEL}/${TAG}
+
+module --force purge
+module load modtree/gpu
+# setup_anvil.sh records which python module it built the venv against; loading a different one (or
+# none) can leave the venv interpreter unable to find libpython.
+[ -f "$REPO/external/.pymodule" ] && module load "$(cat "$REPO/external/.pymodule")"
+PY=$ENV_DIR/bin/python
+
+for p in "$PY" "$WORK/run.py" "$DATA"; do
+  [ -e "$p" ] || { echo "ERROR: missing $p -- run setup_anvil.sh first" >&2; exit 1; }
+done
+"$PY" -c 'import torch' || { echo "ERROR: venv python cannot import torch" >&2; exit 1; }
+[ "$(ls "$DATA"/*_train.csv 2>/dev/null | wc -l)" -eq 50 ] \
+  || { echo "ERROR: expected 50 train files in $DATA" >&2; exit 1; }
+
+mkdir -p "$OUT"
+if [ -f "$OUT/.done" ]; then echo "$TAG already complete -- skipping"; exit 0; fi
+
+# ---- shared protocol. Identical for every model; this is what makes the comparison fair.
+EPOCHS=30; PATIENCE=5; BATCH=256; LR=0.0005
+if [ "$SMOKE" = "1" ]; then EPOCHS=2; PATIENCE=1; echo "### SMOKE RUN: $EPOCHS epochs"; fi
+
+# lradj: NOT type1. tools.py:15 implements type1 as lr * 0.5**((epoch-1)//1) -- a halving EVERY
+# epoch, so 5e-4 reaches 5e-7 by epoch 11 and ~5e-10 by epoch 21. A 30-epoch budget would be
+# fiction, --patience 5 would never bind, and the ranking would favour whichever model converges
+# fastest rather than whichever fits best. `cosine` decays over train_epochs as intended.
+LRADJ=${LRADJ:-cosine}
+
+COMMON=(
+  --is_training 1 --model "$MODEL" --model_id "${MODEL}_L20_${COHORT}_${TAG}"
+  --data stock_pooled --root_path "$DATA" --data_path unused
+  --features MS --target RET --freq d
+  --seq_len 20 --label_len 0 --pred_len 1
+  --enc_in 6 --dec_in 6 --c_out 1
+  --d_model 64 --n_heads 4 --d_ff 128 --dropout 0.1
+  --e_layers 2 --d_layers 1 --factor 10
+  --batch_size "$BATCH" --learning_rate "$LR" --train_epochs "$EPOCHS" --patience "$PATIENCE"
+  --loss MSE --lradj "$LRADJ" --itr 1 --des pooled --num_workers 4
+  --use_gpu True --gpu 0 --checkpoints "$OUT/checkpoints"
+)
+
+# ---- tokenizer args. These CANNOT be shared: each model's tokenizer has its own relationship to
+# sequence length, and library defaults tuned for 96-336 step inputs DISABLE the mechanism the model
+# is credited with when applied to a 20-step window:
+#   Crossformer seg_len 12 -> ceil(20/12)*12 = 24 -> 2 segments        (seg_len 4 -> 5 segments)
+#   PatchTST    patch_len 16 / stride 8 -> 2 patches, one half-padding (4/2 -> 9 patches)
+#   DeformTime  n_reshape 16 over a 20-step window
+# Scaling them is not tuning; it is the minimum for each model to function at this L. Both the
+# Crossformer and PatchTST values only take effect because setup_anvil.sh patches their hardcoded
+# defaults -- upstream, these flags are inert.
+case "$MODEL" in
+  Crossformer) EXTRA=( --seg_len 4 --win_size 2 ) ;;
+  DeformTime)  EXTRA=( --n_reshape 4 --patch_len 4 --stride 2 --kernel 3 ) ;;
+  PatchTST)    EXTRA=( --patch_len 4 --stride 2 ) ;;
+  *)           EXTRA=() ;;
+esac
+
+echo "### $MODEL | cohort $COHORT | $TAG | L=20 h=1 | pooled 50 stocks | lradj $LRADJ"
+echo "### tokenizer: ${EXTRA[*]:-none}"
+nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || true
+
+cd "$WORK"
+export RUN_SEED=$SEED
+export STOCK_META_DIR=$OUT
+export STOCK_NORM_SCOPE=${STOCK_NORM_SCOPE:-train_val}
+
+# Guards against the two silent-corruption failures. Without the RUN_SEED patch every array task is
+# bit-identical while the logs look perfectly healthy; without the stride patch, run.py:82 overwrites
+# --stride with --patch_len and DeformTime gets non-overlapping patches.
+grep -q "RUN_SEED" run.py \
+  || { echo "ERROR: run.py unpatched -- all 10 seeds would be identical. Run setup_anvil.sh" >&2; exit 1; }
+grep -q "^\s*#\s*args\.stride = args\.patch_len" run.py \
+  || { echo "ERROR: run.py:82 still overwrites --stride. Run setup_anvil.sh" >&2; exit 1; }
+
+"$PY" run.py "${COMMON[@]}" ${EXTRA[@]+"${EXTRA[@]}"} 2>&1 | tee "$OUT/train.log"
+rc=${PIPESTATUS[0]}
+[ "$rc" = "0" ] || { echo "ERROR: $TAG failed rc=$rc" >&2; exit 1; }
+
+# ---- collect. exp_MTS_forecasting.py:248 hardcodes './results/' and CWD is the SHARED $WORK, so all
+# array tasks write into one tree. Copy only this task's setting dir -- a blanket `cp -r results/*`
+# would pull in up to 9 other tasks' pred.npy, some mid-write.
+#
+# The glob MUST be anchored with the trailing "_${MODEL}_stock_pooled_" rather than a bare
+# *${TAG}*, because the harness names the dir "<model_id>_<model>_<data>_ft..._sl20_..." and a
+# trailing wildcard on "seed_1" also matches "seed_10". Verified: unanchored, seed 1 collects seed
+# 10's directory as well. Observed format, for reference:
+#   E2E_L20_smoke_DeformTime_stock_pooled_ftMS_sl20_ll0_pl1_dm64_nh4_el2_d0.1_ld0.6_lr0.0005_e2e_0
+found=0
+for d in results/"${MODEL}_L20_${COHORT}_${TAG}_${MODEL}_stock_pooled_"*; do
+  [ -d "$d" ] || continue
+  cp -r "$d" "$OUT/" && found=1
+done
+[ "$found" = "1" ] || { echo "ERROR: no results dir matching ${TAG}" >&2; exit 1; }
+
+# expected test samples = 50 stocks x (test_rows - seq_len - pred_len + 1)
+tr=$(( $(wc -l < "$(ls "$DATA"/*_test.csv | head -1)") - 1 ))
+want=$(( 50 * (tr - 20) ))
+got=$(( $(wc -l < "$OUT/test_index.csv") - 1 ))
+[ "$got" -eq "$want" ] || echo "WARN: expected $want test samples for $COHORT, got $got"
+
+"$PY" "$REPO/scripts/transformer_bench/collect_predictions.py" --run-dir "$OUT" || exit 1
+echo "### $TAG done | $got predictions in raw RET units -> $OUT/predictions.csv"
+[ "$SMOKE" = "1" ] || touch "$OUT/.done"

@@ -1,0 +1,79 @@
+% ---------------------------------------------------------------------------
+% Results tables -- one per trading year. Drop this file next to your main .tex
+% and pull it in with \input{tables}, or copy the environments across.
+%
+% PREAMBLE -- add to your main document if not already present:
+%     \usepackage{booktabs}   % \toprule \midrule \cmidrule \bottomrule
+%     \usepackage{graphicx}   % \resizebox
+%
+% One-column document: change "table*" to "table". Try deleting \resizebox and
+% its closing brace first -- only keep it if the table overflows.
+%
+% Numbers are in math mode so minus signs render as minus, not hyphens.
+%
+% Two parameter columns on purpose: every figure in a row is a 10-run ensemble,
+% so the per-model count alone understates the deployed model by 10x. Both
+% sides are ensembled, so the ratio (~9,300x) holds either way.
+%
+% Benchmarks are rows, not columns: they are identical for all models within a
+% year and have no book size.
+% ---------------------------------------------------------------------------
+
+\begin{table*}[t]
+\centering
+\caption{Trading year 2022; trained through 2020, selected on 2021. Accuracy is
+the 10-run ensemble over 231 days, scored on the row set common to all models
+($t[21]\dots t[N]$, the range an $L{=}20$ window permits). Returns are annual
+percentages for a daily-rebalanced dollar-neutral book, gross of costs;
+\textbf{L/S~10} is pre-committed. Parameters are per model (EXAMM: mean over
+runs, range 23--90) and for the deployed ensemble. Survivor-biased universe.}
+\label{tab:results-2022}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrrrr}
+\toprule
+& \multicolumn{2}{c}{Parameters} & \multicolumn{3}{c}{Accuracy} & \multicolumn{4}{c}{Long/short book size} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-6} \cmidrule(lr){7-10}
+Model & Per model & Ensemble & IC & MSE & MAE & 5 & 10 & 15 & 20 \\
+\midrule
+\textbf{EXAMM} & $55$ & $549$ & $+0.0077$ & $4.600{\times}10^{-4}$ & $0.01558$
+  & $-21.73$ & $\mathbf{-15.20}$ & $-17.21$ & $-6.55$ \\
+Crossformer & $512{,}588$ & $5{,}125{,}880$ & --- & --- & --- & --- & --- & --- & --- \\
+DeformTime  & $107{,}243$ & $1{,}072{,}430$ & --- & --- & --- & --- & --- & --- & --- \\
+PatchTST    & $67{,}969$  & $679{,}690$     & --- & --- & --- & --- & --- & --- & --- \\
+\midrule
+\multicolumn{6}{l}{Equal-weight buy-and-hold} & \multicolumn{4}{c}{$-13.99$} \\
+\multicolumn{6}{l}{S\&P 500} & \multicolumn{4}{c}{$-19.75$} \\
+\bottomrule
+\end{tabular}%
+}
+\end{table*}
+
+
+\begin{table*}[t]
+\centering
+\caption{Trading year 2023; trained through 2021, selected on 2022. Accuracy is
+the 10-run ensemble over 230 days, scored on the row set common to all models
+($t[21]\dots t[N]$, the range an $L{=}20$ window permits). Returns are annual
+percentages for a daily-rebalanced dollar-neutral book, gross of costs;
+\textbf{L/S~10} is pre-committed. Parameters are per model (EXAMM: mean over
+runs, range 40--131) and for the deployed ensemble. Survivor-biased universe.}
+\label{tab:results-2023}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrrrr}
+\toprule
+& \multicolumn{2}{c}{Parameters} & \multicolumn{3}{c}{Accuracy} & \multicolumn{4}{c}{Long/short book size} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-6} \cmidrule(lr){7-10}
+Model & Per model & Ensemble & IC & MSE & MAE & 5 & 10 & 15 & 20 \\
+\midrule
+\textbf{EXAMM} & $77$ & $768$ & $+0.0162$ & $2.876{\times}10^{-4}$ & $0.01189$
+  & $+41.74$ & $\mathbf{+33.90}$ & $+24.98$ & $+15.25$ \\
+Crossformer & $512{,}588$ & $5{,}125{,}880$ & --- & --- & --- & --- & --- & --- & --- \\
+DeformTime  & $107{,}243$ & $1{,}072{,}430$ & --- & --- & --- & --- & --- & --- & --- \\
+PatchTST    & $67{,}969$  & $679{,}690$     & --- & --- & --- & --- & --- & --- & --- \\
+\midrule
+\multicolumn{6}{l}{Equal-weight buy-and-hold} & \multicolumn{4}{c}{$+7.91$} \\
+\multicolumn{6}{l}{S\&P 500} & \multicolumn{4}{c}{$+25.08$} \\
+\bottomrule
+\end{tabular}%
+}
+\end{table*}

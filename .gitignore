@@ -43,3 +43,17 @@ datasets/csi300_master_replica*/*.csv
 # anvil_pretrain_seed.sb emits and pretrains them on the cluster from the tracked scripts, so
 # committing ~3 MB of binaries would add nothing reproducible.
 seeds/
+
+# Third-party harness clone + its venv, both built by scripts/transformer_bench/setup_anvil.sh
+# from a pinned upstream URL. Regenerable, and the venv alone is ~2 GB of CUDA wheels.
+external/
+
+# Per-session scratch directory.
+scratchpad/
+
+# Transformer run artifacts: checkpoints, raw pred/true arrays and training logs are large and
+# regenerable from the sbatch scripts. The small tidy outputs (predictions.csv, *_index.csv,
+# scaler.json, comparison_*.csv) stay tracked so results can be re-scored without a GPU.
+results/transformer_bench/**/checkpoints/
+results/transformer_bench/**/*.npy
+results/transformer_bench/**/train.log
