@@ -55,15 +55,30 @@ SAVE_GENOMES=${SAVE_GENOMES:-none}
 DATA_DIR=datasets/walkforward/mid_highmid/${SET}/${COHORT}_aligned
 BIN=build/mpi/examm_mpi
 
+# SEED_OFFSET shifts the RNG seed without changing anything else, for an INDEPENDENT
+# REPLICATE of an already-finished campaign (e.g. "was set3's negative IC seed luck or a
+# property of that stock draw?"). Default 0 reproduces the original seeds 1..10 exactly,
+# so existing behaviour is bit-identical and previously-finished runs are untouched.
+# A replicate MUST also set RUN_TAG, or it would land on the original campaign's .done
+# files and every task would exit 0 via the skip -- writing nothing while looking healthy.
+SEED_OFFSET=${SEED_OFFSET:-0}
+RUN_TAG=${RUN_TAG:-}
+if [ "$SEED_OFFSET" -ne 0 ] && [ -z "$RUN_TAG" ]; then
+    echo "ERROR: SEED_OFFSET=$SEED_OFFSET requires RUN_TAG (else the replicate collides" >&2
+    echo "       with the original campaign's .done files and silently no-ops)" >&2
+    exit 1
+fi
+
 # NOTE: anvil_mse_pooled.sb's OUT_ROOT=test_output/mse_$(basename "$DATA_DIR") only keeps
 # the last path component, so set1/cohort_2020_aligned and set2/cohort_2020_aligned would
 # collide on the same test_output/mse_cohort_2020_aligned. Encode both dimensions here.
-OUT_ROOT=test_output/mse_pooled_mid_highmid/${SET}_${COHORT}
+OUT_ROOT=test_output/mse_pooled_mid_highmid/${SET}_${COHORT}${RUN_TAG:+_$RUN_TAG}
 IDX=${SLURM_ARRAY_TASK_ID:-0}
 RUN=$(( IDX + 1 ))
+SEED=$(( RUN + SEED_OFFSET ))
 OUT=$OUT_ROOT/run_$RUN
 
-echo "### mse pooled train | set $SET | cohort $COHORT | run $RUN | max_genomes $MAXG | ranks ${SLURM_NTASKS} | data $DATA_DIR"
+echo "### mse pooled train | set $SET | cohort $COHORT | run $RUN | seed $SEED | max_genomes $MAXG | ranks ${SLURM_NTASKS} | data $DATA_DIR"
 
 if [ ! -x "$BIN" ]; then echo "ERROR: $BIN not found -- build examm_mpi first" >&2; exit 1; fi
 if [ ! -d "$DATA_DIR" ]; then echo "ERROR: $DATA_DIR missing -- run build_mid_highmid_splits.sh + transfer" >&2; exit 1; fi
@@ -104,12 +119,12 @@ trap 'rmdir "$OUT.lock" 2>/dev/null' EXIT
 case "$OUT" in */run_[0-9]*) ;; *) echo "ERROR: refusing rm -rf '$OUT'" >&2; exit 1;; esac
 rm -rf "$OUT"; mkdir -p "$OUT"
 printf 'set=%s\ncohort=%s\ndata_dir=%s\nloss=mse\ntarget=RET\nrun=%s\nmax_genomes=%s\nseed=%s\nstocks=%s\n' \
-    "$SET" "$COHORT" "$DATA_DIR" "$RUN" "$MAXG" "$RUN" "$N_TRAIN" > "$OUT/.config"
+    "$SET" "$COHORT" "$DATA_DIR" "$RUN" "$MAXG" "$SEED" "$N_TRAIN" > "$OUT/.config"
 
 srun --kill-on-bad-exit -n "${SLURM_NTASKS}" "$BIN" \
     --training_filenames $TRAIN_FILES \
     --validation_filenames $VAL_FILES \
-    --seed "$RUN" \
+    --seed "$SEED" \
     --time_offset 1 \
     --input_parameter_names RET VOL_CHANGE BA_SPREAD ILLIQUIDITY sprtrn TURNOVER \
     --output_parameter_names RET \
