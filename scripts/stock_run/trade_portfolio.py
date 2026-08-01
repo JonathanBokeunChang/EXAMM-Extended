@@ -15,6 +15,14 @@ Usage:
     add --use-tc   to charge transaction costs
     add --debug    to watch every trade
 
+    --strategy daily_hybrid_long_short_return   the paper's (arXiv 2410.17212)
+        conditional variant: trade only when all top-L predictions are >0 AND
+        all bottom-S are <0, else hold positions
+    --window-start 2022-01-01 --window-end 2022-12-31   sub-window analysis
+        (applied after alignment; benchmarks follow the same window)
+    --grid 15 15 --grid-out grid.csv   sweep long 1..15 x short 1..15 and
+        write the return matrix (the paper's Tables 5/6 layout)
+
 Requires predict_selected.sh output (denormalized predictions CSVs).
 
 IMPORTANT: the 50 test CSVs end on the same date but START on different dates.
@@ -44,9 +52,14 @@ from Logger import Logger        # noqa: E402
 REPO = Path(__file__).resolve().parents[2]   # EXAMM-Extended root
 
 # strategies Portfolio.trade() can actually dispatch; excludes
-# daily_zimeng_long_short_return (dispatched but the method doesn't exist)
+# daily_zimeng_long_short_return (dispatched but the method doesn't exist).
+# daily_hybrid_long_short_return is the paper's Algorithm 2 (arXiv 2410.17212):
+# trade only when ALL top-L predictions are >0 and ALL bottom-S are <0, else
+# hold -- it exists in the toolbox but trade() never dispatches it, so
+# run_strategy() calls it directly.
 STRATEGIES = [
     "daily_long_short_return",
+    "daily_hybrid_long_short_return",
     "daily_long_return",
     "long_short_return",
     "simple_return",
@@ -54,11 +67,25 @@ STRATEGIES = [
     "portfolio_shorting_return",
 ]
 # strategies whose long/short counts are actually consumed (and divided by)
-COUNTED_STRATEGIES = {"daily_long_short_return", "daily_long_return"}
+COUNTED_STRATEGIES = {
+    "daily_long_short_return",
+    "daily_hybrid_long_short_return",
+    "daily_long_return",
+}
 
 
 def fail(msg):
     sys.exit(f"ERROR: {msg}")
+
+
+def run_strategy(portfolio, strategy, long_n, short_n):
+    """Portfolio.trade() never dispatches the hybrid method, and the method's
+    own self.reset() reads portfolio.strategy -- so set the attribute and call
+    it directly. Everything else goes through trade() unchanged."""
+    if strategy == "daily_hybrid_long_short_return":
+        portfolio.strategy = strategy
+        return portfolio.daily_hybrid_long_short_return(long_n, short_n)
+    return portfolio.trade(strategy, long_n, short_n)
 
 
 def discover_tickers(pred_dir, tickers, exclude):
@@ -100,7 +127,7 @@ def check_finite(name, ticker, arr):
              f"(NaN predictions would be silently longed by the strategy)")
 
 
-def load_stock(ticker, pred_dir, data_dir, oracle):
+def load_stock(ticker, pred_dir, data_dir, oracle, need_quotes=False):
     pred_file = pred_dir / f"{ticker}_test_predictions.csv"
     test_file = data_dir / f"{ticker}_test.csv"
     if not test_file.is_file():
@@ -111,9 +138,18 @@ def load_stock(ticker, pred_dir, data_dir, oracle):
         if col not in pred.columns:
             fail(f"{ticker}: column {col} missing from {pred_file}")
     test = pd.read_csv(test_file)
-    for col in ("date", "RET", "sprtrn", "PRC", "TRAN_COST", "ASK", "BID"):
+    # ASK/BID are required ONLY by --bid-ask execution. Demanding them unconditionally
+    # rejected datasets that legitimately ship PRC/TRAN_COST without quote levels, even
+    # though neither the default (PRC) nor --use-tc path ever reads them.
+    required = ["date", "RET", "sprtrn", "PRC", "TRAN_COST"]
+    if need_quotes:
+        required += ["ASK", "BID"]
+    for col in required:
         if col not in test.columns:
-            fail(f"{ticker}: column {col} missing from {test_file}")
+            extra = (" -- required by --bid-ask; this dataset has no quote levels and they "
+                     "are NOT derivable from PRC/TRAN_COST (only the spread is)"
+                     if col in ("ASK", "BID") else "")
+            fail(f"{ticker}: column {col} missing from {test_file}{extra}")
 
     stock = Stock(ticker)
     stock.read_return_prediction(str(pred_file))
@@ -134,8 +170,11 @@ def load_stock(ticker, pred_dir, data_dir, oracle):
     check_finite("sprtrn", ticker, test["sprtrn"].to_numpy())  # pairing check below
     check_finite("PRC", ticker, stock.stock_price)
     check_finite("TRAN_COST", ticker, stock.transaction_cost)
-    check_finite("ASK", ticker, stock.ask_price)
-    check_finite("BID", ticker, stock.bid_price)
+    # ASK/BID may legitimately be absent (see load_stock) -- only validate when present.
+    if stock.ask_price is not None:
+        check_finite("ASK", ticker, stock.ask_price)
+    if stock.bid_price is not None:
+        check_finite("BID", ticker, stock.bid_price)
     if (stock.stock_price <= 0).any():
         row = int(np.flatnonzero(stock.stock_price <= 0)[0])
         fail(f"{ticker}: nonpositive PRC at row {row} (CRSP bid-ask flag?)")
@@ -159,9 +198,71 @@ def load_stock(ticker, pred_dir, data_dir, oracle):
     }
 
 
+def dedup_dates(r):
+    """Collapse duplicated date rows (a known artifact in the source data:
+    some CRSP days are written twice, byte-identical). Prices/market columns
+    come from the FIRST row of each date; the prediction for the step to the
+    next date comes from the LAST row of that date (the earlier duplicates
+    only 'predict' the zero move to their own copy). Refuses to guess if the
+    duplicate rows ever disagree."""
+    stock = r["stock"]
+    dates = r["dates"]
+    n = len(dates)                                     # price rows
+    first_idx, last_idx, seen = [], [], {}
+    for i, d in enumerate(dates):
+        if d in seen:
+            j = seen[d]
+            if j != i - 1:
+                # non-adjacent repeat means the calendar is out of order --
+                # keep-first would silently reorder it, so refuse
+                fail(f"{r['ticker']}: date {d} reappears at row {i} after "
+                     f"other dates (last seen row {j}) -- calendar not "
+                     f"monotonic, cannot deduplicate safely")
+            if not (stock.stock_price[i] == stock.stock_price[j]
+                    and r["sprtrn"][i] == r["sprtrn"][j]
+                    and stock.transaction_cost[i] == stock.transaction_cost[j]
+                    and (stock.ask_price is None
+                         or stock.ask_price[i] == stock.ask_price[j])
+                    and (stock.bid_price is None
+                         or stock.bid_price[i] == stock.bid_price[j])):
+                fail(f"{r['ticker']}: duplicated date {d} has CONFLICTING "
+                     f"rows (rows {j} and {i}) -- cannot deduplicate safely")
+            last_idx[-1] = i
+            seen[d] = i
+        else:
+            seen[d] = i
+            first_idx.append(i)
+            last_idx.append(i)
+    n_dups = n - len(first_idx)
+    if n_dups == 0:
+        r["dup_dropped"] = 0
+        return
+
+    first = np.array(first_idx)
+    # prediction source rows: last occurrence of every date except the final
+    # one; always < n (a later date's row follows), so a prediction exists
+    pred_src = np.array(last_idx[:-1])
+    stock.return_prediction = stock.return_prediction[pred_src]
+    stock.stock_price = stock.stock_price[first]
+    stock.transaction_cost = stock.transaction_cost[first]
+    if stock.ask_price is not None:
+        stock.ask_price = stock.ask_price[first]
+    if stock.bid_price is not None:
+        stock.bid_price = stock.bid_price[first]
+    stock.testing_period = len(stock.return_prediction)
+    r["dates"] = dates[first]
+    r["sprtrn"] = r["sprtrn"][first]
+    r["n_pred"] = len(stock.return_prediction)
+    r["dup_dropped"] = n_dups
+
+
 def align_suffix(records):
     """Trim every stock to the common trailing window (all files share the
-    same END date but start on different dates)."""
+    same END date but start on different dates). Deduplicates repeated date
+    rows first -- count-based trimming is only calendar-safe after that, and
+    verify_market_agreement() then proves it was."""
+    for r in records:
+        dedup_dates(r)
     k = min(r["n_pred"] for r in records)
     for r in records:
         s = r["n_pred"] - k
@@ -169,8 +270,10 @@ def align_suffix(records):
         stock.return_prediction = stock.return_prediction[s:]
         stock.stock_price = stock.stock_price[s:]          # k + 1 prices
         stock.transaction_cost = stock.transaction_cost[s:]
-        stock.ask_price = stock.ask_price[s:]
-        stock.bid_price = stock.bid_price[s:]
+        if stock.ask_price is not None:
+            stock.ask_price = stock.ask_price[s:]
+        if stock.bid_price is not None:
+            stock.bid_price = stock.bid_price[s:]
         stock.testing_period = k                            # only set on read!
         r["dates"] = r["dates"][s:]
         r["sprtrn"] = r["sprtrn"][s:]
@@ -189,10 +292,57 @@ def verify_market_agreement(records):
         if not np.array_equal(r["dates"], ref["dates"]):
             i = int(np.flatnonzero(r["dates"] != ref["dates"])[0])
             fail(f"date mismatch across stocks: {r['ticker']}[{i}]="
-                 f"{r['dates'][i]} vs {ref['ticker']}[{i}]={ref['dates'][i]}")
+                 f"{r['dates'][i]} vs {ref['ticker']}[{i}]={ref['dates'][i]} "
+                 f"-- if you ran with --align none, try --align suffix "
+                 f"(it also deduplicates repeated date rows)")
         if not np.allclose(r["sprtrn"], ref["sprtrn"], atol=1e-12):
             fail(f"sprtrn mismatch between {r['ticker']} and {ref['ticker']} "
                  f"-- data files disagree about the market")
+
+
+def apply_window(records, start, end):
+    """Restrict every stock to trading dates within [start, end]. Runs after
+    dedup + alignment + date verification, so one index range fits all stocks.
+    Prediction i pairs with price row i, so a window of m price rows keeps
+    m-1 predictions (the moves fully inside the window)."""
+    dates = records[0]["dates"]
+    orig_k = len(dates) - 1
+    lo = int(np.searchsorted(dates, start, side="left")) if start else 0
+    hi = (int(np.searchsorted(dates, end, side="right")) - 1) if end \
+        else len(dates) - 1
+    if lo >= len(dates):
+        fail(f"--window-start {start} is after the last available date "
+             f"({dates[-1]})")
+    if hi < 0:
+        fail(f"--window-end {end} is before the first available date "
+             f"({dates[0]})")
+    m = hi - lo + 1
+    if m < 3:
+        fail(f"sub-window [{start} .. {end}] keeps only {m} price row(s) -- "
+             f"need at least 3 (2 prediction days)")
+    k = m - 1
+    for r in records:
+        stock = r["stock"]
+        stock.return_prediction = stock.return_prediction[lo:hi]
+        stock.stock_price = stock.stock_price[lo : hi + 1]
+        stock.transaction_cost = stock.transaction_cost[lo : hi + 1]
+        if stock.ask_price is not None:
+            stock.ask_price = stock.ask_price[lo : hi + 1]
+        if stock.bid_price is not None:
+            stock.bid_price = stock.bid_price[lo : hi + 1]
+        stock.testing_period = k
+        r["dates"] = r["dates"][lo : hi + 1]
+        r["sprtrn"] = r["sprtrn"][lo : hi + 1]
+        r["n_pred"] = k
+    new_dates = records[0]["dates"]
+    if start and not (new_dates[0] >= start):
+        fail(f"window slice bug: first kept date {new_dates[0]} < {start}")
+    if end and not (new_dates[-1] <= end):
+        fail(f"window slice bug: last kept date {new_dates[-1]} > {end}")
+    print(f"sub-window: requested [{start or 'begin'} .. {end or 'end'}] -> "
+          f"effective {new_dates[0]} .. {new_dates[-1]} ({k} trading days; "
+          f"trimmed {lo} leading / {orig_k - hi} trailing rows)")
+    return k
 
 
 def benchmarks(records):
@@ -235,7 +385,41 @@ def main():
     ap.add_argument("--expect-n", type=int, default=None,
                     help="hard-fail unless the final universe has exactly N stocks")
     ap.add_argument("--csv-out", type=Path, default=None)
+    ap.add_argument("--window-start", default=None, metavar="YYYY-MM-DD",
+                    help="restrict to trading dates >= this (after alignment)")
+    ap.add_argument("--window-end", default=None, metavar="YYYY-MM-DD",
+                    help="restrict to trading dates <= this (after alignment)")
+    ap.add_argument("--grid", nargs=2, type=int, default=None,
+                    metavar=("MAXL", "MAXS"),
+                    help="sweep long 1..MAXL x short 1..MAXS (ignores "
+                         "--long/--short); requires --grid-out")
+    ap.add_argument("--grid-out", type=Path, default=None,
+                    help="CSV matrix output for --grid")
     args = ap.parse_args()
+
+    for w in (args.window_start, args.window_end):
+        if w is not None:
+            try:
+                ok = (len(w) == 10 and pd.Timestamp(w) is not pd.NaT)
+            except (ValueError, TypeError):
+                ok = False
+            if not ok:
+                fail(f"bad window date '{w}' (want YYYY-MM-DD)")
+    if args.window_start and args.window_end \
+            and args.window_start > args.window_end:
+        fail("--window-start is after --window-end")
+    if (args.grid is None) != (args.grid_out is None):
+        fail("--grid and --grid-out must be used together")
+    if args.grid:
+        if args.strategy not in COUNTED_STRATEGIES:
+            fail(f"--grid only makes sense for strategies that consume "
+                 f"long/short counts ({sorted(COUNTED_STRATEGIES)})")
+        if args.debug:
+            fail("--grid with --debug is unreadable; debug a single cell")
+        if args.csv_out:
+            fail("--grid writes --grid-out; --csv-out is for single runs")
+        if args.grid[0] < 1 or args.grid[1] < 1:
+            fail("--grid bounds must be >= 1")
 
     if not args.pred_dir.is_dir():
         fail(f"--pred-dir {args.pred_dir} is not a directory")
@@ -248,33 +432,39 @@ def main():
         fail(f"universe has {len(tickers)} stocks, --expect-n {args.expect_n} "
              f"-- partial predictions folder?")
 
-    if args.strategy in COUNTED_STRATEGIES:
+    if args.strategy in COUNTED_STRATEGIES and not args.grid:
         if args.long_n < 1 or args.short_n < 1:
             fail("--long and --short must both be >= 1 "
                  "(the toolbox divides by them)")
         if args.long_n + args.short_n > len(tickers):
             fail(f"--long {args.long_n} + --short {args.short_n} exceeds the "
                  f"universe ({len(tickers)} stocks)")
+    if args.grid and args.grid[0] + args.grid[1] > len(tickers):
+        fail(f"--grid {args.grid[0]} {args.grid[1]}: MAXL+MAXS exceeds the "
+             f"universe ({len(tickers)} stocks) -- top/bottom slices would "
+             f"overlap")
     if args.strategy == "daily_long_return" and len(tickers) < 30:
         fail("daily_long_return hardcodes a 30-stock universe in the toolbox "
              "(portfolio.py range(30)) -- needs >= 30 stocks")
 
-    records = [load_stock(t, args.pred_dir, args.data_dir, args.oracle)
+    records = [load_stock(t, args.pred_dir, args.data_dir, args.oracle, args.bid_ask)
                for t in tickers]
 
-    lengths = sorted({r["n_pred"] for r in records})
-    if len(lengths) > 1:
-        if args.align == "none":
+    if args.align == "suffix":
+        k = align_suffix(records)   # dedups + trims, even if lengths already agree
+    else:
+        lengths = sorted({r["n_pred"] for r in records})
+        if len(lengths) > 1:
             detail = ", ".join(f"{r['ticker']}={r['n_pred']}" for r in records[:6])
             fail(f"test windows differ in length ({detail}, ...) -- the stocks "
                  f"start on different dates. Rerun with --align suffix to trim "
                  f"everything to the common trailing window.")
-        k = align_suffix(records)
-    else:
         k = lengths[0]
         for r in records:
             r["dropped"] = 0
     verify_market_agreement(records)   # in every mode, aligned or not
+    if args.window_start or args.window_end:
+        k = apply_window(records, args.window_start, args.window_end)
     if k < 2:
         fail(f"common window has only {k} prediction day(s) -- the toolbox "
              f"strategies need at least 2")
@@ -301,8 +491,6 @@ def main():
     portfolio.set_use_TC(args.use_tc)
     portfolio.set_trade_with_bid_ask(args.bid_ask)
 
-    strat_return = portfolio.trade(args.strategy, args.long_n, args.short_n)
-    final = args.capital * (1.0 + strat_return / 100.0)
     bh, sp_return, per_stock = benchmarks(records)
 
     dates = records[0]["dates"]
@@ -314,6 +502,48 @@ def main():
     if dropped:
         print(f"suffix-aligned: dropped leading rows for {len(dropped)} stocks "
               f"(max {max(dropped.values())})")
+    dups = {r["ticker"]: r["dup_dropped"] for r in records
+            if r.get("dup_dropped")}
+    if dups:
+        print(f"deduplicated repeated date rows: "
+              f"{', '.join(f'{t} x{n}' for t, n in sorted(dups.items()))}")
+
+    if args.grid:
+        max_l, max_s = args.grid
+        results = np.empty((max_l, max_s))
+        for lo in range(1, max_l + 1):
+            for sh in range(1, max_s + 1):
+                results[lo - 1, sh - 1] = run_strategy(
+                    portfolio, args.strategy, lo, sh)
+        # reset-sufficiency guard: the sweep must not leave residual state
+        if run_strategy(portfolio, args.strategy, 1, 1) != results[0, 0]:
+            fail("grid cell (1,1) did not reproduce after the sweep -- "
+                 "Stock/Portfolio reset() left residual state")
+        out = pd.DataFrame(
+            results,
+            index=[f"long_{i}" for i in range(1, max_l + 1)],
+            columns=[f"short_{j}" for j in range(1, max_s + 1)],
+        )
+        out.to_csv(args.grid_out, float_format="%.4f")
+        bi, bj = np.unravel_index(results.argmax(), results.shape)
+        wi, wj = np.unravel_index(results.argmin(), results.shape)
+        n_cells = results.size
+        print(f"grid {args.strategy}: long 1..{max_l} x short 1..{max_s} "
+              f"({n_cells} cells) -> {args.grid_out}")
+        print(f"  best  cell: long {bi+1} / short {bj+1} -> "
+              f"{results[bi, bj]:+.2f}%")
+        print(f"  worst cell: long {wi+1} / short {wj+1} -> "
+              f"{results[wi, wj]:+.2f}%")
+        print(f"  cells > 0: {np.mean(results > 0)*100:.1f}%   "
+              f"> B&H ({bh:+.2f}%): {np.mean(results > bh)*100:.1f}%   "
+              f"> S&P ({sp_return:+.2f}%): {np.mean(results > sp_return)*100:.1f}%")
+        if max_l >= 10 and max_s >= 10:
+            print(f"  cell (10,10): {results[9, 9]:+.2f}%")
+        return
+
+    strat_return = run_strategy(portfolio, args.strategy,
+                                args.long_n, args.short_n)
+    final = args.capital * (1.0 + strat_return / 100.0)
     counted = args.strategy in COUNTED_STRATEGIES
     params = f" (long {args.long_n} / short {args.short_n}, " if counted else " ("
     params += f"{'TC on' if args.use_tc else 'TC off'}, "
@@ -323,12 +553,15 @@ def main():
           f"(final ${final:,.2f} from ${args.capital:,.0f})")
     print(f"  equal-weight B&H: {bh:+9.2f}%")
     print(f"  S&P (sprtrn)    : {sp_return:+9.2f}%")
-    if args.strategy in ("daily_long_short_return", "long_short_return",
+    if args.strategy in ("daily_long_short_return",
+                         "daily_hybrid_long_short_return", "long_short_return",
                          "portfolio_simple_return"):
         # these strategies clear their final positions at the same price they
         # were bought (toolbox reuses the last loop index), so their P&L stops
         # one day earlier than the benchmarks' PRC[0]->PRC[-2] window -- one
-        # extra market day for the benchmarks, i.e. conservative for us
+        # extra market day for the benchmarks, i.e. conservative for us.
+        # (for hybrid, positions carried through trailing no-trade days also
+        # realize at that same second-to-last strategy day)
         print("  (note: benchmarks include one final day this strategy "
               "clears flat)")
 

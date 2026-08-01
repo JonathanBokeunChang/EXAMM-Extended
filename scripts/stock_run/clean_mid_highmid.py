@@ -59,6 +59,24 @@ COLUMNS = ["date", "RET", "VOL_CHANGE", "BA_SPREAD", "ILLIQUIDITY", "sprtrn", "T
 CHECK_COLS = ["RET", "VOL_CHANGE", "BA_SPREAD", "ILLIQUIDITY", "sprtrn", "TURNOVER"]
 BA_SPREAD_GUARD_CUTOFF = "2004-01-01"
 
+# OPTIONAL trading columns. Present only in the price-bearing copy of the dataset
+# (mid_highmid_20yr_portfolios 2); absent from the training-only copy. When present they
+# are carried through cleaning so the same test rows can feed trade_portfolio.py.
+#
+# VERIFIED on all 200 tickers: TRAN_COST == BA_SPREAD * PRC / 2 exactly (max abs deviation
+# 4.7e-15 -- pure floating-point noise), i.e. the standard half-spread cost model. Two
+# consequences drive the handling below:
+#   - TRAN_COST is blank exactly where BA_SPREAD is blank (16,808 rows, identical count).
+#     Rather than fill it independently, RECOMPUTE it from the already-LOCF-filled
+#     BA_SPREAD, which keeps the identity exact instead of letting the two drift apart.
+#   - TRAN_COST < 0 (8,945 rows) wherever BA_SPREAD < 0, i.e. a CROSSED QUOTE (bid > ask),
+#     a known CRSP artifact rather than a real negative spread. Left as-is it becomes a
+#     trading SUBSIDY in Financial_toolbox (buy_stock does cash/(price + tc), so tc<0 buys
+#     MORE shares). Floored at zero: a data error must not pay the strategy. Only 18 of
+#     these fall inside any trading window (all 2024), so this is a correctness guard, not
+#     a results-moving choice.
+PRICE_COLS = ["PRC", "TRAN_COST"]
+
 
 def fail(msg):
     sys.exit(f"ERROR: {msg}")
@@ -179,8 +197,38 @@ def clean_ticker(df: pd.DataFrame, ticker: str, log_rows: list):
         log("ba_spread_locf", "BA_SPREAD", dates.iloc[0], dates.iloc[-1], run_len,
             f"forward-filled from {df.at[start - 1, 'date']}={fill_value}")
 
+    # ---- rule 6 (price-bearing copy only): PRC / TRAN_COST ----
+    # Runs AFTER the BA_SPREAD LOCF above so the recompute uses filled spreads.
+    have_price = all(c in df.columns for c in PRICE_COLS)
+    if have_price:
+        tc_blank = df["TRAN_COST"].isna().to_numpy()
+        if tc_blank.any():
+            recomputed = df["BA_SPREAD"] * df["PRC"] / 2.0
+            n_bad = int((tc_blank & recomputed.isna().to_numpy()).sum())
+            if n_bad:
+                fail(f"{ticker}: {n_bad} blank TRAN_COST rows cannot be recomputed "
+                     f"(BA_SPREAD or PRC still blank there) -- refusing to guess")
+            dates = df.loc[tc_blank, "date"]
+            df.loc[tc_blank, "TRAN_COST"] = recomputed[tc_blank]
+            log("tran_cost_recompute", "TRAN_COST", dates.iloc[0], dates.iloc[-1],
+                int(tc_blank.sum()), "= BA_SPREAD * PRC / 2 (verified identity), "
+                                     "using the LOCF-filled BA_SPREAD")
+
+        neg = (df["TRAN_COST"] < 0).to_numpy()
+        if neg.any():
+            dates = df.loc[neg, "date"]
+            log("tran_cost_floor_zero", "TRAN_COST", dates.iloc[0], dates.iloc[-1],
+                int(neg.sum()), "crossed quote (BA_SPREAD<0) -- floored at 0 so a data "
+                                "artifact cannot pay the strategy")
+            df.loc[neg, "TRAN_COST"] = 0.0
+
+        if (df["PRC"] <= 0).any():
+            n = int((df["PRC"] <= 0).sum())
+            fail(f"{ticker}: {n} rows with PRC <= 0 -- trade_portfolio.py rejects these")
+
     # ---- rule 5: final assertion, no silent fallback ----
-    remaining = df[CHECK_COLS].isna().sum()
+    assert_cols = CHECK_COLS + (PRICE_COLS if have_price else [])
+    remaining = df[assert_cols].isna().sum()
     remaining = remaining[remaining > 0]
     if len(remaining):
         fail(f"{ticker}: unexplained blanks remain after cleaning: "
@@ -252,9 +300,11 @@ def main():
             ticker = f.stem
             df = pd.read_csv(f)
             missing = [c for c in COLUMNS if c not in df.columns]
+            # keep PRC/TRAN_COST when the source has them (price-bearing copy)
+            keep = COLUMNS + [c for c in PRICE_COLS if c in df.columns]
             if missing:
                 fail(f"{set_name}/{ticker}: missing columns {missing}")
-            df = df[COLUMNS]
+            df = df[keep]
             rows_in[ticker] = len(df)
             cleaned[ticker], ret_blank_dates = clean_ticker(df, ticker, log_rows)
             ret_blank_union |= ret_blank_dates
