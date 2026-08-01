@@ -1,0 +1,144 @@
+#!/bin/bash -l
+# NOTE the -l flag!
+#
+# Raw-MSE pooled-panel EXAMM training on the mid_highmid_20yr_portfolios dataset --
+# same proven recipe as anvil_mse_pooled.sb (the paper's existing pooled baseline),
+# just parameterized by SET (set1-4) and COHORT (cohort_2020/2021/2022) instead of a
+# single implicit universe, since this dataset has 4 x 3 = 12 independent combinations
+# to train (Dr. Lyu: "try with your best hyperparameter settings and get 2022, 2023,
+# 2024 results on each of the sets").
+#
+# POOLED means: each stock keeps its own narrow file (6 predictors -> RET, one day
+# ahead), but every stock's train/val file is handed to ONE examm_mpi run via
+# --training_filenames / --validation_filenames. EXAMM natively treats a multi-file
+# argument list as multiple independent time series trained by a single shared
+# genome (no stock identifier is ever passed in). See time_series/time_series.cxx:
+# TimeSeriesSets::generate_from_arguments() / load_time_series().
+#
+# SET and COHORT are HARD-required (no soft default) -- with 12 combinations in
+# flight, a forgotten env var silently training the wrong (set, cohort) pair is a
+# real, avoidable footgun that a soft default (like anvil_mse_pooled.sb's single-
+# cohort DATA_DIR default) would invite here.
+#
+# submit from the repo root, one (set, cohort) per call:
+#   mkdir -p slurm_logs
+#   sbatch --export=ALL,SET=set1,COHORT=cohort_2020 --array=0 scripts/stock_run/anvil_mse_pooled_mid_highmid.sb   # canary
+#   sbatch --export=ALL,SET=set1,COHORT=cohort_2020 --array=0-9 scripts/stock_run/anvil_mse_pooled_mid_highmid.sb # full 10-run ensemble
+# (repeat for SET=set1..set4, COHORT=cohort_2020/cohort_2021/cohort_2022 -- 12 submissions
+# total, or use submit_mid_highmid.sh to issue all 12 in one shot)
+
+#SBATCH --account=cis251123
+#SBATCH --partition=shared
+#SBATCH --nodes=1
+#SBATCH --ntasks=32
+#SBATCH --cpus-per-task=1
+#SBATCH --time=08:00:00
+#SBATCH --job-name=mse_pooled_mh
+#SBATCH --array=0-9
+#SBATCH --output=slurm_logs/mh_%A_%a.out
+#SBATCH --error=slurm_logs/mh_%A_%a.err
+
+module --force purge
+module load gcc/11.2.0 openmpi/4.1.6
+
+cd "$SLURM_SUBMIT_DIR"
+set -u
+
+: "${SET:?set SET=set1|set2|set3|set4}"
+: "${COHORT:?set COHORT=cohort_2020|cohort_2021|cohort_2022}"
+
+MAXG=${MAXG:-10000}
+# 'none' writes only the final global best, at natural termination. Set to
+# all_best_genomes to also write every new global-best genome DURING the run --
+# useful for a canary, unnecessary noise for a production ensemble.
+SAVE_GENOMES=${SAVE_GENOMES:-none}
+DATA_DIR=datasets/walkforward/mid_highmid/${SET}/${COHORT}_aligned
+BIN=build/mpi/examm_mpi
+
+# NOTE: anvil_mse_pooled.sb's OUT_ROOT=test_output/mse_$(basename "$DATA_DIR") only keeps
+# the last path component, so set1/cohort_2020_aligned and set2/cohort_2020_aligned would
+# collide on the same test_output/mse_cohort_2020_aligned. Encode both dimensions here.
+OUT_ROOT=test_output/mse_pooled_mid_highmid/${SET}_${COHORT}
+IDX=${SLURM_ARRAY_TASK_ID:-0}
+RUN=$(( IDX + 1 ))
+OUT=$OUT_ROOT/run_$RUN
+
+echo "### mse pooled train | set $SET | cohort $COHORT | run $RUN | max_genomes $MAXG | ranks ${SLURM_NTASKS} | data $DATA_DIR"
+
+if [ ! -x "$BIN" ]; then echo "ERROR: $BIN not found -- build examm_mpi first" >&2; exit 1; fi
+if [ ! -d "$DATA_DIR" ]; then echo "ERROR: $DATA_DIR missing -- run build_mid_highmid_splits.sh + transfer" >&2; exit 1; fi
+
+# ---- collect the pooled file lists (ALL stocks) ----------------------------
+TRAIN_FILES=$(ls "$DATA_DIR"/*_train.csv 2>/dev/null | tr '\n' ' ')
+VAL_FILES=$(ls "$DATA_DIR"/*_val.csv   2>/dev/null | tr '\n' ' ')
+N_TRAIN=$(echo $TRAIN_FILES | wc -w | tr -d ' ')
+N_VAL=$(echo $VAL_FILES   | wc -w | tr -d ' ')
+if [ "$N_TRAIN" -lt 50 ] || [ "$N_TRAIN" -ne "$N_VAL" ]; then
+    echo "ERROR: $DATA_DIR has $N_TRAIN train / $N_VAL val files (expected equal, >=50)" >&2
+    exit 1
+fi
+# Counts matching is not enough -- a partial rsync could drop one stem from each side.
+if ! diff <(ls "$DATA_DIR" | sed -n 's/_train\.csv$//p') \
+          <(ls "$DATA_DIR" | sed -n 's/_val\.csv$//p') >/dev/null; then
+    echo "ERROR: train/val stems differ in $DATA_DIR (counts match but sets do not)" >&2
+    exit 1
+fi
+NUNIQ=$(for f in $TRAIN_FILES; do wc -l < "$f"; done | sort -u | wc -l | tr -d ' ')
+if [ "$NUNIQ" -ne 1 ]; then
+    echo "ERROR: train files in $DATA_DIR are not equal-length -- not aligned." >&2
+    echo "       Rebuild with scripts/stock_run/build_mid_highmid_splits.sh" >&2
+    exit 1
+fi
+echo "pooled over $N_TRAIN stocks (aligned), target=RET"
+
+if [ -f "$OUT/.done" ]; then
+    echo "[run $RUN] already done, skipping"; exit 0
+fi
+
+mkdir -p "$(dirname "$OUT")"
+if ! mkdir "$OUT.lock" 2>/dev/null; then
+    echo "[run $RUN] another task owns $OUT, skipping"; exit 0
+fi
+trap 'rmdir "$OUT.lock" 2>/dev/null' EXIT
+
+case "$OUT" in */run_[0-9]*) ;; *) echo "ERROR: refusing rm -rf '$OUT'" >&2; exit 1;; esac
+rm -rf "$OUT"; mkdir -p "$OUT"
+printf 'set=%s\ncohort=%s\ndata_dir=%s\nloss=mse\ntarget=RET\nrun=%s\nmax_genomes=%s\nseed=%s\nstocks=%s\n' \
+    "$SET" "$COHORT" "$DATA_DIR" "$RUN" "$MAXG" "$RUN" "$N_TRAIN" > "$OUT/.config"
+
+srun --kill-on-bad-exit -n "${SLURM_NTASKS}" "$BIN" \
+    --training_filenames $TRAIN_FILES \
+    --validation_filenames $VAL_FILES \
+    --seed "$RUN" \
+    --time_offset 1 \
+    --input_parameter_names RET VOL_CHANGE BA_SPREAD ILLIQUIDITY sprtrn TURNOVER \
+    --output_parameter_names RET \
+    --loss mse \
+    --number_islands 10 \
+    --island_size 10 \
+    --max_genomes "$MAXG" \
+    --bp_iterations 10 \
+    --num_mutations 1 \
+    --normalize avg_std_dev \
+    --extinction_event_generation_number 500 \
+    --islands_to_exterminate 1 \
+    --repopulation_method bestGenome \
+    --output_directory "$OUT" \
+    --save_genome_option "$SAVE_GENOMES" \
+    --std_message_level INFO \
+    --file_message_level NONE > "$OUT/train.log" 2>&1
+RC=$?
+
+GB=$(ls "$OUT"/global_best_genome_*.bin 2>/dev/null \
+     | sed 's/.*_\([0-9]*\)\.bin/\1 &/' | sort -rn | head -1 | cut -d' ' -f2-)
+LOGGED=$(wc -l < "$OUT/fitness_log.csv" 2>/dev/null || echo 0)
+MIN_LOGGED=$(( MAXG * 9 / 10 ))
+
+if [ $RC -eq 0 ] && [ -n "$GB" ] && [ -s "$GB" ] && [ "$LOGGED" -ge "$MIN_LOGGED" ]; then
+    touch "$OUT/.done"
+    echo "[run $RUN] FINISHED  genome=$(basename "$GB")  genomes_logged=$LOGGED"
+else
+    echo "[run $RUN] FAILED rc=$RC genome='${GB:-none}' logged=$LOGGED (need >=$MIN_LOGGED)" >&2
+    echo "          see $OUT/train.log" >&2
+    exit 1
+fi
