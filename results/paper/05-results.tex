@@ -1,0 +1,610 @@
+% ---------------------------------------------------------------------------
+% Results section (\input as 05-results from sigconf.tex).
+%
+% TODO: this file has eight result tables and their sourcing/methodology notes
+% (as LaTeX comments, not yet body prose). The narrative text connecting them
+% -- what to say about each table, in what order, with what emphasis -- still
+% needs to be written; see the comment blocks above each table for the
+% load-bearing claims that prose needs to state explicitly. In table order:
+%   tab:pooling-ablation  -- does pooling (Table~\ref{tab:constructions}) beat
+%                            individual training? Read this FIRST -- it
+%                            justifies the pooled construction every other
+%                            table in this section then assumes.
+%   tab:results-2022/2023 -- the main model comparison (EXAMM/DLinear/Reversal/
+%                            transformers), using the strategy defined right
+%                            below. State explicitly: "do not read L/S 10 in
+%                            isolation" ahead of tab:grid-robustness.
+%   tab:sharpe             -- risk-adjusted view of the same cells.
+%   tab:grid-robustness    -- the actual robustness finding, not L/S 10 alone.
+%   tab:net-of-cost        -- same cells, after transaction costs.
+%   tab:midhighmid         -- REPLICATION on a second universe: 4 random
+%                            50-stock draws x 3 cohorts, 30-run ensembles.
+%                            This is the only table that measures how much of a
+%                            single-universe number is draw luck, and the answer
+%                            is "a lot" (2023 IC spans -0.0195 to +0.0196 across
+%                            draws). Prose must state that explicitly -- it
+%                            qualifies every other table in this section.
+%   tab:ina219_results     -- on-device (Raspberry Pi Zero) deployment cost,
+%                            connects back to the parameter-count columns in
+%                            tab:results-2022/2023.
+%
+% The \clearpage at the end of 04-datasets.tex already flushes anything
+% queued from that section before this one's floats begin, so nothing
+% drifts across the \input boundary. Do NOT add a second \clearpage here --
+% two adjacent \clearpage calls force an extra, needless page break (this
+% is what was leaving page 2 half-empty: the first one truncated section 4
+% early, the second then stranded this section's heading alone on its own
+% page before its tables could join it).
+% ---------------------------------------------------------------------------
+
+\section{Trading Results}
+\label{sec:results}
+
+% ---------------------------------------------------------------------------
+% POOLING ABLATION -- goes FIRST in this section, ahead of the STRATEGY block
+% below, because every other table in this section takes the pooled
+% construction as given; this is the one table that actually justifies it
+% rather than asserting it. L/S~10 here uses the identical conditional
+% long/short strategy defined in the STRATEGY comment immediately below --
+% not redefined here to avoid saying it twice.
+%
+% Does the pooled-panel construction (Table~\ref{tab:constructions}) actually
+% outperform the individual (one-model-per-stock) alternative it replaces?
+% Individual here is EXAMM trained one stock at a time (50 independent models x 10
+% runs each, scripts/stock_run/anvil_cohort_individual.sb), same cohorts/windows as
+% the pooled comparison below, predictions averaged across the 10 runs per stock
+% (ensemble, matching how every other model in this paper is scored) before scoring
+% IC/MSE/MAE and trading. Verified: expected_RET identical across all 10 runs per
+% stock before averaging (rules out a file-pairing error); one run (WRB, cohort 2021)
+% failed genome verification and was excluded, so that stock's ensemble is 9 runs.
+%
+% READING: MSE/MAE are nearly identical between individual and pooled in both years --
+% pooling does not make each stock's point prediction more accurate. IC is where the
+% gap actually lives (individual ~0 or negative both years; pooled clearly positive
+% both years), which is the direct mechanism for the trading gap: a long/short
+% strategy needs predictions that rank stocks against each other, and only the pooled
+% model reliably produces that. State this explicitly in body prose -- it's the
+% mechanistic explanation the rest of the section's numbers otherwise leave implicit.
+% ---------------------------------------------------------------------------
+
+Before comparing pooled EXAMM against other models, we first ask whether pooling itself
+is doing any work. Table~\ref{tab:pooling-ablation} compares the pooled-panel construction
+against training an independent EXAMM model per stock, holding the walk-forward cohorts,
+10-run ensembling, and conditional long/short strategy fixed. Point-prediction accuracy
+(MSE, MAE) is nearly identical between the two constructions in both years -- pooling does
+not make any individual stock's forecast more accurate. The gap is entirely in
+cross-sectional IC: individual training produces predictions with essentially no ranking
+ability ($\text{IC}\approx 0$ in 2022, negative in 2023), while the pooled model is clearly
+positive in both years. Because the long/short strategy trades on the relative ranking of
+predicted returns across stocks rather than their absolute accuracy, this is the direct
+mechanism behind pooling's trading advantage, and the reason every other table in this
+section uses the pooled construction.
+
+\begin{table*}[t]
+\centering
+\caption{Pooling vs. individual (one model per stock) training, both 10-run
+ensembles, identical cohorts/windows/strategy as
+Tables~\ref{tab:results-2022}--\ref{tab:results-2023}.}
+\label{tab:pooling-ablation}
+\begin{tabular}{llrrrr}
+\toprule
+Trade year & Construction & IC & MSE & MAE & L/S~10 \\
+\midrule
+2022 & Individual & $+0.0001$ & $4.726{\times}10^{-4}$ & $0.01584$ & $+13.36$ \\
+2022 & \textbf{Pooled (ours)} & $\mathbf{+0.0030}$ & $\mathbf{4.630{\times}10^{-4}}$ & $\mathbf{0.01566}$ & $\mathbf{+14.40}$ \\
+\midrule
+2023 & Individual & $-0.0050$ & $3.037{\times}10^{-4}$ & $0.01232$ & $-1.08$ \\
+2023 & \textbf{Pooled (ours)} & $\mathbf{+0.0195}$ & $\mathbf{2.930{\times}10^{-4}}$ & $\mathbf{0.01205}$ & $\mathbf{+31.99}$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+% ---------------------------------------------------------------------------
+% STRATEGY: Lyu et al.'s own Algorithm 2 (arXiv 2410.17212), NOT an always-trade
+% variant. Sort by predicted return; only trade at time t if ALL L candidate
+% longs are predicted positive AND all S candidate shorts are predicted
+% negative, else hold yesterday's book.
+%
+% ROW SET: FULL trading year, no truncation, for every model (250 days 2022,
+% 249 days 2023) -- stock_pooled_loader.py now prepends the tail of
+% validation as lookback context (leak-free -- val is fully in the past,
+% used only as input, never as a target), so DLinear here already covers
+% the identical full-year row set EXAMM does; no alignment trick needed.
+%
+% CONTROLS ARE LOAD-BEARING, NOT FILLER: Reversal (zero-parameter,
+% predicted_RET = -RET[t]) is here because the source paper reports
+% Algorithm 1 beating the market with no zero-training comparator. DLinear
+% (42 fixed parameters, a 20-day trend/seasonal linear decomposition -- NOT
+% evolved, not our design) is here because it is the smallest model tested
+% that uses a genuinely different mechanism (multi-day trend-following vs.
+% EXAMM's near-reversal policy -- daily rank-correlation with the Reversal
+% control is 0.93-0.96 in every month of the test window). Without these
+% rows this table would just restate the source paper's own unaudited claim.
+% Reversal is a single deterministic fit; DLinear and EXAMM are true 10-seed
+% ensembles.
+%
+% DO NOT READ L/S 10 ALONE AS THE FINDING. At a single book size, Reversal
+% looks comparably "rescued" by the conditional filter, which would wrongly
+% read as "the trading rule does all the work, not EXAMM." Swept across the
+% full long-1..15 x short-1..15 grid (225 cells, same construction as the
+% source paper's own Tables 5-6: results/trading/hybrid_grid_{2022,2023}
+% {,_reversal,_dlinear}.csv), EXAMM is profitable AND beats both benchmarks
+% in 93.8-100% of cells in BOTH years. Reversal and DLinear each collapse in
+% at least one year (Reversal: 52% of cells positive in 2022; DLinear: only
+% 17.8% beat the S&P in 2023 -- its trend-following edge does not survive
+% into the choppier bull year). See Table~\ref{tab:grid-robustness}; state
+% that finding in the body text, do not let L/S 10 imply it alone.
+%
+% Two parameter columns: every figure in a row (except Reversal) is a 10-run
+% ensemble, so the per-model count alone understates the deployed model by
+% 10x. DLinear's architecture is FIXED (not evolved), so its per-model count
+% is exactly 42 every seed -- no range, unlike EXAMM.
+%
+% Benchmarks are rows, not columns: they are identical for all models within
+% a year and have no book size. Net-of-cost is NOT computed yet for this
+% (hybrid) strategy on this row set.
+%
+% SHARPE: computed for EVERY book size (5/10/15/20), not just L/S 10, from a
+% full DAILY equity curve -- not reimplemented separately, to avoid the risk
+% of a second implementation quietly diverging from the real one.
+% scripts/stock_run/trade_portfolio_daily_curve.py pulls Portfolio.
+% daily_hybrid_long_short_return's ACTUAL source via inspect.getsource,
+% inserts exactly one line that appends CurrentCash + sum(share*price[t])
+% (the same formula Stock.get_current_liquid uses) once per day, execs that
+% patched source as a method on the real Portfolio class, then reruns the
+% ORIGINAL unpatched method on a fresh Portfolio and asserts the two final
+% returns match to 1e-6 before trusting the curve. All 24 cells here (EXAMM/
+% DLinear/Reversal x 2022/2023 x 4 book sizes) validated to diff=0.000000pp.
+% Sharpe is annualized (x sqrt(252)) on daily simple returns of the curve,
+% rf=0. Given its own table (Table~\ref{tab:sharpe}) rather than packed into
+% the L/S cells below -- two different-unit numbers per cell made both
+% harder to scan.
+%
+% MARKET RETURNS -- SOURCES, VERIFIED, NOT ASSUMED
+% --------------------------------------------------------------------------
+% S&P 500 (-19.75% / +25.08%): NOT an external figure -- compounded from the
+% "sprtrn" column already present in our own CRSP-sourced walk-forward data
+% (trade_portfolio.py:benchmarks(), product of daily returns over rows
+% 1..n_prices-2 of the trading window, exactly matching the window every
+% other number in this table uses). Verified independently: fetched real
+% S&P 500 (^GSPC) daily closes directly from Yahoo Finance's chart API
+% (https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC), parsed the
+% raw JSON with a script (NOT an AI-summarized read -- that path produced a
+% wrong number for DJI below), and computed the simple close-to-close return
+% for the same window (2022-01-03 -> 2022-12-29: 4796.56 -> 3849.28 =
+% -19.7492%; 2023-01-03 -> 2023-12-28: 3824.14 -> 4783.35 = +25.0830%).
+% Matches our compounded-sprtrn figures (-19.7496% / +25.0825%) to within
+% 0.0004 percentage points.
+%
+% DJI (-9.20% / +13.80%): genuinely external -- no DJI column exists in our
+% CRSP data. Source: Yahoo Finance chart API for ^DJI, raw JSON fetched with
+% curl and parsed directly in Python -- explicitly NOT the AI-summarized
+% read of the same JSON, which on a first attempt returned 32,981.55 for the
+% 2022-12-30 close where the raw parse gives 33,147.25. That raw-parsed
+% value was cross-checked against an independent source (StatMuse) and
+% matches exactly. Close values used: 2022-01-03 = 36{,}585.06, 2022-12-29 =
+% 33{,}220.80, 2023-01-03 = 33{,}136.37, 2023-12-28 = 37{,}710.10. Result is
+% close to but not identical to the source paper's own reported DJI
+% (-8.78% / +13.70%, their Table 4) -- same order of mismatch as the S&P
+% discrepancy above, same reason: a different exact window boundary.
+% ---------------------------------------------------------------------------
+
+\begin{table*}[t]
+\centering
+\caption{Trading year 2022 (train $\le$2020, validate 2021), Algorithm
+2~\cite{lyu2024neuroevolution}. Returns are annual \%, gross, 10-run
+ensemble. \textbf{L/S~10} is pre-committed -- see
+Table~\ref{tab:grid-robustness} before reading it alone, and
+Table~\ref{tab:sharpe} for risk-adjusted returns.}
+\label{tab:results-2022}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrrrr}
+\toprule
+& \multicolumn{2}{c}{Parameters} & \multicolumn{3}{c}{Accuracy} & \multicolumn{4}{c}{Long/short book size} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-6} \cmidrule(lr){7-10}
+Model & Per model & Ensemble & IC & MSE & MAE & 5 & 10 & 15 & 20 \\
+\midrule
+\textbf{EXAMM} & $55$ & $549$ & $+0.0030$ & $4.630{\times}10^{-4}$ & $0.01566$
+  & $+17.41$ & $\mathbf{+14.40}$ & $+17.83$ & $+16.39$ \\
+DLinear & $42$ & $420$ & $+0.0116$ & $4.600{\times}10^{-4}$ & $0.01559$
+  & $+9.72$ & $\mathbf{+5.39}$ & $-8.17$ & $-8.80$ \\
+Reversal & $0$ & $0$ & $+0.0063$ & $9.280{\times}10^{-4}$ & $0.02244$
+  & $-14.90$ & $\mathbf{+9.19}$ & $+5.71$ & $-2.41$ \\
+Crossformer & $512{,}588$ & $5{,}125{,}880$ & $+0.0133$ & $4.537{\times}10^{-4}$ & $0.01548$
+  & $+20.28$ & $\mathbf{+6.91}^{\dagger}$ & $0.00^{\ddagger}$ & $0.00^{\ddagger}$ \\
+DeformTime  & $107{,}243$ & $1{,}072{,}430$ & --- & --- & --- & --- & --- & --- & --- \\
+PatchTST    & $67{,}969$  & $679{,}690$     & --- & --- & --- & --- & --- & --- & --- \\
+\midrule
+\multicolumn{10}{l}{\footnotesize $^{\dagger}$gate opened on 2/250 days;
+  $^{\ddagger}$gate opened on 0/250 days -- the book was never entered, so
+  $0.00$ is ``never traded,'' not ``traded to a flat result.'' See
+  Sec.~\ref{sec:gate-units} and Table~\ref{tab:gate-units}.} \\
+\midrule
+\multicolumn{6}{l}{Equal-weight buy-and-hold} & \multicolumn{4}{c}{$-13.99$} \\
+\multicolumn{6}{l}{S\&P 500} & \multicolumn{4}{c}{$-19.75$} \\
+\multicolumn{6}{l}{DJI} & \multicolumn{4}{c}{$-9.20$} \\
+\bottomrule
+\end{tabular}%
+}
+\end{table*}
+
+\begin{table*}[b]
+\centering
+\caption{Trading year 2023 (train $\le$2021, validate 2022), Algorithm
+2~\cite{lyu2024neuroevolution}. Returns are annual \%, gross, 10-run
+ensemble. \textbf{L/S~10} is pre-committed -- see
+Table~\ref{tab:grid-robustness} before reading it alone, and
+Table~\ref{tab:sharpe} for risk-adjusted returns.}
+\label{tab:results-2023}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrrrr}
+\toprule
+& \multicolumn{2}{c}{Parameters} & \multicolumn{3}{c}{Accuracy} & \multicolumn{4}{c}{Long/short book size} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-6} \cmidrule(lr){7-10}
+Model & Per model & Ensemble & IC & MSE & MAE & 5 & 10 & 15 & 20 \\
+\midrule
+\textbf{EXAMM} & $77$ & $768$ & $+0.0195$ & $2.930{\times}10^{-4}$ & $0.01205$
+  & $+41.77$ & $\mathbf{+31.99}$ & $+25.48$ & $+18.97$ \\
+DLinear & $42$ & $420$ & $+0.0123$ & $2.940{\times}10^{-4}$ & $0.01209$
+  & $+19.17$ & $\mathbf{+7.84}$ & $+1.78$ & $-4.40$ \\
+Reversal & $0$ & $0$ & $+0.0249$ & $5.820{\times}10^{-4}$ & $0.01734$
+  & $+63.10$ & $\mathbf{+14.83}$ & $+15.07$ & $-1.45$ \\
+Crossformer & $512{,}588$ & $5{,}125{,}880$ & $+0.0213$ & $2.924{\times}10^{-4}$ & $0.01203$
+  & $+38.12$ & $\mathbf{+16.40}$ & $+8.58$ & $-1.04$ \\
+DeformTime  & $107{,}243$ & $1{,}072{,}430$ & --- & --- & --- & --- & --- & --- & --- \\
+PatchTST    & $67{,}969$  & $679{,}690$     & --- & --- & --- & --- & --- & --- & --- \\
+\midrule
+\multicolumn{6}{l}{Equal-weight buy-and-hold} & \multicolumn{4}{c}{$+7.91$} \\
+\multicolumn{6}{l}{S\&P 500} & \multicolumn{4}{c}{$+25.08$} \\
+\multicolumn{6}{l}{DJI} & \multicolumn{4}{c}{$+13.80$} \\
+\bottomrule
+\end{tabular}%
+}
+\end{table*}
+
+% No \clearpage here. The wide pair above are pinned [t]/[b], so LaTeX's
+% two-column algorithm already places table* floats before same-column
+% ([t]/[b]) tables that follow them in the source -- a table* cannot be
+% pushed earlier than its source position, only later, so it cannot land
+% mid-text. Forcing a page break here was what stranded the wide pair alone
+% on one page and pushed Sharpe/grid-robustness onto their own near-empty
+% page 3; removing it lets the single-column tables fill whatever column
+% space the wide pair's page leaves over instead of abandoning it.
+
+\begin{table*}[t]
+\centering
+\caption{Annualized Sharpe ratio ($r_f{=}0$) by book size, same data as
+Tables~\ref{tab:results-2022}--\ref{tab:results-2023}. \textbf{L/S~10}
+bolded to match; not yet computed for Crossformer/DeformTime/PatchTST.}
+\label{tab:sharpe}
+\begin{tabular}{llrrrr}
+\toprule
+Trade year & Model & 5 & 10 & 15 & 20 \\
+\midrule
+2022 & \textbf{EXAMM} & $0.90$ & $\mathbf{0.98}$ & $1.36$ & $1.49$ \\
+2022 & DLinear         & $0.55$ & $\mathbf{0.41}$ & $-0.51$ & $-0.64$ \\
+2022 & Reversal        & $-0.62$ & $\mathbf{0.56}$ & $0.43$ & $-0.12$ \\
+\midrule
+2023 & \textbf{EXAMM} & $2.04$ & $\mathbf{2.32}$ & $2.39$ & $2.07$ \\
+2023 & DLinear         & $0.99$ & $\mathbf{0.64}$ & $0.22$ & $-0.41$ \\
+2023 & Reversal        & $2.53$ & $\mathbf{1.04}$ & $1.25$ & $-0.10$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+% ---------------------------------------------------------------------------
+% Grid-robustness note -- state this (or a summary of it) in body text next
+% to the tables above. It is the actual finding; the L/S 10 column alone is
+% not, since Reversal looks comparably "rescued" at that one cell and DLinear
+% looks fine at that one cell despite its 2023 grid collapsing.
+% Source: results/trading/hybrid_grid_{2022,2023}{,_reversal,_dlinear}.csv,
+% each a 225-cell sweep (long 1..15 x short 1..15), matching the construction
+% of Lyu et al.'s own Tables 5-6.
+% ---------------------------------------------------------------------------
+\begin{table*}[b]
+\centering
+\caption{Robustness across the full long-1..15 $\times$ short-1..15 book-size
+grid (225 cells), Algorithm 2. Percent of cells that are profitable / beat
+equal-weight buy-and-hold / beat the S\&P 500. EXAMM is the only model that
+clears $>$90\% on every measure in both years.}
+\label{tab:grid-robustness}
+\begin{tabular}{llrrr}
+\toprule
+Trade year & Model & Cells $>0$ & Beat B\&H & Beat S\&P \\
+\midrule
+2022 & \textbf{EXAMM} & $\mathbf{93.8\%}$ & $\mathbf{99.6\%}$ & $\mathbf{99.6\%}$ \\
+2022 & DLinear         & $74.2\%$ & $98.7\%$ & $99.6\%$ \\
+2022 & Reversal        & $52.0\%$ & $83.1\%$ & $89.3\%$ \\
+\midrule
+2023 & \textbf{EXAMM} & $\mathbf{100.0\%}$ & $\mathbf{100.0\%}$ & $93.3\%$ \\
+2023 & DLinear         & $71.1\%$ & $52.9\%$ & $17.8\%$ \\
+2023 & Reversal        & $96.4\%$ & $93.3\%$ & $51.1\%$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+% ---------------------------------------------------------------------------
+% GATE UNITS. This subsection exists because Crossformer's two 0.00 cells in
+% Table 2 are NOT a forecasting result and must not be read as one.
+%
+% Algorithm 2 opens the book only if all L longs are predicted positive and
+% all S shorts negative. That zero is an ABSOLUTE constant compared against
+% raw model output, so the opening rate is governed by the ratio
+% (prediction mean)/(prediction sd) -- i.e. by how far each model shrank
+% toward the unconditional mean under MSE -- and not by forecast skill.
+% Measured on the 2022 test cross-sections (10-seed ensembles):
+%     EXAMM        83.4% of predictions > 0, pooled sd 2.13e-03
+%     Crossformer  99.3% of predictions > 0, pooled sd 3.83e-04  (5.6x shrunk)
+% Crossformer's cloud therefore sits ~2.8 sd above zero and its short leg
+% essentially cannot clear it: 2/250 openings at L/S 10, 0/250 at L/S 15
+% and 20. Same model, 2023: 116/249 at L/S 10 -- healthy. Nothing about the
+% architecture changed between those two rows; only the output scale did.
+%
+% WHY NOT JUST RECALIBRATE THE PREDICTIONS. The textbook fix is a
+% validation-fit affine map pred' = a + b*pred restoring validation-period
+% return dispersion. Measured, it is NOT usable here: EXAMM's own b is 16.63
+% and applying it moves EXAMM 2022 L/S 10 from +14.40 to +0.39, and makes the
+% book-size profile wildly unstable (+37.11/+0.39/-9.36/+0.74 at L/S
+% 5/10/15/20 vs a flat +17.41/+14.40/+17.83/+16.39 uncalibrated). A transform
+% that rewrites every model's headline number is not a fix, it is a different
+% experiment.
+%
+% WHAT WE DO INSTEAD. Move the threshold, not the predictions: subtract a
+% per-model constant tau_q = the q-th percentile of that model's own pooled
+% predictions. A CONSTANT shift is rank-preserving within every day, so the
+% long/short SELECTION -- and therefore IC, MSE, MAE and Sharpe -- is
+% bit-identical; only the gate moves. Published Algorithm 2 is exactly the
+% tau=0 point of each model's own curve, so no number in Tables 2-3 changes.
+% The diagnosis is that tau=0 lands at completely different places per model:
+% q = 15.1% for EXAMM but 0.5% for Crossformer in 2022 (56.5% / 23.1% in
+% 2023). Matching q is what makes the row comparable.
+%
+% Source: scratchpad gate_threshold_sweep.py + trade_portfolio.py
+% (--strategy daily_hybrid_long_short_return), same windows and same 10-seed
+% ensembles as Tables 2-3.
+% ---------------------------------------------------------------------------
+\subsection{The gate threshold is not in comparable units}
+\label{sec:gate-units}
+
+Algorithm 2 opens the book only when all $L$ longs are predicted positive and
+all $S$ shorts negative. That zero is an \emph{absolute} constant compared
+against raw model output, so how often the gate opens depends on how far a
+model shrank toward the unconditional mean under MSE -- not on how well it
+forecasts. In 2022 Crossformer put $99.3\%$ of its predictions above zero with
+a pooled standard deviation $5.6\times$ smaller than EXAMM's, placing its
+entire cross-section roughly $2.8$ standard deviations above the threshold.
+Its short leg then cannot clear zero: the gate opened on $2/250$ days at
+L/S~10 and on $0/250$ days at L/S~15 and~20. The same model in 2023 opened on
+$116/249$ days. The architecture did not change between those rows; only the
+output scale did.
+
+We therefore move the threshold rather than the predictions, subtracting from
+each model a constant $\tau_q$ equal to the $q$-th percentile of its own
+pooled predictions. A constant shift preserves within-day ranks, so the
+long/short selection -- and with it IC, MSE, MAE and Sharpe -- is unchanged;
+only the gate moves. Published Algorithm 2 is the $\tau{=}0$ point of each
+model's own curve, so every number in
+Tables~\ref{tab:results-2022}--\ref{tab:results-2023} stands as reported. The
+defect is that $\tau{=}0$ sits at $q{=}15.1\%$ for EXAMM but $q{=}0.5\%$ for
+Crossformer, so the two were never gated at comparable points of their own
+distributions.
+
+Table~\ref{tab:gate-units} sweeps $q$ jointly. Crossformer's two degenerate
+cells become well-defined once it is allowed to trade, and in 2022 EXAMM leads
+it at every threshold in the profitable region. We report this as a
+\emph{diagnostic and not as a corrected result}, for two reasons. There is no
+principled value of $q$: the only non-arbitrary threshold is zero applied to
+calibrated predictions, which is the affine map rejected above, and every other
+choice is a free parameter. And $\tau_q$ is a percentile of the pooled
+\emph{test} predictions -- no labels enter, but test-period information does,
+which is admissible when the whole curve is shown and no point is selected, and
+not admissible for a headline number.
+Tables~\ref{tab:results-2022}--\ref{tab:results-2023} therefore remain the
+reported result, at $\tau{=}0$,
+exactly as Algorithm 2 defines it. A single calibrated column would require
+$\tau$ fit on validation predictions and carried forward, which we could not
+reconstruct for the transformer baselines.
+
+Two further things should be read honestly alongside the sweep. First,
+Crossformer is the more \emph{accurate} model
+in both years ($+0.0133$ vs.\ $+0.0030$ IC in 2022; $+0.0213$ vs.\ $+0.0195$
+in 2023) -- consistent with DLinear also out-predicting EXAMM in 2022, and
+with our finding that Algorithm 2's return is driven more by when the gate
+opens than by cross-sectional ranking quality. Second, the 2023 sweep has no
+stable structure for any model, and EXAMM's own $+31.99$ sits at $q{=}56.5\%$
+where the neighbouring grid point returns $+14.67$. The gate is a market-timing
+filter, and in a year it times badly no model's number is threshold-robust.
+
+\begin{table*}[t]
+\centering
+\caption{Algorithm 2 with the gate threshold set at the $q$-th percentile of
+each model's \emph{own} pooled predictions (annual \%, gross, 10-run
+ensemble, L/S~10). Rank-preserving, so IC/MSE/MAE/Sharpe are unchanged from
+Tables~\ref{tab:results-2022}--\ref{tab:results-2023}. Crossformer's 2022
+cells that were $0.00$ at $\tau{=}0$ are shown at L/S~15 for contrast.}
+\label{tab:gate-units}
+\begin{tabular}{llrrrrrrrr}
+\toprule
+Trade year & Model & $q{=}2$ & $5$ & $10$ & $15$ & $20$ & $25$ & $30$ & $50$ \\
+\midrule
+2022 & \textbf{EXAMM} & $+35.54$ & $+30.02$ & $+25.79$ & $+14.43$ & $+15.52$ & $+0.01$ & $-10.82$ & $-10.29$ \\
+2022 & DLinear         & $+0.31$ & $-7.54$ & $-0.67$ & $+18.96$ & $+6.59$ & $+0.52$ & $+9.46$ & $+5.62$ \\
+2022 & Crossformer     & $+21.79$ & $+18.16$ & $+7.72$ & $-23.17$ & $-1.31$ & $+1.04$ & $-3.65$ & $-8.36$ \\
+2022 & Reversal        & $-11.07$ & $+41.90$ & $+39.58$ & $+0.21$ & $+2.78$ & $-8.79$ & $+6.09$ & $+7.05$ \\
+\midrule
+2023 & \textbf{EXAMM} & $-3.39$ & $+7.58$ & $+11.86$ & $+11.02$ & $-2.59$ & $+8.47$ & $+20.47$ & $+14.67$ \\
+2023 & DLinear         & $-19.48$ & $-13.06$ & $-34.95$ & $-22.45$ & $-11.00$ & $-18.79$ & $-13.97$ & $+2.64$ \\
+2023 & Crossformer     & $-0.69$ & $+3.41$ & $+0.99$ & $+6.39$ & $-14.22$ & $+12.16$ & $+21.92$ & $+24.93$ \\
+2023 & Reversal        & $-17.91$ & $-18.74$ & $-21.13$ & $+8.51$ & $+21.74$ & $+16.10$ & $+15.67$ & $+15.05$ \\
+\midrule
+\multicolumn{10}{l}{\emph{2022 at L/S~15, where Crossformer returned $0.00$ under
+  $\tau{=}0$:}} \\
+2022 & \textbf{EXAMM} & $+4.63$ & $+37.72$ & $+7.55$ & $+18.01$ & $+2.38$ & --- & --- & --- \\
+2022 & Crossformer     & $-1.86$ & $+17.45$ & $+11.12$ & $+17.02$ & $-11.15$ & --- & --- & --- \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+% ---------------------------------------------------------------------------
+% NET OF TRANSACTION COSTS -- source, and a real bug found+fixed to get here.
+% --------------------------------------------------------------------------
+% --use-tc charges the per-share CRSP TRAN_COST on every buy/sell/short/cover, via
+% Financial_toolbox's Stock class (an EXTERNAL dependency, ~/Financial_toolbox,
+% zimenglyu/Financial_toolbox -- not part of this repo).
+%
+% BUG FOUND (2026-07-31): on the short side, portfolio.py credited the flat NOMINAL
+% quota (self.current_cash_amount += quota_per_stock) regardless of TC, while
+% Stock.short_stock already reduces share count for the fee (shares = quota/(price+TC)).
+% The open leg thus ignored the fee entirely while the close leg paid it twice (fewer
+% shares, then TC again on cover) -- net effect: enabling TC could INCREASE a strategy's
+% return, which is not a real possibility for an actual friction cost. Confirmed both
+% algebraically (a flat-price short round trip showed a phantom gain instead of a
+% breakeven-minus-fee loss) and empirically: before the fix, ALL 8 DLinear cells and
+% 2023 Reversal improved under --use-tc; EXAMM's 8 cells happened to stay directionally
+% correct (net <= gross) but that looks incidental to this book's trade mix, not a
+% property the old code guaranteed. Bug was present identically in all 4 of the
+% toolbox's short-selling strategies (portfolio_shorting_return, daily_long_short_return,
+% daily_hybrid_long_short_return, long_short_return), not just the one used here.
+%
+% FIX: Stock.short_stock now returns the actual realized credit -- shares_shorted *
+% stock_price[time] (post-TC share count, but valued at the RAW price, matching what the
+% long side already did implicitly) -- instead of callers assuming the nominal quota was
+% received in full. Equals the nominal quota exactly (bit-identical) when TC is off or
+% trading at bid/ask, so the no-TC path is untouched. VERIFIED: all 6 gross L/S-10 numbers
+% in Tables~\ref{tab:results-2022}--\ref{tab:results-2023} reproduced exactly post-fix
+% (+14.40/+5.39/+9.19/+31.99/+7.84/+14.83), and all 24 cells below now show net <= gross.
+%
+% NOT YET PUSHED to zimenglyu/Financial_toolbox (origin/main) -- this fix currently only
+% exists in the local ~/Financial_toolbox checkout. Tell Dr. Lyu before citing these
+% numbers as reproducible from a fresh clone of her repo.
+% ---------------------------------------------------------------------------
+\begin{table*}[t]
+\centering
+\caption{Net of transaction costs (per-share CRSP \texttt{TRAN\_COST}, charged on every
+trade), same construction and book sizes as
+Tables~\ref{tab:results-2022}--\ref{tab:results-2023}. \textbf{L/S~10} bolded to match;
+not yet computed for Crossformer/DeformTime/PatchTST.}
+\label{tab:net-of-cost}
+\begin{tabular}{llrrrr}
+\toprule
+Trade year & Model & 5 & 10 & 15 & 20 \\
+\midrule
+2022 & \textbf{EXAMM} & $+14.21$ & $\mathbf{+12.73}$ & $+16.72$ & $+15.82$ \\
+2022 & DLinear         & $+5.59$  & $\mathbf{+3.13}$  & $-9.36$  & $-9.28$  \\
+2022 & Reversal        & $-19.23$ & $\mathbf{+5.47}$  & $+3.49$  & $-3.40$  \\
+\midrule
+2023 & \textbf{EXAMM} & $+39.14$ & $\mathbf{+30.24}$ & $+24.34$ & $+18.36$ \\
+2023 & DLinear         & $+15.19$ & $\mathbf{+5.25}$  & $+0.13$  & $-5.11$  \\
+2023 & Reversal        & $+57.55$ & $\mathbf{+11.68}$ & $+12.80$ & $-2.38$  \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+% ---------------------------------------------------------------------------
+% MID/HIGH-MID REPLICATION -- 4 random 50-stock draws x 3 walk-forward cohorts.
+%
+% WHY THIS TABLE EXISTS: every other number in this section comes from ONE
+% 50-stock universe. Four independent draws from a 200-stock pool make the
+% sampling variability measurable for the first time, and it is large: in trade
+% year 2023 the draws span IC -0.0195 to +0.0196 -- wider than the effect being
+% measured. A single-universe result cannot separate method from draw.
+%
+% ENSEMBLE: 30 runs = seeds 1-30 (three 10-run batches pooled by averaging
+% predictions, which for equal batch sizes is exactly a 30-run mean).
+% Campaign dirs: <set>_<cohort>{,_rep2,_rep3} -> combined as *_e123.
+%
+% ROBUSTNESS OF THE ENSEMBLE SIZE (measured, 480 total training runs; seeds
+% 31-40 were also run): mean IC is FLAT in ensemble size -- 10-seed +0.0056,
+% 20-seed +0.0056, 30-seed +0.0057, 40-seed +0.0058 -- so the accuracy numbers
+% here do not depend on this choice. Trading is NOT monotone in ensemble size
+% (30-seed +16.63% vs 40-seed +12.97%) and the six exchangeable 20-seed pairings
+% span +6.90% to +17.81%, i.e. ~11 pp of pure combination noise. Treat the
+% trading column as carrying roughly +/-5 pp of seed noise; the IC column is the
+% stable one (per-run sd ~0.0047 from 72 paired comparisons).
+%
+% BENCHMARK CHOICE: EW buy-and-hold is primary because it holds universe, period,
+% weighting and survivorship fixed. The S&P 500 does NOT share the universe --
+% these mid/high-mid caps trailed the cap-weighted index by 9.7 / 13.9 / 17.7 pp
+% in 2022/23/24 -- so an S&P comparison confounds strategy with the universe's
+% size tilt, a confound larger than the effect measured. Kept as context only.
+% (Lyu et al. report B&H, DJI and S&P; retaining B&H + S&P matches the source,
+% but the claim is made against B&H.)
+%
+% Scorecard: beats EW B&H 9/12, beats S&P 4/12, positive 11/12. All four 2022
+% cells beat B&H; the two bull years go 5/8. Note 2022's mean (+27.54%) is
+% carried by set2 (+58.35%) and set3 (+38.99%) -- set4 is NEGATIVE (-7.64%) that
+% year despite the highest IC in the column (+0.0251), which is the clearest
+% single illustration that IC and one-book-size trading return decouple.
+%
+% Sources: test_output/mse_pooled_mid_highmid/<set>_<cohort>_e123/ensemble_test/,
+% data datasets/walkforward/mid_highmid_price/<set>/<cohort>_aligned/.
+% Build: scripts/stock_run/{clean_mid_highmid.py, build_mid_highmid_splits.sh,
+% anvil_mse_pooled_mid_highmid.sb (SEED_OFFSET/RUN_TAG), eval_mid_highmid.sh}.
+% ---------------------------------------------------------------------------
+\begin{table*}[t]
+\centering
+\caption{Replication on four independent 50-stock draws from a 200-stock mid/high-mid-cap CRSP universe (2\,$\le$\,$M$\,$<$\,50\,USD\,bn, 20+ years continuous history), \textbf{30-run ensemble}. Trading is Algorithm~2~\cite{lyu2024neuroevolution} at L/S~10, annual \%. Equal-weight buy-and-hold shares the universe, period, and survivorship filter and is the primary comparator; the S\&P~500 does not and is reported for context.}
+\label{tab:midhighmid}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{llrrrrrrr}
+\toprule
+& & \multicolumn{3}{c}{Accuracy} & \multicolumn{2}{c}{Trading (\%)} & \multicolumn{2}{c}{Benchmarks (\%)} \\
+\cmidrule(lr){3-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9}
+Draw & Trade yr & IC & MSE & MAE & Gross & Net of TC & EW B\&H & S\&P 500 \\
+\midrule
+set1 & 2022 & $-0.0013$ & $5.425{\times}10^{-4}$ & $0.01674$ & $+20.48$ & $+19.87$ & $-7.14$ & $-19.75$ \\
+set1 & 2023 & $+0.0136$ & $3.218{\times}10^{-4}$ & $0.01240$ & $+10.89$ & $+9.71$ & $+5.21$ & $+25.08$ \\
+set1 & 2024 & $+0.0055$ & $3.566{\times}10^{-4}$ & $0.01234$ & $+11.03$ & $+9.81$ & $-4.70$ & $+24.54$ \\
+\addlinespace
+set2 & 2022 & $+0.0136$ & $5.583{\times}10^{-4}$ & $0.01737$ & $+58.35$ & $+57.02$ & $-11.39$ & $-19.75$ \\
+set2 & 2023 & $+0.0196$ & $3.456{\times}10^{-4}$ & $0.01298$ & $+18.93$ & $+17.05$ & $+15.41$ & $+25.08$ \\
+set2 & 2024 & $+0.0119$ & $3.052{\times}10^{-4}$ & $0.01197$ & $+13.35$ & $+12.99$ & $+12.17$ & $+24.54$ \\
+\addlinespace
+set3 & 2022 & $+0.0086$ & $5.668{\times}10^{-4}$ & $0.01707$ & $+38.99$ & $+38.41$ & $-11.36$ & $-19.75$ \\
+set3 & 2023 & $-0.0195$ & $3.295{\times}10^{-4}$ & $0.01281$ & $+10.52$ & $+9.75$ & $+14.80$ & $+25.08$ \\
+set3 & 2024 & $-0.0117$ & $3.292{\times}10^{-4}$ & $0.01229$ & $+9.64$ & $+7.68$ & $+13.15$ & $+24.54$ \\
+\addlinespace
+set4 & 2022 & $+0.0251$ & $4.361{\times}10^{-4}$ & $0.01533$ & $-7.64$ & $-7.87$ & $-10.22$ & $-19.75$ \\
+set4 & 2023 & $-0.0005$ & $2.424{\times}10^{-4}$ & $0.01116$ & $+2.42$ & $+2.03$ & $+9.45$ & $+25.08$ \\
+set4 & 2024 & $+0.0033$ & $2.337{\times}10^{-4}$ & $0.01047$ & $+12.56$ & $+12.46$ & $+6.72$ & $+24.54$ \\
+\midrule
+\multicolumn{2}{l}{\textbf{Mean 2022}} & $\mathbf{+0.0115}$ & & & $\mathbf{+27.54}$ & $+26.86$ & $-10.03$ & $-19.75$ \\
+\multicolumn{2}{l}{\textbf{Mean 2023}} & $\mathbf{+0.0033}$ & & & $\mathbf{+10.69}$ & $+9.64$ & $+11.22$ & $+25.08$ \\
+\multicolumn{2}{l}{\textbf{Mean 2024}} & $\mathbf{+0.0022}$ & & & $\mathbf{+11.64}$ & $+10.73$ & $+6.83$ & $+24.54$ \\
+\multicolumn{2}{l}{\textbf{Mean, all 12}} & $\mathbf{+0.0057}$ & & & $\mathbf{+16.63}$ & $+15.74$ & $+2.67$ & $+9.96$ \\
+\bottomrule
+\end{tabular}%
+}
+\end{table*}
+
+% No trailing \clearpage: there is no \input after this one in sigconf.tex
+% yet, so a forced break here only wastes a page. If a new section is added
+% after this one, put ONE \clearpage at the START of that new file (matching
+% the single boundary-flush pattern used at the top of this file), not here.
+
+
+
+\subsection{Raspberry Pi Zero Results}
+\label{sec:ina-219}
+
+\begin{table*}[t]
+\centering
+\footnotesize
+\begin{tabular}{lrr}
+\toprule
+Metric & 2020 & 2021 \\
+\midrule
+Params              & 55      & 77     \\
+Voltage (V)         & 4.72    & 4.71   \\
+Current (mA)        & 337.1   & 345.2  \\
+Power (mW)          & 1586.6  & 1622.4 \\
+Idle Pwr (mW)       & 1131.1  & 1124.5 \\
+Gross E/file (mJ)   & 7.61    & 4.86   \\
+Net E/file (mJ)     & 2.18    & 1.48   \\
+Latency ($\mu$s)    & 9.59    & 12.04  \\
+Throughput (k/s)    & 113.3   & 87.7   \\
+\bottomrule
+\end{tabular}
+\caption{Model size, INA219 power/energy, and latency/throughput, averaged across 10 runs per year on Raspberry Pi Zero.}
+\label{tab:ina219_results}
+\end{table*}   
