@@ -56,6 +56,43 @@
 #   VERDICT: k_bp20 FAILS. Both metrics agree once the 2 uninformative cells are set
 #   aside. Raw numbers: results/gate_threshold_sweep.csv's sibling bp20_ic.csv.
 #
+# ============================ SWEEP COMPLETE: 4/4 NULL ============================
+# All four arms returned, 560 runs. NOTHING PASSES, so per the rule above the sweep
+# stops here and there is no phase 2. Raw numbers in results/arms3_ic.csv and
+# results/arms3_trade.csv (k_bp20 in results/bp20_ic.csv, results/bp20_trade.csv).
+#
+#             IC delta                          Algorithm-2 delta @ L/S 10
+#   arm       all 14    powered 12  wins   t     p       all 14    powered 12  wins
+#   k_bp20    +0.0055   +0.0032     9/14  2.06  0.060    +2.13 pp   +0.49 pp   8/14
+#   k_isl20   +0.0018   +0.0019    10/14  1.11  0.288    +0.98 pp   -2.91 pp   7/14
+#   k_ext250  +0.0027   +0.0028     9/14  1.53  0.150    +0.51 pp   -2.08 pp   7/14
+#   k_seq20   +0.0014   +0.0009    10/14  0.40  0.698    -6.78 pp   -5.14 pp   7/14
+#
+# Every arm is below the +0.0050 bar on the 12 powered cells, no arm clears p=0.05,
+# and every arm is NEGATIVE on trading over those 12 cells. k_bp20 came closest and
+# only by riding one cell whose baseline was a known low draw. This is the fifth
+# independent measurement agreeing with the "do not tune" finding: on this venue
+# validation fitness does not predict test IC (r = +0.065), and the knobs do not move
+# the mean past the noise floor either.
+#
+# k_seq20 is the informative failure. Sequence slicing takes weight updates per epoch
+# from 50 to ~3,250 -- the only arm with a real mechanism behind it -- and it produced
+# the LARGEST per-cell spread in the sweep (IC sd 0.0128 vs ~0.0060 for the others;
+# trading sd 20.4 pp) around a mean of zero. More gradient steps bought variance, not
+# skill. Its two worst cells (set4/2023 -0.0247, set1/2024 -0.0201) are the biggest
+# single swings anywhere in the sweep.
+#
+# This arm is also the one whose evaluation was WRONG until it was fixed twice, so its
+# numbers above are the in-regime ones (--test_sequence_length 20, matching training):
+#   - scoring it unsliced, as the old evaluator did, differs by -0.0045 (cohort_2020)
+#     and +0.0127 (cohort_2021) -- at or above the decision threshold, and NOT
+#     directional, so the old setup was folding a coin-flip into the arm's estimate
+#   - blocked scoring initially crashed 9 of 10 genomes on a 249-row test year and the
+#     evaluator averaged the one survivor into a confident-looking +0.000071
+# Both fixed (rnn_recurrent_edge.cxx short-block clamp; eval_ic_run.sh hard-fails on a
+# short run). Anything re-derived from this arm must use the in-regime scoring.
+# =================================================================================
+#
 # BASELINES ALREADY EXIST -- do NOT re-run them:
 #   original    : test_output/mse_cohort_202{0,1}_aligned
 #   mid_highmid : test_output/mse_pooled_mid_highmid/<set>_<cohort>
