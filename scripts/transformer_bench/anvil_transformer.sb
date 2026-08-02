@@ -55,7 +55,19 @@ DATA=$REPO/datasets/walkforward/$COHORT
 # SMOKE must never write where a real seed writes, or a 2-epoch pred.npy sits at the path the
 # analysis script expects for seed 1.
 TAG=$([ "$SMOKE" = "1" ] && echo "smoke" || echo "seed_${SEED}")
-OUT=$REPO/results/transformer_bench/$COHORT/${MODEL}/${TAG}
+
+# LR is part of the OUTPUT PATH whenever it is not the shared-protocol default, because the
+# published transformer results live at the unsuffixed path and a learning-rate probe would
+# otherwise overwrite them in place -- same class of collision as SMOKE above, but silent and
+# unrecoverable (the originals are GPU runs we cannot cheaply reproduce). Default LR keeps the
+# original path exactly, so every existing .done still skips and nothing already collected moves.
+LR=${LR:-0.0005}
+if [ "$LR" = "0.0005" ]; then
+  OUT=$REPO/results/transformer_bench/$COHORT/${MODEL}/${TAG}
+else
+  LRTAG=$(printf 'lr%s' "$LR" | tr -d '.')
+  OUT=$REPO/results/transformer_bench/lowlr/$COHORT/${MODEL}/${LRTAG}/${TAG}
+fi
 
 module --force purge
 # modtree/gpu is only meaningful on a GPU node. This job can also be submitted to a CPU partition to
@@ -81,7 +93,13 @@ mkdir -p "$OUT"
 if [ -f "$OUT/.done" ]; then echo "$TAG already complete -- skipping"; exit 0; fi
 
 # ---- shared protocol. Identical for every model; this is what makes the comparison fair.
-EPOCHS=30; PATIENCE=5; BATCH=256; LR=0.0005
+# LR is set above (it feeds the output path). Do NOT reassign it here -- that is what made it
+# non-overridable before, so --export=ALL,LR=... was accepted and then silently discarded.
+EPOCHS=30; PATIENCE=5; BATCH=256
+# A learning-rate probe needs more epochs than the shared protocol: at 1e-5 the model is still
+# descending well past epoch 30, so a 30-epoch cap would confound "lower LR does not help" with
+# "we stopped it early". Patience still governs when it actually halts.
+if [ "$LR" != "0.0005" ]; then EPOCHS=${EPOCHS_OVERRIDE:-60}; fi
 if [ "$SMOKE" = "1" ]; then EPOCHS=2; PATIENCE=1; echo "### SMOKE RUN: $EPOCHS epochs"; fi
 
 # lradj: NOT type1. tools.py:15 implements type1 as lr * 0.5**((epoch-1)//1) -- a halving EVERY
