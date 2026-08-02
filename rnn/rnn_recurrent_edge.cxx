@@ -148,7 +148,20 @@ const RNN_Node_Interface* RNN_Recurrent_Edge::get_output_node() const {
 // do a propagate to the network at time 0 so that the
 // input fireds are correct
 void RNN_Recurrent_Edge::first_propagate_forward() {
-    for (int32_t i = 0; i < recurrent_depth; i++) {
+    // Seed the timesteps that have no recurrent history yet with 0.0. The bound MUST be
+    // clamped to series_length: propagate_forward() below is already guarded by
+    // `time < series_length - recurrent_depth`, but this loop was not, so a series SHORTER
+    // than recurrent_depth fired the output node past the end of its arrays. That drives
+    // inputs_fired above total_inputs and the next node to fire aborts the process with
+    //   ERROR: inputs_fired on RNN_Node N at time T is X and total_inputs is Y
+    // Unreachable while every caller passed the full series (depth is capped well below a
+    // multi-hundred-step series), but reachable as soon as a series is evaluated in short
+    // blocks: a 249-row test year in 20-step blocks leaves a 9-row remainder, which kills
+    // any genome holding a depth-10-or-deeper edge. Clamping makes such an edge simply
+    // contribute nothing to a block too short to source it, which is the same graceful
+    // degradation propagate_forward() already implements for the tail of a normal series.
+    int32_t seed_steps = recurrent_depth < series_length ? recurrent_depth : series_length;
+    for (int32_t i = 0; i < seed_steps; i++) {
         output_node->input_fired(i, 0.0);
         input_number[i] = output_node->inputs_fired[i];
     }

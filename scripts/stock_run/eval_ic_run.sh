@@ -40,7 +40,11 @@ TARGET=$(sed -n 's/^target=//p' "$CFG"); TARGET=${TARGET:-RET}
 SEQ_LEN=$(sed -n 's/^seq_len=//p' "$CFG"); SEQ_LEN=${SEQ_EVAL_OVERRIDE:-${SEQ_LEN:-0}}
 SEQ_ARGS=""
 if [ "$SEQ_LEN" -gt 0 ] 2>/dev/null; then SEQ_ARGS="--test_sequence_length $SEQ_LEN"; fi
-echo "OUT_ROOT=$OUT_ROOT  SPLIT=$SPLIT  DATA_DIR=$DATA_DIR  TARGET=$TARGET  seq_len=$SEQ_LEN"
+N_EXPECT=$(ls "$DATA_DIR"/*_"$SPLIT".csv 2>/dev/null | wc -l | tr -d ' ')
+if [ "$N_EXPECT" -eq 0 ]; then
+    echo "ERROR: no *_$SPLIT.csv under '$DATA_DIR'" >&2; exit 1
+fi
+echo "OUT_ROOT=$OUT_ROOT  SPLIT=$SPLIT  DATA_DIR=$DATA_DIR  TARGET=$TARGET  seq_len=$SEQ_LEN  stocks=$N_EXPECT"
 
 n_runs=0
 for RUNDIR in "$OUT_ROOT"/run_*/; do
@@ -60,6 +64,21 @@ for RUNDIR in "$OUT_ROOT"/run_*/; do
     done
     n_pred=$(ls "$EVAL"/*_"$SPLIT"_predictions.csv 2>/dev/null | wc -l | tr -d ' ')
     echo "  $(basename "$RUNDIR"): genome=$(basename "$GB")  evaluated $n_pred stocks"
+    # HARD FAIL on a short run. evaluate_rnn is invoked per stock with output suppressed, so
+    # a genome that aborts on every stock produced "evaluated 0 stocks", this loop carried on,
+    # and eval_ensemble_ic.py then printed "ensembling 10 run(s)" and a mean IC computed from
+    # whichever runs happened to survive. That is how hp_k_seq20_cohort_2021_aligned reported
+    # IC +0.000071 off a single working genome out of ten -- a number indistinguishable from a
+    # real result. An incomplete run must stop the pipeline, not be quietly averaged.
+    if [ "$n_pred" -ne "$N_EXPECT" ]; then
+        echo "ERROR: $(basename "$RUNDIR") produced $n_pred/$N_EXPECT predictions." >&2
+        echo "       Re-run that one genome WITHOUT output suppression to see why:" >&2
+        echo "         $BIN --genome_file $GB \\" >&2
+        echo "           --testing_filenames $(ls "$DATA_DIR"/*_"$SPLIT".csv | head -1) \\" >&2
+        echo "           --time_offset 1 $SEQ_ARGS --output_directory /tmp/dbg \\" >&2
+        echo "           --std_message_level INFO --file_message_level NONE" >&2
+        exit 1
+    fi
     n_runs=$((n_runs + 1))
 done
 

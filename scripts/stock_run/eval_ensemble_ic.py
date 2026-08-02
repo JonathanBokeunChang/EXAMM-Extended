@@ -125,6 +125,18 @@ def main():
             elif len(exp) != nrows[stock]:
                 sys.exit(f"ERROR: {stock} row count differs across runs ({len(exp)} vs {nrows[stock]})")
 
+    # An eval_<split>/ dir that contributed NOTHING means evaluate_rnn aborted on every
+    # stock for that genome. Averaging the survivors silently reports a confident-looking IC
+    # off a fraction of the ensemble -- observed for real: 9 of 10 genomes contributed zero
+    # and this printed "runs ensembled: 10, mean IC +0.000071". Refuse instead.
+    empty = [d.split("/")[-2] for d in eval_dirs if not glob.glob(os.path.join(d, f"*{suffix}"))]
+    if empty:
+        sys.exit(
+            f"ERROR: {len(empty)} of {len(eval_dirs)} run(s) produced no predictions at all: "
+            f"{empty}\n       evaluate_rnn failed for those genomes; fix that rather than "
+            f"ensembling the remainder."
+        )
+
     stocks = sorted(preds)
     row_counts = set(nrows[s] for s in stocks)
     if len(row_counts) != 1:
@@ -155,7 +167,11 @@ def main():
     print(f"\n=== ENSEMBLE cross-sectional IC ({args.split}) ===")
     print(f"universe      : {len(stocks)} stocks")
     print(f"dates         : {n_dates}")
-    print(f"runs ensembled: {len(eval_dirs)}")
+    # Report how many runs actually CONTRIBUTED, not how many directories exist -- those
+    # differed silently when genomes failed, and the directory count is the reassuring one.
+    contrib = sorted(set(len(preds[s]) for s in stocks))
+    print(f"runs ensembled: {contrib[0] if len(contrib) == 1 else contrib} "
+          f"(of {len(eval_dirs)} run dirs)")
     print(f"mean IC       : {mean_ic:+.6f}")
     print(f"IC info ratio : {ir:+.3f}")
     print(f"hit rate      : {sum(1 for x in ics if x > 0) / len(ics):.1%}")
