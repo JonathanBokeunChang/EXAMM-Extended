@@ -37,7 +37,6 @@ using std::vector;
 #include "mgu_node.hxx"
 #include "mse.hxx"
 #include "random_dag_node.hxx"
-#include "temporal_ic_loss.hxx"
 #include "time_series/time_series.hxx"
 // #include "word_series/word_series.hxx"
 
@@ -627,37 +626,6 @@ double RNN::calculate_error_huber(const vector<vector<double> >& expected_output
     return huber_sum;
 }
 
-// Temporal (per-stock) Pearson-IC loss: loss = -corr(pred, target) + var_lambda*penalty,
-// where pred/target are this ONE series' whole T-length output/expected vectors (see
-// rnn/temporal_ic_loss.cxx). error_values[j] is set to the ALREADY fully-scaled
-// d(loss)/d(pred_j) -- the caller must inject it with backward_pass(1.0, ...), not the
-// MSE-style loss*(1/n)*2.0 scalar (see get_analytic_gradient).
-double RNN::calculate_error_temporal_ic(const vector<vector<double> >& expected_outputs, double var_lambda) {
-    if (output_nodes.size() != 1) {
-        Log::fatal(
-            "--loss temporal_ic requires exactly 1 output node; this genome has %d\n",
-            (int32_t) output_nodes.size()
-        );
-        exit(1);
-    }
-
-    const vector<double>& target = expected_outputs[0];
-    vector<double> pred = output_nodes[0]->output_values;  // copy: gradient fn takes pred by value-ish (const ref)
-
-    double loss, corr, var_penalty;
-    vector<double> d_pred;
-    temporal_pearson_ic_gradient(pred, target, var_lambda, loss, corr, var_penalty, d_pred);
-
-    output_nodes[0]->error_values = d_pred;
-
-    Log::debug(
-        "temporal_ic: corr=%.6lf var_penalty=%.6lf hard_spearman=%.6lf loss=%.6lf\n", corr, var_penalty,
-        temporal_spearman_hard(pred, target), loss
-    );
-
-    return loss;
-}
-
 double RNN::prediction_softmax(
     const vector<vector<double> >& series_data, const vector<vector<double> >& expected_outputs, bool using_dropout,
     bool training, double dropout_probability
@@ -810,31 +778,22 @@ void RNN::write_predictions(
 void RNN::get_analytic_gradient(
     const vector<double>& test_parameters, const vector<vector<double> >& inputs,
     const vector<vector<double> >& outputs, double& mse, vector<double>& analytic_gradient, bool using_dropout,
-    bool training, double dropout_probability, const StochasticTrainingOptions& options
+    bool training, double dropout_probability, LossVariant variant, double huber_delta
 ) {
     analytic_gradient.assign(test_parameters.size(), 0.0);
 
     set_weights(test_parameters);
     forward_pass(inputs, using_dropout, training, dropout_probability);
 
-    if (options.loss_variant == LossVariant::TEMPORAL_IC) {
-        // Gradient is ALREADY fully scaled (Pearson + variance-floor gradient) -- inject
-        // with scalar 1.0, matching the cross-sectional IC path's convention
-        // (get_analytic_gradient_ic / backpropagate_cross_sectional), NOT the MSE-style
-        // loss*(1/n)*2.0 form used below.
-        mse = calculate_error_temporal_ic(outputs, options.temporal_ic_var_lambda);
-        backward_pass(1.0, using_dropout, training, dropout_probability);
+    // Both variants use the same backward scalar FORM (loss * (1/n) * 2.0): the
+    // legacy loss-scaled step is part of the matched configuration the raw-MSE
+    // arm won with, so Huber mirrors it rather than "fixing" it.
+    if (variant == LossVariant::HUBER) {
+        mse = calculate_error_huber(outputs, huber_delta);
     } else {
-        // MSE and HUBER share the same backward scalar FORM (loss * (1/n) * 2.0): the
-        // legacy loss-scaled step is part of the matched configuration the raw-MSE arm
-        // won with, so Huber mirrors it rather than "fixing" it.
-        if (options.loss_variant == LossVariant::HUBER) {
-            mse = calculate_error_huber(outputs, options.huber_delta);
-        } else {
-            mse = calculate_error_mse(outputs);
-        }
-        backward_pass(mse * (1.0 / outputs[0].size()) * 2.0, using_dropout, training, dropout_probability);
+        mse = calculate_error_mse(outputs);
     }
+    backward_pass(mse * (1.0 / outputs[0].size()) * 2.0, using_dropout, training, dropout_probability);
 
     vector<double> current_gradients;
 

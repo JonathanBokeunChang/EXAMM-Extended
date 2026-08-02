@@ -1092,13 +1092,8 @@ void RNN_Genome::get_analytic_gradient_ic(
 
     // Accumulate the shared-weight gradient across all series. Weights are identical
     // across the rnns, so d(loss)/dw = sum_i (per-series partial). Order MUST match
-    // RNN::get_weights (nodes, then edges, then recurrent edges), which does NOT guard
-    // on is_reachable() -- it emits one slot for EVERY node/edge/recurrent edge. So we
-    // intentionally do NOT guard on is_reachable() here either: the single-series MSE
-    // path (RNN::get_analytic_gradient) guards each term on is_reachable(), which would
-    // misalign its gradient against the unguarded parameter vector if any component were
-    // unreachable. Leaving the guard off keeps this accumulation index-aligned with
-    // get_weights.
+    // RNN::get_weights: nodes, then edges, then recurrent edges (the genome-level MSE
+    // path omits recurrent edges -- a latent bug we deliberately do not copy here).
     analytic_gradient.assign(parameters.size(), 0.0);
     vector<double> current_gradients;
     for (int32_t k = 0; k < n_series; k++) {
@@ -1123,8 +1118,7 @@ void RNN_Genome::get_analytic_gradient_ic(
 
 void RNN_Genome::compute_validation_metrics(
     const vector<double>& parameters, const vector<vector<vector<double> > >& inputs,
-    const vector<vector<vector<double> > >& outputs, double& ic, double& icir, double& mse, double& spread,
-    double& backtest_spread, double& backtest_sharpe, int32_t backtest_top_k
+    const vector<vector<vector<double> > >& outputs, double& ic, double& icir, double& mse, double& spread
 ) {
     RNN* rnn = get_rnn();
     rnn->set_weights(parameters);
@@ -1154,16 +1148,14 @@ void RNN_Genome::compute_validation_metrics(
     icir = icir_from(ic, std_ic, n_used);                   // "Sharpe of IC" -- rewards consistency
     mse = cross_sectional_mse(preds, targets);
     spread = cross_sectional_spread(preds);  // collapse monitor
-    int32_t bt_used = 0;                     // top-K/bottom-K long-short backtest (Dr. Liu's backtest fitness)
-    cross_sectional_backtest(preds, targets, backtest_top_k, backtest_spread, backtest_sharpe, bt_used);
 }
 
 double RNN_Genome::get_ic(
     const vector<double>& parameters, const vector<vector<vector<double> > >& inputs,
     const vector<vector<vector<double> > >& outputs
 ) {
-    double ic, icir, mse, spread, backtest_spread, backtest_sharpe;
-    compute_validation_metrics(parameters, inputs, outputs, ic, icir, mse, spread, backtest_spread, backtest_sharpe);
+    double ic, icir, mse, spread;
+    compute_validation_metrics(parameters, inputs, outputs, ic, icir, mse, spread);
     return ic;
 }
 
@@ -1171,7 +1163,7 @@ void RNN_Genome::backpropagate_cross_sectional(
     const vector<vector<vector<double> > >& inputs, const vector<vector<vector<double> > >& outputs,
     const vector<vector<vector<double> > >& validation_inputs,
     const vector<vector<vector<double> > >& validation_outputs, WeightUpdate* weight_update_method, IcMode ic_mode,
-    double ic_var_lambda, CsFitness cs_fitness, CsObjective objective, double csvar_lambda, int32_t backtest_top_k
+    double ic_var_lambda, bool select_on_icir, CsObjective objective, double csvar_lambda
 ) {
     int32_t n_series = (int32_t) inputs.size();
 
@@ -1223,38 +1215,23 @@ void RNN_Genome::backpropagate_cross_sectional(
         }
     };
 
-    // Validation metrics on a set of weights. IC objective: selection fitness is the
-    // negated cs_fitness metric (-IC / -ICIR / -backtest_spread / -backtest_sharpe;
-    // EXAMM minimizes, so we negate the maximize-metrics), with the collapse guard
-    // returning NaN for near-constant output (a degenerate solution the scale-invariant
-    // IC term -- and a rank-based long-short book -- cannot see). MSEVAR objective:
-    // fitness = validation MSE -- the SAME selection metric as the raw-MSE arm, isolating
-    // the training-loss effect -- and NO spread guard, because shrinking prediction
-    // dispersion is this objective's intended behavior (the guard would reject exactly
-    // the genomes MSEVAR is designed to produce).
-    double val_ic = 0.0, val_icir = 0.0, val_mse = 0.0, val_spread = 0.0, val_bt_spread = 0.0, val_bt_sharpe = 0.0;
+    // Validation metrics on a set of weights. IC objective: selection fitness is -IC
+    // (mean daily) or -ICIR per select_on_icir, with the collapse guard returning NaN
+    // for near-constant output (a degenerate solution the scale-invariant IC term
+    // cannot see). MSEVAR objective: fitness = validation MSE -- the SAME selection
+    // metric as the raw-MSE arm, isolating the training-loss effect -- and NO spread
+    // guard, because shrinking prediction dispersion is this objective's intended
+    // behavior (the guard would reject exactly the genomes MSEVAR is designed to produce).
+    double val_ic = 0.0, val_icir = 0.0, val_mse = 0.0, val_spread = 0.0;
     auto val_fitness = [&](const vector<double>& p) -> double {
-        compute_validation_metrics(
-            p, validation_inputs, validation_outputs, val_ic, val_icir, val_mse, val_spread, val_bt_spread,
-            val_bt_sharpe, backtest_top_k
-        );
+        compute_validation_metrics(p, validation_inputs, validation_outputs, val_ic, val_icir, val_mse, val_spread);
         if (objective == CsObjective::MSEVAR) {
             return val_mse;
         }
         if (val_spread < IC_SPREAD_FLOOR) {
             return NAN;
         }
-        switch (cs_fitness) {
-            case CsFitness::ICIR:
-                return -val_icir;
-            case CsFitness::BACKTEST_SPREAD:
-                return -val_bt_spread;
-            case CsFitness::BACKTEST_SHARPE:
-                return -val_bt_sharpe;
-            case CsFitness::IC:
-            default:
-                return -val_ic;
-        }
+        return select_on_icir ? -val_icir : -val_ic;
     };
 
     // seed best-so-far from the initial weights
@@ -1324,10 +1301,9 @@ void RNN_Genome::backpropagate_cross_sectional(
         } else {
             Log::info(
                 "iteration %4d, train_loss: %5.10lf, val_IC: %5.10lf, val_ICIR: %5.6lf, val_MSE: %5.6lf, "
-                "val_spread: %5.3e, val_bt_spread: %5.3e, val_bt_sharpe: %5.6lf, best_fitness(-%s): %5.10lf, "
-                "norm: %5.10lf\n",
-                iteration, loss, val_ic, val_icir, val_mse, val_spread, val_bt_spread, val_bt_sharpe,
-                cs_fitness_to_string(cs_fitness), -best_validation_mse, norm
+                "val_spread: %5.3e, best_fitness(-%s): %5.10lf, norm: %5.10lf\n",
+                iteration, loss, val_ic, val_icir, val_mse, val_spread, select_on_icir ? "ICIR" : "IC",
+                -best_validation_mse, norm
             );
         }
     }
@@ -1417,7 +1393,7 @@ void RNN_Genome::backpropagate_stochastic(
     const vector<vector<vector<double> > >& inputs, const vector<vector<vector<double> > >& outputs,
     const vector<vector<vector<double> > >& validation_inputs,
     const vector<vector<vector<double> > >& validation_outputs, WeightUpdate* weight_update_method,
-    const StochasticTrainingOptions& options
+    LossVariant loss_variant, double huber_delta
 ) {
     int32_t n_parameters = this->get_number_weights();
     int32_t n_series = (int32_t) inputs.size();
@@ -1447,30 +1423,17 @@ void RNN_Genome::backpropagate_stochastic(
             i, n_series, parameters.size(), inputs.size(), outputs.size(), log_filename.c_str()
         );
         rnn->get_analytic_gradient(
-            parameters, inputs[i], outputs[i], mse, analytic_gradient, use_dropout, true, dropout_probability, options
+            parameters, inputs[i], outputs[i], mse, analytic_gradient, use_dropout, true, dropout_probability,
+            loss_variant, huber_delta
         );
         Log::trace("got analytic gradient.\n");
         norm = weight_update_method->get_norm(analytic_gradient);
     }
     Log::trace("initialized previous values.\n");
 
-    // Selection fitness: MSE (default, byte-identical to the pre-refactor behavior --
-    // returns mse_val unchanged, no extra floating-point ops) or a backtest-style metric
-    // (Arm C; NOT YET IMPLEMENTED -- fatals loudly rather than silently falling back to
-    // MSE). Orthogonal to options.loss_variant: the TRAINING gradient above always
-    // follows loss_variant regardless of fitness_mode.
-    auto compute_fitness = [&](double mse_val) -> double {
-        if (options.fitness_mode == FitnessMode::MSE) {
-            return mse_val;
-        }
-        Log::fatal("fitness_mode other than MSE is not yet implemented (Arm C, pending)\n");
-        exit(1);
-        return NAN;  // unreachable
-    };
-
     // TODO: need to get validation mse on the RNN not the genome
     double validation_mse = get_mse(parameters, validation_inputs, validation_outputs);
-    best_validation_mse = compute_fitness(validation_mse);
+    best_validation_mse = validation_mse;
     best_validation_mae = get_mae(parameters, validation_inputs, validation_outputs);
     best_parameters = parameters;
 
@@ -1495,7 +1458,7 @@ void RNN_Genome::backpropagate_stochastic(
             prev_gradient = analytic_gradient;
             rnn->get_analytic_gradient(
                 parameters, inputs[random_selection], outputs[random_selection], mse, analytic_gradient, use_dropout,
-                true, dropout_probability, options
+                true, dropout_probability, loss_variant, huber_delta
             );
 
             norm = weight_update_method->get_norm(analytic_gradient);
@@ -1525,10 +1488,9 @@ void RNN_Genome::backpropagate_stochastic(
         this->set_weights(parameters);
         double training_mse = get_mse(parameters, inputs, outputs);
         validation_mse = get_mse(parameters, validation_inputs, validation_outputs);
-        double fitness = compute_fitness(validation_mse);
 
-        if (fitness < best_validation_mse) {
-            best_validation_mse = fitness;
+        if (validation_mse < best_validation_mse) {
+            best_validation_mse = validation_mse;
             best_validation_mae = get_mae(parameters, validation_inputs, validation_outputs);
             best_parameters = parameters;
         }

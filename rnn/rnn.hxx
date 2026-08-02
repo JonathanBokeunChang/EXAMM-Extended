@@ -18,37 +18,7 @@ using std::vector;
 // to fat-tailed targets, Gu-Kelly-Xiu 2020). The cross-sectional objectives
 // (IC, MSE+dispersion-penalty) are dispatched separately via
 // RNN_Genome::backpropagate_cross_sectional and do not use this enum.
-// TEMPORAL_IC: per-stock arm (rnn/temporal_ic_loss.*) -- differentiable Pearson
-// correlation between one stock's own predicted- and realized-return sequence OVER
-// TIME (n_series==1 only; NOT the cross-sectional --loss ic, which pools many stocks
-// per date via RNN_Genome::backpropagate_cross_sectional).
-enum class LossVariant { MSE, HUBER, TEMPORAL_IC };
-
-// Selection-only fitness mode: which metric decides "best genome" for the search
-// (the value written into best_validation_mse). MSE preserves today's default exactly.
-// BACKTEST_SPREAD/BACKTEST_SHARPE compute a top-K/bottom-K trading-style metric from
-// the genome's own validation predictions (RNN_Genome::compute_backtest_fitness) --
-// the TRAINING gradient is unaffected by this; only which genome counts as "best"
-// changes (mirrors the existing --loss ic precedent: train on a surrogate, select on
-// the true target metric).
-enum class FitnessMode { MSE, BACKTEST_SPREAD, BACKTEST_SHARPE };
-
-// Bundles the per-series SGD training path's tunables (RNN_Genome::backpropagate_stochastic,
-// RNN::get_analytic_gradient). A single struct instead of accumulating positional params --
-// growing that list independently per loss/fitness idea is an easy-to-transpose correctness
-// risk. Default-constructed reproduces today's plain-MSE-loss/MSE-fitness behavior exactly.
-struct StochasticTrainingOptions {
-    LossVariant loss_variant = LossVariant::MSE;
-    double huber_delta = 0.0;
-    // temporal-IC arm (rnn/temporal_ic_loss.*): weight on the anti-collapse variance floor.
-    double temporal_ic_var_lambda = 1.0;
-    // pairwise-ranking arm (rnn/pairwise_rank_loss.*): sampled pairs per bp epoch (0 = unset).
-    int32_t pairwise_rank_num_pairs = 0;
-    FitnessMode fitness_mode = FitnessMode::MSE;
-    // backtest-fitness arm: top/bottom-K validation days (0 = unset -> computed as
-    // max(5, T_val/10) at call time).
-    int32_t backtest_top_k = 0;
-};
+enum class LossVariant { MSE, HUBER };
 
 // Pre-registered Huber delta (NO tuning): 1.345 * std of ALL pooled NORMALIZED
 // training-target values (the classical 95%-Gaussian-efficiency constant, Huber
@@ -111,12 +81,6 @@ class RNN {
     // error_values[j] = clamp(r, -delta, +delta); the *2.0 lives in the backward
     // scalar, mirroring the MSE path.
     double calculate_error_huber(const vector<vector<double> >& expected_outputs, double delta);
-    // Temporal (per-stock) Pearson-IC loss (rnn/temporal_ic_loss.*): requires exactly
-    // ONE output node/series (enforced by the caller, see get_analytic_gradient).
-    // error_values[j] = d(loss)/d(pred_j), ALREADY fully scaled (Pearson gradient +
-    // variance-floor gradient) -- unlike MSE/Huber, the caller must NOT re-scale this
-    // by loss*(1/n)*2.0; backward_pass is called with scalar 1.0 (see rnn.cxx).
-    double calculate_error_temporal_ic(const vector<vector<double> >& expected_outputs, double var_lambda);
 
     double prediction_softmax(
         const vector<vector<double> >& series_data, const vector<vector<double> >& expected_outputs, bool using_dropout,
@@ -158,17 +122,15 @@ class RNN {
 
     int32_t get_number_weights();
 
-    // options.loss_variant selects the pointwise training loss (default MSE keeps every
-    // existing caller unchanged). With HUBER, `mse` returns the Huber loss (r^2 convention)
-    // and the backward scalar mirrors the MSE path's loss*(1/n)*2.0 form -- the legacy
-    // loss-scaled step is part of the matched configuration, not an accident (see plan:
-    // raw-MSE won WITH this quirk). TEMPORAL_IC uses a different backward scalar (1.0) --
-    // see rnn.cxx.
+    // variant/huber_delta select the pointwise training loss (default MSE keeps
+    // every existing caller unchanged). With HUBER, `mse` returns the Huber loss
+    // (r^2 convention) and the backward scalar mirrors the MSE path's
+    // loss*(1/n)*2.0 form -- the legacy loss-scaled step is part of the matched
+    // configuration, not an accident (see plan: raw-MSE won WITH this quirk).
     void get_analytic_gradient(
         const vector<double>& test_parameters, const vector<vector<double> >& inputs,
         const vector<vector<double> >& outputs, double& mse, vector<double>& analytic_gradient, bool using_dropout,
-        bool training, double dropout_probability,
-        const StochasticTrainingOptions& options = StochasticTrainingOptions()
+        bool training, double dropout_probability, LossVariant variant = LossVariant::MSE, double huber_delta = 0.0
     );
     void get_empirical_gradient(
         const vector<double>& test_parameters, const vector<vector<double> >& inputs,

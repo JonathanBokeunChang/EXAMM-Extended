@@ -216,18 +216,15 @@ class RNN_Genome {
         const vector<vector<vector<double> > >& validation_outputs, WeightUpdate* weight_update_method
     );
 
-    // options bundles the per-series SGD path's loss (MSE/HUBER/TEMPORAL_IC/PAIRWISE_RANK)
-    // and fitness-selection mode (MSE/BACKTEST_SPREAD/BACKTEST_SHARPE) -- see
-    // StochasticTrainingOptions (rnn/rnn.hxx). Default-constructed keeps every existing
-    // caller's behavior unchanged (plain MSE loss, plain validation-MSE selection).
-    // fitness_mode is ORTHOGONAL to loss_variant (selection-only; the TRAINING gradient
-    // always follows loss_variant) -- mirrors the --loss ic precedent: train on a
-    // surrogate, select on the true target metric.
+    // variant/huber_delta select the pointwise training loss for the per-series SGD
+    // path (default MSE keeps every existing caller unchanged). With HUBER only the
+    // TRAINING gradient changes; the selection fitness stays validation MSE (get_mse),
+    // matching the raw-MSE arm's selection and isolating the training-loss effect.
     void backpropagate_stochastic(
         const vector<vector<vector<double> > >& inputs, const vector<vector<vector<double> > >& outputs,
         const vector<vector<vector<double> > >& validation_inputs,
         const vector<vector<vector<double> > >& validation_outputs, WeightUpdate* weight_update_method,
-        const StochasticTrainingOptions& options = StochasticTrainingOptions()
+        LossVariant loss_variant = LossVariant::MSE, double huber_delta = 0.0
     );
 
     // Full-batch backprop against a cross-sectional objective (rnn/ic_loss.*).
@@ -242,16 +239,12 @@ class RNN_Genome {
     //     PENALIZED MSE). Fitness = validation MSE (matching the raw-MSE arm's selection,
     //     isolating the training-loss effect); the collapse guard is DISABLED because
     //     shrinkage is this objective's intended behavior. ic_mode / ic_var_lambda /
-    //     cs_fitness are ignored.
-    // cs_fitness selects the VALIDATION metric that ranks genomes (IC/ICIR, or a top-K/
-    // bottom-K long-short backtest spread/Sharpe over backtest_top_k names per leg) --
-    // selection only, orthogonal to the training loss.
+    //     select_on_icir are ignored.
     void backpropagate_cross_sectional(
         const vector<vector<vector<double> > >& inputs, const vector<vector<vector<double> > >& outputs,
         const vector<vector<vector<double> > >& validation_inputs,
         const vector<vector<vector<double> > >& validation_outputs, WeightUpdate* weight_update_method, IcMode ic_mode,
-        double ic_var_lambda, CsFitness cs_fitness, CsObjective objective = CsObjective::IC, double csvar_lambda = 1.0,
-        int32_t backtest_top_k = 10
+        double ic_var_lambda, bool select_on_icir, CsObjective objective = CsObjective::IC, double csvar_lambda = 1.0
     );
 
     // Cross-sectional objective gradient: forward-passes all series' RNNs, computes the
@@ -265,13 +258,11 @@ class RNN_Genome {
     );
 
     // Forward-pass the pooled validation set once and return the true (hard-rank)
-    // Spearman IC, the IC information ratio (ICIR), the cross-sectional MSE, the mean
-    // per-date prediction spread, and the top-K/bottom-K long-short backtest spread and
-    // Sharpe (over backtest_top_k names per leg) -- all from the SAME forward pass.
+    // Spearman IC, the IC information ratio (ICIR), the cross-sectional MSE, and the
+    // mean per-date prediction spread.
     void compute_validation_metrics(
         const vector<double>& parameters, const vector<vector<vector<double> > >& inputs,
-        const vector<vector<vector<double> > >& outputs, double& ic, double& icir, double& mse, double& spread,
-        double& backtest_spread, double& backtest_sharpe, int32_t backtest_top_k = 10
+        const vector<vector<vector<double> > >& outputs, double& ic, double& icir, double& mse, double& spread
     );
 
     // True (hard-rank) Spearman IC over the pooled series, averaged over dates.
