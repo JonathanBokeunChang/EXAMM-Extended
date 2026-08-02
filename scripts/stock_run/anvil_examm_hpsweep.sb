@@ -71,6 +71,15 @@ set -u
 COHORT=${COHORT:-cohort_2020_aligned}
 ARM=${ARM:-seq50}
 
+# Capture the exported SEQLEN BEFORE the baseline block below overwrites the name.
+# Without this, --export=ALL,SEQLEN=20 was silently reset to 0 two lines later and the
+# custom arm re-read the zeroed shell variable, so a sequence-slicing arm ran as an exact
+# baseline duplicate. The "did the slice take effect" guard at the bottom could not catch
+# it either, since that guard is itself conditioned on SEQLEN > 0. The sibling script
+# anvil_mse_pooled_mid_highmid.sb reads SEQLEN once and was never affected, so the same
+# arm submitted to both universes disagreed on 2 of its 14 cells with no visible error.
+SEQLEN_ENV=${SEQLEN:-}
+
 # ---- baseline, matching anvil_ic.sb exactly. Arms override only what they name.
 ISLANDS=10; ISLAND_SIZE=10; MUTATIONS=1; EXTINCTION=500; SEQLEN=0
 MAXG=${MAXG:-10000}; BPI=${BPI:-10}
@@ -86,7 +95,8 @@ case "$ARM" in
   search) ISLANDS=20; MUTATIONS=2; EXTINCTION=200; SEQLEN=50; RUN_TAG=${RUN_TAG:-search} ;;
   custom) : "${RUN_TAG:?ARM=custom requires RUN_TAG}"
           ISLANDS=${ISLANDS_OVERRIDE:-$ISLANDS}; MUTATIONS=${MUTATIONS_OVERRIDE:-$MUTATIONS}
-          EXTINCTION=${EXTINCTION_OVERRIDE:-$EXTINCTION}; SEQLEN=${SEQLEN:-0} ;;
+          ISLAND_SIZE=${ISLAND_SIZE_OVERRIDE:-$ISLAND_SIZE}
+          EXTINCTION=${EXTINCTION_OVERRIDE:-$EXTINCTION}; SEQLEN=${SEQLEN_ENV:-0} ;;
   *) echo "ERROR: unknown ARM '$ARM' (baseline|seq50|seq25|search|custom)" >&2; exit 1 ;;
 esac
 
@@ -109,6 +119,13 @@ SEQ_ARGS=()
 [ "$SEQLEN" -gt 0 ] && SEQ_ARGS=( --train_sequence_length "$SEQLEN" --validation_sequence_length "$SEQLEN" )
 
 mkdir -p "$OUT"
+# eval_ic_run.sh reads data_dir/target out of run_*/.config and hard-fails without it, so
+# every arm from this script was unevaluatable until the ensembles were rebuilt by hand.
+# Key names and order match anvil_mse_pooled_mid_highmid.sb so one evaluator serves both.
+printf 'cohort=%s\ndata_dir=%s\nloss=mse\ntarget=RET\nrun=%s\nmax_genomes=%s\nseed=%s\nstocks=%s\nislands=%s\nisland_size=%s\nmutations=%s\nextinction=%s\nbp_iterations=%s\nseq_len=%s\narm=%s\nrun_tag=%s\n' \
+    "$COHORT" "$DATA" "$RUN" "$MAXG" "$RUN" "${#TRAIN[@]}" \
+    "$ISLANDS" "$ISLAND_SIZE" "$MUTATIONS" "$EXTINCTION" "$BPI" "$SEQLEN" "$ARM" "$RUN_TAG" > "$OUT/.config"
+
 echo "### arm $ARM | $COHORT | run $RUN | islands ${ISLANDS}x${ISLAND_SIZE} | mut $MUTATIONS"
 echo "### extinction $EXTINCTION | seqlen ${SEQLEN:-none} | genomes $MAXG | bpi $BPI"
 
