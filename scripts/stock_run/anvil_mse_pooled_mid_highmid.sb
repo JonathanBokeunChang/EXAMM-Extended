@@ -69,6 +69,39 @@ if [ "$SEED_OFFSET" -ne 0 ] && [ -z "$RUN_TAG" ]; then
     exit 1
 fi
 
+# ---- hyperparameter knobs, for one-factor-at-a-time ablation ----------------
+# Defaults reproduce the baseline recipe EXACTLY (islands 10, island_size 10,
+# bp 10, mutations 1, extinction 500, no sequence slicing), so omitting all of
+# these is bit-identical to every campaign run before this block existed.
+# Names/semantics deliberately match anvil_examm_hpsweep.sb so the SAME arm can be
+# submitted against the original universe and this one without translation.
+#
+# SEQLEN caveat, carried over from that script: evaluate_rnn has NO slicing flag,
+# so TEST is always scored as one unsliced sequence. A genome trained on 20-step
+# chunks is then run with hidden state accumulating over the full test year --
+# far longer than anything it saw. --validation_sequence_length is set to match
+# the training slice so at least SELECTION happens in the trained regime, but a
+# poor test result for a sliced arm is confounded with that mismatch and is NOT
+# clean evidence the knob is bad.
+ISLANDS=${ISLANDS_OVERRIDE:-10}
+ISLAND_SIZE=${ISLAND_SIZE_OVERRIDE:-10}
+MUTATIONS=${MUTATIONS_OVERRIDE:-1}
+EXTINCTION=${EXTINCTION_OVERRIDE:-500}
+BPI=${BPI:-10}
+SEQLEN=${SEQLEN:-0}
+SEQ_ARGS=()
+[ "$SEQLEN" -gt 0 ] && SEQ_ARGS=( --train_sequence_length "$SEQLEN" --validation_sequence_length "$SEQLEN" )
+# Any non-default knob MUST carry a RUN_TAG, same reasoning as SEED_OFFSET above:
+# without it the arm writes into the baseline campaign's directory and silently
+# skips on its .done files.
+if [ -z "$RUN_TAG" ] && { [ "$ISLANDS" -ne 10 ] || [ "$ISLAND_SIZE" -ne 10 ] || \
+     [ "$MUTATIONS" -ne 1 ] || [ "$EXTINCTION" -ne 500 ] || [ "$BPI" -ne 10 ] || \
+     [ "$SEQLEN" -ne 0 ]; }; then
+    echo "ERROR: non-default hyperparameters require RUN_TAG (else this arm lands on" >&2
+    echo "       the baseline campaign's .done files and silently no-ops)" >&2
+    exit 1
+fi
+
 # NOTE: anvil_mse_pooled.sb's OUT_ROOT=test_output/mse_$(basename "$DATA_DIR") only keeps
 # the last path component, so set1/cohort_2020_aligned and set2/cohort_2020_aligned would
 # collide on the same test_output/mse_cohort_2020_aligned. Encode both dimensions here.
@@ -118,8 +151,9 @@ trap 'rmdir "$OUT.lock" 2>/dev/null' EXIT
 
 case "$OUT" in */run_[0-9]*) ;; *) echo "ERROR: refusing rm -rf '$OUT'" >&2; exit 1;; esac
 rm -rf "$OUT"; mkdir -p "$OUT"
-printf 'set=%s\ncohort=%s\ndata_dir=%s\nloss=mse\ntarget=RET\nrun=%s\nmax_genomes=%s\nseed=%s\nstocks=%s\n' \
-    "$SET" "$COHORT" "$DATA_DIR" "$RUN" "$MAXG" "$SEED" "$N_TRAIN" > "$OUT/.config"
+printf 'set=%s\ncohort=%s\ndata_dir=%s\nloss=mse\ntarget=RET\nrun=%s\nmax_genomes=%s\nseed=%s\nstocks=%s\nislands=%s\nisland_size=%s\nmutations=%s\nextinction=%s\nbp_iterations=%s\nseq_len=%s\nrun_tag=%s\n' \
+    "$SET" "$COHORT" "$DATA_DIR" "$RUN" "$MAXG" "$SEED" "$N_TRAIN" \
+    "$ISLANDS" "$ISLAND_SIZE" "$MUTATIONS" "$EXTINCTION" "$BPI" "$SEQLEN" "${RUN_TAG:-baseline}" > "$OUT/.config"
 
 srun --kill-on-bad-exit -n "${SLURM_NTASKS}" "$BIN" \
     --training_filenames $TRAIN_FILES \
@@ -129,15 +163,16 @@ srun --kill-on-bad-exit -n "${SLURM_NTASKS}" "$BIN" \
     --input_parameter_names RET VOL_CHANGE BA_SPREAD ILLIQUIDITY sprtrn TURNOVER \
     --output_parameter_names RET \
     --loss mse \
-    --number_islands 10 \
-    --island_size 10 \
+    --number_islands "$ISLANDS" \
+    --island_size "$ISLAND_SIZE" \
     --max_genomes "$MAXG" \
-    --bp_iterations 10 \
-    --num_mutations 1 \
+    --bp_iterations "$BPI" \
+    --num_mutations "$MUTATIONS" \
     --normalize avg_std_dev \
-    --extinction_event_generation_number 500 \
+    --extinction_event_generation_number "$EXTINCTION" \
     --islands_to_exterminate 1 \
     --repopulation_method bestGenome \
+    ${SEQ_ARGS[@]+"${SEQ_ARGS[@]}"} \
     --output_directory "$OUT" \
     --save_genome_option "$SAVE_GENOMES" \
     --std_message_level INFO \
