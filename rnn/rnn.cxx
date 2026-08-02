@@ -37,6 +37,7 @@ using std::vector;
 #include "mgu_node.hxx"
 #include "mse.hxx"
 #include "random_dag_node.hxx"
+#include "temporal_ic_loss.hxx"
 #include "time_series/time_series.hxx"
 // #include "word_series/word_series.hxx"
 
@@ -626,6 +627,37 @@ double RNN::calculate_error_huber(const vector<vector<double> >& expected_output
     return huber_sum;
 }
 
+// Temporal (per-stock) Pearson-IC loss: loss = -corr(pred, target) + var_lambda*penalty,
+// where pred/target are this ONE series' whole T-length output/expected vectors (see
+// rnn/temporal_ic_loss.cxx). error_values[j] is set to the ALREADY fully-scaled
+// d(loss)/d(pred_j) -- the caller must inject it with backward_pass(1.0, ...), not the
+// MSE-style loss*(1/n)*2.0 scalar (see get_analytic_gradient).
+double RNN::calculate_error_temporal_ic(const vector<vector<double> >& expected_outputs, double var_lambda) {
+    if (output_nodes.size() != 1) {
+        Log::fatal(
+            "--loss temporal_ic requires exactly 1 output node; this genome has %d\n",
+            (int32_t) output_nodes.size()
+        );
+        exit(1);
+    }
+
+    const vector<double>& target = expected_outputs[0];
+    vector<double> pred = output_nodes[0]->output_values;  // copy: gradient fn takes pred by value-ish (const ref)
+
+    double loss, corr, var_penalty;
+    vector<double> d_pred;
+    temporal_pearson_ic_gradient(pred, target, var_lambda, loss, corr, var_penalty, d_pred);
+
+    output_nodes[0]->error_values = d_pred;
+
+    Log::debug(
+        "temporal_ic: corr=%.6lf var_penalty=%.6lf hard_spearman=%.6lf loss=%.6lf\n", corr, var_penalty,
+        temporal_spearman_hard(pred, target), loss
+    );
+
+    return loss;
+}
+
 double RNN::prediction_softmax(
     const vector<vector<double> >& series_data, const vector<vector<double> >& expected_outputs, bool using_dropout,
     bool training, double dropout_probability
@@ -673,9 +705,50 @@ vector<double> RNN::get_predictions(
 void RNN::write_predictions(
     string output_filename, const vector<string>& input_parameter_names, const vector<string>& output_parameter_names,
     const vector<vector<double> >& series_data, const vector<vector<double> >& expected_outputs,
-    TimeSeriesSets* time_series_sets, bool using_dropout, double dropout_probability
+    TimeSeriesSets* time_series_sets, bool using_dropout, double dropout_probability, int32_t sequence_length
 ) {
-    forward_pass(series_data, using_dropout, false, dropout_probability);
+    // Buffer the predictions instead of reading output_nodes[i]->output_values[j] straight
+    // from the node at write time: in blocked mode each forward_pass overwrites those
+    // buffers (and the series_length member) with only the current block's values.
+    int32_t total_length = (int32_t) series_data[0].size();
+    vector<vector<double> > predictions(output_nodes.size(), vector<double>(total_length, 0.0));
+
+    if (sequence_length <= 0) {
+        forward_pass(series_data, using_dropout, false, dropout_probability);
+        for (int32_t i = 0; i < (int32_t) output_nodes.size(); i++) {
+            for (int32_t j = 0; j < total_length; j++) {
+                predictions[i][j] = output_nodes[i]->output_values[j];
+            }
+        }
+    } else {
+        // Contiguous non-overlapping blocks with the hidden state reset between them.
+        // Unlike slice_input_data() (common/process_arguments.cxx), which discards a
+        // trailing remainder shorter than sequence_length, the final short block is KEPT
+        // and run at its true length: dropping it would silently shorten the prediction
+        // file and break the row-index alignment every downstream script depends on. The
+        // short block is not out of regime either -- stepping through a training slice of
+        // length N presents the model with contexts of every length 1..N, so a block of
+        // length k < N is a situation it has already seen.
+        for (int32_t start = 0; start < total_length; start += sequence_length) {
+            int32_t block_len = total_length - start;
+            if (block_len > sequence_length) {
+                block_len = sequence_length;
+            }
+            vector<vector<double> > block(series_data.size(), vector<double>(block_len, 0.0));
+            for (int32_t i = 0; i < (int32_t) series_data.size(); i++) {
+                for (int32_t t = 0; t < block_len; t++) {
+                    block[i][t] = series_data[i][start + t];
+                }
+            }
+            forward_pass(block, using_dropout, false, dropout_probability);
+            for (int32_t i = 0; i < (int32_t) output_nodes.size(); i++) {
+                for (int32_t t = 0; t < block_len; t++) {
+                    predictions[i][start + t] = output_nodes[i]->output_values[t];
+                }
+            }
+        }
+    }
+    series_length = total_length;
 
     ofstream outfile(output_filename);
     // Full double round-trip precision. The default 6 significant figures silently
@@ -727,8 +800,7 @@ void RNN::write_predictions(
 
         for (int32_t i = 0; i < (int32_t) output_nodes.size(); i++) {
             outfile << ",";
-            // outfile << output_nodes[i]->output_values[j];
-            outfile << time_series_sets->denormalize(output_parameter_names[i], output_nodes[i]->output_values[j]);
+            outfile << time_series_sets->denormalize(output_parameter_names[i], predictions[i][j]);
         }
         outfile << endl;
     }
@@ -738,22 +810,31 @@ void RNN::write_predictions(
 void RNN::get_analytic_gradient(
     const vector<double>& test_parameters, const vector<vector<double> >& inputs,
     const vector<vector<double> >& outputs, double& mse, vector<double>& analytic_gradient, bool using_dropout,
-    bool training, double dropout_probability, LossVariant variant, double huber_delta
+    bool training, double dropout_probability, const StochasticTrainingOptions& options
 ) {
     analytic_gradient.assign(test_parameters.size(), 0.0);
 
     set_weights(test_parameters);
     forward_pass(inputs, using_dropout, training, dropout_probability);
 
-    // Both variants use the same backward scalar FORM (loss * (1/n) * 2.0): the
-    // legacy loss-scaled step is part of the matched configuration the raw-MSE
-    // arm won with, so Huber mirrors it rather than "fixing" it.
-    if (variant == LossVariant::HUBER) {
-        mse = calculate_error_huber(outputs, huber_delta);
+    if (options.loss_variant == LossVariant::TEMPORAL_IC) {
+        // Gradient is ALREADY fully scaled (Pearson + variance-floor gradient) -- inject
+        // with scalar 1.0, matching the cross-sectional IC path's convention
+        // (get_analytic_gradient_ic / backpropagate_cross_sectional), NOT the MSE-style
+        // loss*(1/n)*2.0 form used below.
+        mse = calculate_error_temporal_ic(outputs, options.temporal_ic_var_lambda);
+        backward_pass(1.0, using_dropout, training, dropout_probability);
     } else {
-        mse = calculate_error_mse(outputs);
+        // MSE and HUBER share the same backward scalar FORM (loss * (1/n) * 2.0): the
+        // legacy loss-scaled step is part of the matched configuration the raw-MSE arm
+        // won with, so Huber mirrors it rather than "fixing" it.
+        if (options.loss_variant == LossVariant::HUBER) {
+            mse = calculate_error_huber(outputs, options.huber_delta);
+        } else {
+            mse = calculate_error_mse(outputs);
+        }
+        backward_pass(mse * (1.0 / outputs[0].size()) * 2.0, using_dropout, training, dropout_probability);
     }
-    backward_pass(mse * (1.0 / outputs[0].size()) * 2.0, using_dropout, training, dropout_probability);
 
     vector<double> current_gradients;
 

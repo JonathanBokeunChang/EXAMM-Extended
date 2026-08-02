@@ -29,7 +29,18 @@ if [ ! -d "$DATA_DIR" ]; then echo "ERROR: data dir '$DATA_DIR' (from .config) m
 # The trained output column: RET for raw/IC arms, RET_CS for the z-score-MSE arm.
 # (older .config files predate this key -> default RET.)
 TARGET=$(sed -n 's/^target=//p' "$CFG"); TARGET=${TARGET:-RET}
-echo "OUT_ROOT=$OUT_ROOT  SPLIT=$SPLIT  DATA_DIR=$DATA_DIR  TARGET=$TARGET"
+
+# Score in the regime the genome was TRAINED in. A run with seq_len=N only ever saw N-step
+# sequences from a reset hidden state; evaluating it as one unbroken pass over the whole test
+# year lets state accumulate far beyond anything it saw, and confounds "this hyperparameter is
+# bad" with "we scored it out of regime". Read from the run's own .config so no caller has to
+# remember, and so a sliced arm cannot be scored unsliced by accident. seq_len=0 (every arm to
+# date) yields no flag at all, which is byte-identical to the previous behaviour.
+# SEQ_EVAL_OVERRIDE forces a value, for deliberately measuring the size of that confound.
+SEQ_LEN=$(sed -n 's/^seq_len=//p' "$CFG"); SEQ_LEN=${SEQ_EVAL_OVERRIDE:-${SEQ_LEN:-0}}
+SEQ_ARGS=""
+if [ "$SEQ_LEN" -gt 0 ] 2>/dev/null; then SEQ_ARGS="--test_sequence_length $SEQ_LEN"; fi
+echo "OUT_ROOT=$OUT_ROOT  SPLIT=$SPLIT  DATA_DIR=$DATA_DIR  TARGET=$TARGET  seq_len=$SEQ_LEN"
 
 n_runs=0
 for RUNDIR in "$OUT_ROOT"/run_*/; do
@@ -44,7 +55,7 @@ for RUNDIR in "$OUT_ROOT"/run_*/; do
     # per-file eval: evaluate_rnn uses the genome's stored normalize bounds, so
     # per-file == batch, and it sidesteps the multi-file header-read quirk.
     for f in "$DATA_DIR"/*_"$SPLIT".csv; do
-        "$BIN" --genome_file "$GB" --testing_filenames "$f" --time_offset 1 \
+        "$BIN" --genome_file "$GB" --testing_filenames "$f" --time_offset 1 $SEQ_ARGS \
             --output_directory "$EVAL" --std_message_level ERROR --file_message_level ERROR >/dev/null 2>&1
     done
     n_pred=$(ls "$EVAL"/*_"$SPLIT"_predictions.csv 2>/dev/null | wc -l | tr -d ' ')

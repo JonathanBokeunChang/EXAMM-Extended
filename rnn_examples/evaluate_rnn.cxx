@@ -65,11 +65,26 @@ int main(int argc, char** argv) {
 
     time_series_sets->export_test_series(time_offset, testing_inputs, testing_outputs);
 
+    // Score in the regime the genome was TRAINED in. A genome from a run with
+    // --train_sequence_length N only ever saw N-step sequences starting from a reset
+    // hidden state; evaluating it here as one unbroken pass lets state accumulate over the
+    // entire test set, so a bad number confounds the hyperparameter with an out-of-regime
+    // evaluation. Pass the same N used for training to remove that confound. Omitting it
+    // (the default 0) reproduces the previous single-pass behaviour byte-for-byte, which is
+    // correct for every genome trained without slicing.
+    int32_t test_sequence_length = 0;
+    get_argument(arguments, "--test_sequence_length", false, test_sequence_length);
+    if (test_sequence_length > 0) {
+        Log::info("Scoring test data in independent %d-step blocks (state reset between blocks)\n",
+                  test_sequence_length);
+    }
+
     vector<double> best_parameters = genome->get_best_parameters();
     Log::info("MSE: %lf\n", genome->get_mse(best_parameters, testing_inputs, testing_outputs));
     Log::info("MAE: %lf\n", genome->get_mae(best_parameters, testing_inputs, testing_outputs));
     genome->write_predictions(
-        output_directory, testing_filenames, best_parameters, testing_inputs, testing_outputs, time_series_sets
+        output_directory, testing_filenames, best_parameters, testing_inputs, testing_outputs, time_series_sets,
+        test_sequence_length
     );
 
     if (Log::at_level(Log::DEBUG)) {
@@ -89,8 +104,14 @@ int main(int argc, char** argv) {
         Log::debug(
             "duplicate MAE: %lf\n", duplicate_genome->get_mae(best_parameters_2, testing_inputs, testing_outputs)
         );
+        // This OVERWRITES the prediction files just written above -- it is a serialization
+        // round-trip check that happens to reuse the real output path. It must therefore be
+        // given the same blocking, or the verified predictions are silently replaced by an
+        // unblocked second evaluation. (Latent until --test_sequence_length existed, since
+        // before that both passes were identical by construction.)
         duplicate_genome->write_predictions(
-            output_directory, testing_filenames, best_parameters_2, testing_inputs, testing_outputs, time_series_sets
+            output_directory, testing_filenames, best_parameters_2, testing_inputs, testing_outputs, time_series_sets,
+            test_sequence_length
         );
     }
 
