@@ -89,6 +89,34 @@ if [ "$NUNIQ" -ne 1 ]; then
 fi
 echo "pooled over $N_TRAIN stocks (aligned), target=RET"
 
+# ---- WRITABILITY PRECONDITION -------------------------------------------------------------
+# On 2026-08-06 a full home QUOTA silently destroyed 59 runs. EXAMM kept running, wrote nothing,
+# stopped at a random genome count, and every rank still exited 0 -- srun reported COMPLETED,
+# slurm's .err was EMPTY (it could not be written either), and the only visible symptom was a
+# truncated train.log. It cost four wrong diagnoses before anyone ran `myquota`.
+#
+# df IS USELESS FOR THIS. During that failure df reported 12 TB free on /home while the user was
+# at 25.0/25.0 GB -- filesystem capacity and per-user quota are different things, and it is the
+# quota that stops the writes. myquota is not guaranteed on compute nodes either.
+#
+# So probe the only thing that actually matters: can we write? Allocate a real file, verify it
+# reached full size, delete it. A quota-exhausted filesystem fails this in under a second, and a
+# job that cannot write must not consume an hour of SU producing a truncated log.
+PROBE_MB=${PROBE_MB:-32}
+mkdir -p "$(dirname "$OUT")"
+PROBE="$(dirname "$OUT")/.write_probe_$$"
+if ! dd if=/dev/zero of="$PROBE" bs=1M count="$PROBE_MB" 2>/dev/null \
+   || [ "$(wc -c < "$PROBE" 2>/dev/null || echo 0)" -lt $(( PROBE_MB * 1024 * 1024 )) ]; then
+    rm -f "$PROBE"
+    echo "ERROR: cannot write ${PROBE_MB}MB under $(dirname "$OUT")." >&2
+    echo "       Almost certainly a full quota -- check with: myquota" >&2
+    echo "       df will NOT show this; it reports filesystem capacity, not your quota." >&2
+    echo "       Refusing to start: a run that cannot write burns SU and produces a" >&2
+    echo "       truncated log that looks like a code failure." >&2
+    exit 1
+fi
+rm -f "$PROBE"
+
 if [ -f "$OUT/.done" ]; then
     echo "[run $RUN] already done, skipping"; exit 0
 fi
