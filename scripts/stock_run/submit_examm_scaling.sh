@@ -49,13 +49,17 @@ echo
 echo "  COST NOTE: wholenode bills 128 cores regardless of --ntasks, so SU is pure wall-clock."
 echo "  The 8-RANK arm is the expensive one (longest wall-clock), not the 64-rank arm."
 case "$MAXG" in
-  10000) echo "  Estimated: ~22 node-h total = ~2,800 SU. 8-rank arm ~4.0 h per repeat." ;;
-   2000) echo "  Estimated:  ~4.5 node-h total = ~580 SU. Startup is 16% of the 64-rank arm." ;;
-   1000) echo "  Estimated:  ~2.4 node-h total = ~300 SU. WARNING: startup is 27% of the" ;;
+  10000) echo "  Estimated: ~6.8 node-h total = ~875 SU. 8-rank arm ~72 min per repeat." ;;
+   2000) echo "  Estimated: ~1.4 node-h total = ~175 SU. Startup is 39% of the 128-rank arm." ;;
+   1000) echo "  Estimated: ~0.7 node-h total =  ~90 SU. WARNING: startup dominates the" ;;
 esac
 [ "$MAXG" -lt 2000 ] 2>/dev/null && \
-  echo "  64-rank arm at this budget -- it will understate speedup where it matters most."
-echo "  (estimates anchored on a real run: 10,014 genomes at 32 ranks = 54.1 min)"
+  echo "  64/128-rank arms at this budget -- they will understate speedup badly."
+echo "  (anchored on the paper's OWN mse runs: 10,031 genomes at 32 ranks = ~16 min)"
+echo "  NOTE the anchor is objective-specific. An earlier version of this estimate used an"
+echo "  ic_pearson run (42-80 min) and was ~3.4x too high: --loss ic computes a"
+echo "  cross-sectional statistic per batch, --loss mse does not. Do not re-anchor this on"
+echo "  a run from a different objective."
 echo
 
 for c in $CORES; do

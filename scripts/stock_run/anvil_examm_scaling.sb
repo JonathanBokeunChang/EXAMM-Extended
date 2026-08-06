@@ -36,12 +36,16 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --time=08:00:00
 #SBATCH --job-name=examm_scale
-# TIME LIMIT IS SIZED FOR THE 8-RANK ARM AT MAXG=10000, which is the binding case: measured
-# from a real production fitness_log (10,014 genomes at 32 ranks = 54.1 min), 7 workers
-# instead of 31 puts it at ~4.0 h. An earlier 04:00:00 would have killed exactly that arm at
-# the wall -- and losing the baseline arm invalidates every speedup in the table, since they
-# are all ratios against it. 8 h leaves headroom for a slow node. The 64-rank arm finishes in
-# ~28 min and is charged only for what it uses.
+# TIME LIMIT IS SIZED FOR THE 8-RANK ARM, the binding case. Anchored on the paper's own
+# --loss mse campaign (10,031 genomes at 32 ranks = ~16 min, from its fitness_log.csv), 7
+# workers instead of 31 puts that arm at ~72 min. 8 h is ~7x headroom, deliberately generous:
+# losing the BASELINE arm to a wall-clock kill would invalidate every speedup in the table,
+# since they are all ratios against it, and the arm is charged only for what it uses anyway.
+#
+# DO NOT re-anchor this estimate on a run from a different objective. An earlier version used
+# an ic_pearson run (42-80 min) and was 3.4x too high across the board: --loss ic computes a
+# cross-sectional statistic per batch and --loss mse does not, so their per-genome costs are
+# not comparable. The scaling study runs --loss mse; time it against --loss mse.
 #SBATCH --output=slurm_logs/scale_%A_%a.out
 #SBATCH --error=slurm_logs/scale_%A_%a.err
 
