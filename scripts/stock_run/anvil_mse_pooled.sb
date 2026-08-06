@@ -44,7 +44,21 @@ MAXG=${MAXG:-10000}
 # useful for a canary, unnecessary noise for a production ensemble.
 SAVE_GENOMES=${SAVE_GENOMES:-none}
 DATA_DIR=${DATA_DIR:-datasets/walkforward/cohort_2021_aligned}
-BIN=build/mpi/examm_mpi
+# BIN is overridable so a DIFFERENT BUILD can be tested against the same data, scripts and
+# protocol -- one variable changed, everything else held. The use that motivated it: Table 1's
+# 2023 cell (IC +0.0195) was produced 2026-07-23 by a binary predating commit 57b375b0, while
+# five later ensembles built after it landed at +0.0013, -0.0155, -0.0116 and two more
+# negatives. Perfect 1-vs-5 separation by build, and the 2022 cell -- which was always on the
+# newer binary -- reproduces cleanly. Code review finds no mechanism (the mse path is
+# byte-equivalent), so the split is either a real regression or a lucky draw, and the only way
+# to tell is to rebuild the old tree and run it.
+#
+# Build it in a git worktree, NOT by checking out in place: the old commit predates this very
+# script, so an in-place checkout deletes the thing you are trying to run.
+#   git worktree add ~/EXAMM-old f5f98365
+#   cd ~/EXAMM-old && cmake -S . -B build && cmake --build build -j8 --target examm_mpi
+#   BIN=~/EXAMM-old/build/mpi/examm_mpi REPLICATE_TAG=oldbin sbatch ...
+BIN=${BIN:-build/mpi/examm_mpi}
 
 # REPLICATE_TAG appends a suffix so an independent reproduction lands in its OWN tree.
 # Without it, re-running this script finds the existing .done markers, skips all ten runs and
@@ -129,8 +143,16 @@ trap 'rmdir "$OUT.lock" 2>/dev/null' EXIT
 
 case "$OUT" in */run_[0-9]*) ;; *) echo "ERROR: refusing rm -rf '$OUT'" >&2; exit 1;; esac
 rm -rf "$OUT"; mkdir -p "$OUT"
-printf 'data_dir=%s\nloss=mse\ntarget=RET\nrun=%s\nmax_genomes=%s\nseed=%s\nstocks=%s\n' \
-    "$DATA_DIR" "$RUN" "$MAXG" "$RUN" "$N_TRAIN" > "$OUT/.config"
+# RECORD THE BINARY, not just the hyperparameters. The whole difficulty in attributing Table 1's
+# 2023 cell was that nothing in a run directory said which build produced it -- the campaign had
+# to be dated from file mtimes and cross-referenced against git log by hand. Log the path, its
+# mtime, its sha256 and the repo HEAD so any future run is self-describing.
+BIN_SHA=$(shasum -a 256 "$BIN" 2>/dev/null | awk '{print $1}' || sha256sum "$BIN" | awk '{print $1}')
+BIN_MTIME=$(date -r "$BIN" '+%Y-%m-%dT%H:%M:%S' 2>/dev/null || stat -c '%y' "$BIN" 2>/dev/null | cut -d. -f1)
+GIT_HEAD=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
+printf 'data_dir=%s\nloss=mse\ntarget=RET\nrun=%s\nmax_genomes=%s\nseed=%s\nstocks=%s\nbin=%s\nbin_sha256=%s\nbin_mtime=%s\ngit_head=%s\n' \
+    "$DATA_DIR" "$RUN" "$MAXG" "$RUN" "$N_TRAIN" "$BIN" "$BIN_SHA" "$BIN_MTIME" "$GIT_HEAD" > "$OUT/.config"
+echo "### binary: $BIN  sha256 ${BIN_SHA:0:12}  mtime $BIN_MTIME  git $GIT_HEAD"
 
 
 srun --kill-on-bad-exit -n "${SLURM_NTASKS}" "$BIN" \
