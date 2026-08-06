@@ -1,0 +1,182 @@
+#!/bin/bash -l
+# NOTE the -l flag!
+#
+# EXAMM STRONG-SCALING / COMPUTE-EFFICIENCY STUDY.
+#
+# Fixed total work (--max_genomes), varying MPI rank count, measuring wall-clock.
+# That is strong scaling: the question is "how much faster does the SAME search get
+# with more cores", which is what a scalability table in the paper needs.
+#
+# SUBMIT (one sbatch per rank count -- SLURM cannot vary --ntasks inside an array):
+#   mkdir -p slurm_logs results/scaling
+#   bash scripts/stock_run/submit_examm_scaling.sh
+#
+# or by hand, for a single point:
+#   sbatch --ntasks=16 --array=1-3 scripts/stock_run/anvil_examm_scaling.sb
+#
+# ---------------------------------------------------------------------------
+# WHY wholenode AND --exclusive, NOT the shared partition every other script here uses.
+# A timing study on `shared` measures our job PLUS whatever co-tenants are doing to the
+# node's memory bandwidth and caches. That noise is not small and it is not random across
+# arms -- a 64-rank job is far more sensitive to a noisy neighbour than an 8-rank one, so
+# contention would masquerade as poor scaling. Exclusive access is the whole point here.
+# Every rank count below fits on ONE Anvil node (128 cores), so inter-node network
+# variance is also excluded by construction.
+#
+# COST: wholenode charges for all 128 cores regardless of how many we use. Total SU is
+# therefore ~128 x (sum of wall-clock over all runs). MAXG is the dial -- see
+# submit_examm_scaling.sh for the estimate. Start small; the scaling SHAPE is visible
+# long before the paper's full 10000-genome budget.
+# ---------------------------------------------------------------------------
+
+#SBATCH --account=cis251123
+#SBATCH --partition=wholenode
+#SBATCH --nodes=1
+#SBATCH --exclusive
+#SBATCH --cpus-per-task=1
+#SBATCH --time=08:00:00
+#SBATCH --job-name=examm_scale
+# TIME LIMIT IS SIZED FOR THE 8-RANK ARM AT MAXG=10000, which is the binding case: measured
+# from a real production fitness_log (10,014 genomes at 32 ranks = 54.1 min), 7 workers
+# instead of 31 puts it at ~4.0 h. An earlier 04:00:00 would have killed exactly that arm at
+# the wall -- and losing the baseline arm invalidates every speedup in the table, since they
+# are all ratios against it. 8 h leaves headroom for a slow node. The 64-rank arm finishes in
+# ~28 min and is charged only for what it uses.
+#SBATCH --output=slurm_logs/scale_%A_%a.out
+#SBATCH --error=slurm_logs/scale_%A_%a.err
+
+module --force purge
+module load gcc/11.2.0 openmpi/4.1.6
+
+cd "$SLURM_SUBMIT_DIR"
+set -u
+
+# ---- workload: identical to the paper's EXAMM configuration except max_genomes -------
+# Everything below is copied verbatim from anvil_mse_pooled.sb so the scaling numbers
+# describe THE MODEL IN THE PAPER, not some lighter stand-in. Only --max_genomes is
+# reduced, and only to control SU cost; it does not change the parallel structure.
+# MAXG DEFAULTS TO THE PAPER'S PRODUCTION VALUE, deliberately. A smaller budget is cheaper
+# but measures the wrong thing: srun launch + MPI init + loading 50 CSVs is a roughly CONSTANT
+# ~1 min that does not scale with rank count, so it is a larger fraction of the arms that
+# finish fastest. At MAXG=1000 that overhead is 4% of the 8-rank arm but 27% of the 64-rank
+# arm -- it would depress the measured speedup precisely where the scalability claim lives.
+# At 10000 it is 0% and 4%. The table also then describes the exact configuration reported in
+# Table~1 rather than a lighter stand-in.
+MAXG=${MAXG:-10000}
+DATA_DIR=${DATA_DIR:-datasets/walkforward/cohort_2021_aligned}
+BIN=build/mpi/examm_mpi
+CORES=${SLURM_NTASKS}
+REP=${SLURM_ARRAY_TASK_ID:-1}
+
+OUT_ROOT=test_output/scaling
+OUT="$OUT_ROOT/c${CORES}_rep${REP}"
+CSV=results/scaling/timings.csv
+
+[ -x "$BIN" ] || { echo "ERROR: $BIN not found -- build examm_mpi first" >&2; exit 1; }
+[ -d "$DATA_DIR" ] || { echo "ERROR: $DATA_DIR missing" >&2; exit 1; }
+
+TRAIN_FILES=$(ls "$DATA_DIR"/*_train.csv 2>/dev/null | tr '\n' ' ')
+VAL_FILES=$(ls "$DATA_DIR"/*_val.csv   2>/dev/null | tr '\n' ' ')
+N_TRAIN=$(echo $TRAIN_FILES | wc -w | tr -d ' ')
+[ "$N_TRAIN" -ge 50 ] || { echo "ERROR: only $N_TRAIN train files" >&2; exit 1; }
+
+# EXAMM is master-worker: rank 0 coordinates and does not evaluate genomes, so N ranks
+# give N-1 evaluators. At 8 ranks the master is 12.5% of the allocation; at 64 it is 1.6%.
+# That alone predicts sub-linear speedup, so both counts are recorded and the analysis
+# reports efficiency against WORKERS, not against ranks -- otherwise the master is
+# silently charged to the parallel algorithm.
+WORKERS=$(( CORES - 1 ))
+[ "$WORKERS" -ge 1 ] || { echo "ERROR: need >=2 ranks (1 master + >=1 worker)" >&2; exit 1; }
+
+mkdir -p "$OUT_ROOT" results/scaling slurm_logs
+rm -rf "$OUT"; mkdir -p "$OUT"
+
+echo "### EXAMM scaling | ranks $CORES (workers $WORKERS) | rep $REP | max_genomes $MAXG"
+echo "### node $(hostname) | exclusive=${SLURM_JOB_NUM_NODES:-?} node(s) | data $DATA_DIR ($N_TRAIN stocks)"
+
+# ---- the measured region -------------------------------------------------------------
+# Only srun is timed. Module loading, file listing and validation above are setup cost
+# that does not scale with rank count and would dilute the measurement.
+T0=$(date +%s.%N)
+srun --kill-on-bad-exit -n "$CORES" "$BIN" \
+    --training_filenames $TRAIN_FILES \
+    --validation_filenames $VAL_FILES \
+    --seed "$REP" \
+    --time_offset 1 \
+    --input_parameter_names RET VOL_CHANGE BA_SPREAD ILLIQUIDITY sprtrn TURNOVER \
+    --output_parameter_names RET \
+    --loss mse \
+    --number_islands 10 \
+    --island_size 10 \
+    --max_genomes "$MAXG" \
+    --bp_iterations 10 \
+    --num_mutations 1 \
+    --normalize avg_std_dev \
+    --extinction_event_generation_number 500 \
+    --islands_to_exterminate 1 \
+    --repopulation_method bestGenome \
+    --output_directory "$OUT" \
+    --save_genome_option none \
+    --std_message_level INFO \
+    --file_message_level NONE > "$OUT/train.log" 2>&1
+RC=$?
+T1=$(date +%s.%N)
+SECS=$(echo "$T1 - $T0" | bc)
+
+if [ "$RC" -ne 0 ]; then
+    echo "FAILED rc=$RC -- not recording a timing row (a crashed run is not a fast run)" >&2
+    exit "$RC"
+fi
+
+# ---- confirm the work actually done, do not assume it ---------------------------------
+# EVERYTHING here comes from fitness_log.csv, which EXAMM writes itself. An earlier version
+# grepped train.log for "nodes:"/"edges:" -- those strings do not exist in EXAMM's output, so
+# the genome-size guard silently reported NA on every run and checked nothing. fitness_log.csv
+# carries the real quantities:
+#   Inserted Genomes  exact work count (max_genomes is only a CEILING; in-flight genomes
+#                     finish after it is reached, so this typically slightly EXCEEDS MAXG)
+#   Total BP Epochs   the true unit of compute -- genomes x bp_iterations. If two arms agree
+#                     here they did the same work, which genome count alone does not prove.
+#   Time              EXAMM's OWN internal clock in MILLISECONDS. Cross-checks wall-clock and
+#                     isolates srun/MPI startup, which does not scale with rank count and
+#                     would otherwise inflate the small-rank arms.
+#   Enabled Nodes/Edges  structure of the global best over time -- the genome-size confound.
+FLOG="$OUT/fitness_log.csv"
+[ -f "$FLOG" ] || { echo "ERROR: no fitness_log.csv -- run produced no instrumentation" >&2; exit 1; }
+
+read -r GENOMES BP_EPOCHS EXAMM_MS NODES_MEAN EDGES_MEAN <<EOF
+$(python3 - "$FLOG" <<'PY'
+import csv, statistics, sys
+rows = list(csv.reader(open(sys.argv[1])))
+hdr  = [h.strip() for h in rows[0]]
+data = [dict(zip(hdr, [c.strip() for c in r])) for r in rows[1:] if len(r) >= len(hdr)]
+if not data:
+    print("0 0 0 NA NA"); raise SystemExit
+last = data[-1]
+def f(col, default="0"):
+    return last.get(col, default) or default
+def mean(col):
+    vs = [float(d[col]) for d in data if d.get(col, "").replace(".", "", 1).lstrip("-").isdigit()]
+    return f"{statistics.mean(vs):.2f}" if vs else "NA"
+print(f'{f("Inserted Genomes")} {f("Total BP Epochs")} {f("Time")} '
+      f'{mean("Enabled Nodes")} {mean("Enabled Edges")}')
+PY
+)
+EOF
+
+[ -f "$CSV" ] || echo "cores,workers,rep,max_genomes,genomes_done,bp_epochs,seconds,examm_internal_s,genomes_per_sec,nodes_mean,edges_mean,host,jobid" > "$CSV"
+GPS=$(echo "scale=4; $GENOMES / $SECS" | bc 2>/dev/null || echo NA)
+# EXAMM reports Time in ms; convert so the CSV is uniformly seconds.
+EXAMM_S=$(echo "scale=2; $EXAMM_MS / 1000" | bc 2>/dev/null || echo NA)
+# Append under a lock: array tasks and the four rank-count jobs finish concurrently, and
+# two shells appending to the same CSV can interleave a line.
+LOCK="$CSV.lock"
+for i in $(seq 1 100); do mkdir "$LOCK" 2>/dev/null && break; sleep 0.3; done
+printf '%s,%s,%s,%s,%s,%s,%.2f,%s,%s,%s,%s,%s,%s\n' \
+    "$CORES" "$WORKERS" "$REP" "$MAXG" "$GENOMES" "$BP_EPOCHS" "$SECS" "$EXAMM_S" "$GPS" \
+    "$NODES_MEAN" "$EDGES_MEAN" "$(hostname)" "${SLURM_JOB_ID:-NA}" >> "$CSV"
+rmdir "$LOCK" 2>/dev/null
+
+echo "### done | ranks $CORES | wall ${SECS}s | examm-internal ${EXAMM_S}s | $GENOMES genomes"
+echo "###      | $BP_EPOCHS bp-epochs | $GPS genomes/s | best-genome mean ${NODES_MEAN}n/${EDGES_MEAN}e"
+touch "$OUT/.done"
