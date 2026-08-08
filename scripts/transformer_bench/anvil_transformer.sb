@@ -523,17 +523,23 @@ if [ "$PROFILE" = "author" ]; then
       # --d_model IS SET TO enc_in DELIBERATELY, not to a round number: "hidden equal to the input
       # layer size" is the cited relationship, so it must track enc_in rather than be pinned at 6.
       #
-      # EPOCH BUDGET IS THEIRS; EARLY STOPPING IS OURS. They state 1000 backprop epochs and do not
-      # mention stopping early. Run unbounded that is ~1000 x 240 runs of compute for models that
-      # converge in tens of epochs, so the cap is kept at 1000 and patience added. Record this as a
-      # deviation: the budget is honoured, the wall-clock is not spent proving it.
+      # EPOCH BUDGET IS THEIRS; EARLY STOPPING IS OURS, AND PATIENCE IS 10 FOR A MEASURED REASON.
+      # They state 1000 backprop epochs and do not mention stopping early. Every other model in this
+      # study stops at 6-26 epochs because its schedule decays the LR toward nothing; a flat 1e-4 has
+      # no such brake, so patience is the only one.
+      #
+      # Patience 30 was tried first and sets a hard FLOOR of ~31 epochs -- early stopping cannot fire
+      # before then. Measured at 88 s/epoch under 9-way contention that is >=45 min per run, so 240
+      # runs would take 20 h at best and 64 h if they converge near 100 epochs. Patience 10 puts the
+      # floor at ~11 epochs (~7 h for both arms) and still sits above where every other model here
+      # actually stops. Record as the third deviation, with the two below.
       #
       # INSTANCE NORMALISATION ON (--use_norm 1) is OURS, not theirs, and is the second deviation.
       # Crossformer -- the only model in this study without it -- collapsed on this universe because
       # the global max-based scaler's denominator is set by single crisis-day returns. Leaving the
       # RNNs unprotected would risk reproducing that and would make them a weaker baseline than they
       # deserve. --use_norm 0 reproduces the cited configuration exactly.
-      EPOCHS=${EPOCHS_OVERRIDE:-1000}; PATIENCE=${PATIENCE_OVERRIDE:-30}; BATCH=${BATCH:-32}
+      EPOCHS=${EPOCHS_OVERRIDE:-1000}; PATIENCE=${PATIENCE_OVERRIDE:-10}; BATCH=${BATCH:-32}
       LR=${LR:-0.0001}
       CAPACITY=( --d_model 6 --e_layers 2 --dropout 0 --use_norm 1 )
       EXTRA=()
