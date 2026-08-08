@@ -1007,7 +1007,10 @@ void TimeSeriesSets::normalize_min_max(
 }
 
 void TimeSeriesSets::normalize_avg_std_dev() {
-    Log::info("doing min/max normalization:\n");
+    // Said "min/max" -- a copy-paste from normalize_min_max above. The two are distinguishable in
+    // the log only by the fields that follow, so a reader checking which normalisation ran was
+    // told the wrong one.
+    Log::info("doing avg/std_dev normalization:\n");
 
     for (int32_t i = 0; i < (int32_t) all_parameter_names.size(); i++) {
         string parameter_name = all_parameter_names[i];
@@ -1074,8 +1077,19 @@ void TimeSeriesSets::normalize_avg_std_dev() {
 
         norm_max = fmax(norm_min, norm_max);
 
+        // LABELS MATCH THE ARGUMENTS. They used to be transposed -- "norm_max" printed avg and
+        // "combined average" printed norm_max -- which made RET report a combined average of
+        // 1029.44 for a field bounded by [-0.54, 0.48]. That reads as a corrupt normalisation and
+        // cost a real investigation before turning out to be a display bug.
+        //
+        // "combined variance" is likewise the honest name: the value stored in normalize_std_devs
+        // is numerator/(n-1) with no sqrt, i.e. the VARIANCE. That is not a bug -- norm_max is
+        // (max-avg)/std_dev and denormalize multiplies by norm_max*std_dev, so the quantity
+        // cancels and the transform is exactly (v-avg)/(max-avg) either way. Round-trip verified
+        // to 1.1e-16. Renamed rather than "fixed" because adding a sqrt would silently change
+        // every existing genome's normalisation.
         Log::info_no_header(
-            "%30s, min: %22.10lf, max: %22.10lf, norm_max; %22.10lf, combined average: %22.10lf, combined std_dev: "
+            "%30s, min: %22.10lf, max: %22.10lf, avg: %22.10lf, norm_max: %22.10lf, combined variance: "
             "%22.10lf\n",
             parameter_name.c_str(), min, max, avg, norm_max, std_dev
         );
