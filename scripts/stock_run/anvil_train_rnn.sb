@@ -1,0 +1,146 @@
+#!/bin/bash
+#SBATCH --job-name=train_rnn
+#SBATCH --account=cis250712
+#SBATCH --partition=shared
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4G
+#SBATCH --time=02:00:00
+#SBATCH --output=logs/train_rnn_%A_%a.out
+#SBATCH --error=logs/train_rnn_%A_%a.out
+#
+# Fixed-topology LSTM/GRU baselines via EXAMM's OWN train_rnn, pooled construction.
+#
+#   sbatch --array=0 scripts/stock_run/anvil_train_rnn.sb          # canary (lstm, set1/2020, run 0)
+#   sbatch --array=0-279 scripts/stock_run/anvil_train_rnn.sb      # full campaign
+#
+# WHY train_rnn AND NOT THE PYTORCH BASELINE. The PyTorch LSTM/GRU differ from EXAMM in framework,
+# windowing, normalisation and early stopping, so a gap between them would be unattributable -- it
+# could be topology or it could be any of the four. train_rnn shares EXAMM's data loader, its
+# avg_std_dev normalisation, its time_offset convention and its backprop, so the ONLY thing that
+# differs is that the topology is fixed instead of evolved. That is the comparison the paper claims
+# to make. It also produces genomes that evaluate_rnn reads, so scoring is byte-for-byte the same
+# path EXAMM's own runs take.
+#
+# CONFIGURATION IS LYU ET AL.'S (arXiv:2410.17212, DJI study), not ours: two hidden layers, hidden
+# width = input layer size (6), 1000 backprop epochs, Adam at 1e-4, Xavier init. Citable to prior
+# work on this exact problem rather than to a tuning choice of ours.
+#
+# 280 TASKS = 2 types x 14 cells x 10 runs. Cells 0-11 are the four portfolio draws x three trade
+# years; cells 12-13 are Dataset A. ~23 min each, ~108 core-hours total.
+#
+# RUNS ARE STOCHASTIC BUT NOT SEEDED. train_rnn has no --seed flag; two identical invocations give
+# different genomes (verified by sha256), which is what makes a 10-run prediction-mean ensemble
+# meaningful. It also means an individual run is not reproducible the way EXAMM's --seed runs are.
+# Do not present these as seeds -- they are repeated training runs, which is exactly the phrasing
+# Lyu et al. use ("10 repeated training runs").
+set -uo pipefail
+cd "${SLURM_SUBMIT_DIR:-$PWD}" || exit 1
+mkdir -p logs
+
+IDX=${SLURM_ARRAY_TASK_ID:-0}
+RUN=$(( IDX % 10 ))
+CELL=$(( (IDX / 10) % 14 ))
+TYPE_I=$(( IDX / 140 ))
+[ "$TYPE_I" -le 1 ] || { echo "ERROR: task $IDX out of range (max 279)"; exit 2; }
+RNN_TYPE=$( [ "$TYPE_I" -eq 0 ] && echo lstm || echo gru )
+
+# ---- cell -> data directory. Portfolios first so --array=0-119 is a portfolio-only campaign.
+if [ "$CELL" -lt 12 ]; then
+  SET="set$(( CELL / 3 + 1 ))"
+  COHORT="cohort_$(( 2020 + CELL % 3 ))_aligned"
+  DATA="datasets/walkforward/mid_highmid/${SET}/${COHORT}"
+  TAG="${SET}_${COHORT}"
+else
+  COHORT="cohort_$(( 2020 + CELL - 12 ))_aligned"
+  DATA="datasets/walkforward/${COHORT}"
+  TAG="dsA_${COHORT}"
+fi
+
+OUT="test_output/rnn_${RNN_TYPE}_${TAG}/run_${RUN}"
+
+# ---- inputs. Bash word-splitting on $(...) is intended here and is safe: these paths have no
+# spaces. (zsh would NOT split these -- that difference has bitten this project before; Anvil is
+# bash, and this file must stay bash.)
+TR=( $(ls "$DATA"/*_train.csv 2>/dev/null) )
+VA=( $(ls "$DATA"/*_val.csv   2>/dev/null) )
+TE=( $(ls "$DATA"/*_test.csv  2>/dev/null) )
+if [ "${#TR[@]}" -ne 50 ] || [ "${#VA[@]}" -ne 50 ] || [ "${#TE[@]}" -ne 50 ]; then
+  echo "ERROR: $DATA has ${#TR[@]} train / ${#VA[@]} val / ${#TE[@]} test files (need 50 each)"
+  exit 1
+fi
+
+FIELDS="RET VOL_CHANGE BA_SPREAD ILLIQUIDITY sprtrn TURNOVER"
+# BP override exists ONLY so the canary can exercise this whole script in seconds instead of 23
+# minutes. Any run with BP != 1000 is off-protocol and must not enter the paper; the value is
+# recorded in .config and timing.json so an off-protocol run cannot be mistaken for a real one.
+BP=${BP:-1000}
+
+# RESUME GUARD. Deliberately checks the RECORDED bp_iterations, not just .done: a BP=5 canary also
+# writes .done, and a bare -f test would make the real campaign silently skip whatever cell the
+# canary touched -- 10 runs missing from a cell that reports complete. Only a run at the same BP
+# counts as done, so re-running over a canary overwrites it instead of inheriting it.
+if [ -f "$OUT/.done" ] && grep -q "\"bp_iterations\":$BP\b" "$OUT/timing.json" 2>/dev/null; then
+  echo "already complete at bp=$BP: $OUT"; exit 0
+fi
+mkdir -p "$OUT"
+BIN_T=build/rnn_examples/train_rnn
+BIN_E=build/rnn_examples/evaluate_rnn
+for b in "$BIN_T" "$BIN_E"; do
+  [ -x "$b" ] || { echo "ERROR: $b missing -- rebuild first"; exit 1; }
+done
+
+# ---- provenance, matching what anvil_mse_pooled.sb records for the EXAMM rows.
+{
+  echo "task=$IDX type=$RNN_TYPE cell=$CELL run=$RUN"
+  echo "data=$DATA"
+  echo "git_head=$(git rev-parse HEAD 2>/dev/null)"
+  echo "bin_sha256=$(sha256sum "$BIN_T" 2>/dev/null | cut -d' ' -f1)"
+  echo "config=2layer hidden=inputs bp=$BP lr=1e-4 adam xavier (Lyu et al.)"
+} > "$OUT/.config"
+
+START=$(date +%s)
+"$BIN_T" \
+  --training_filenames "${TR[@]}" \
+  --validation_filenames "${VA[@]}" \
+  --time_offset 1 \
+  --input_parameter_names $FIELDS \
+  --output_parameter_names RET \
+  --rnn_type "$RNN_TYPE" \
+  --num_hidden_layers 2 \
+  --max_recurrent_depth 1 \
+  --bp_iterations "$BP" \
+  --learning_rate 0.0001 \
+  --normalize avg_std_dev \
+  --output_directory "$OUT" \
+  --std_message_level INFO --file_message_level NONE
+RC=$?
+TRAIN_SEC=$(( $(date +%s) - START ))
+
+GENOME="$OUT/${RNN_TYPE}_genome.bin"
+if [ $RC -ne 0 ] || [ ! -s "$GENOME" ]; then
+  echo "FAILED: train_rnn rc=$RC, genome=$(ls -l "$GENOME" 2>/dev/null || echo missing)"
+  exit 1
+fi
+
+# ---- score through EXAMM's own evaluator. Normalisation statistics travel inside the genome, so
+# test data is scaled with the TRAINING statistics and no separate stats file has to be threaded.
+"$BIN_E" \
+  --genome_file "$GENOME" \
+  --testing_filenames "${TE[@]}" \
+  --time_offset 1 \
+  --output_directory "$OUT" \
+  --std_message_level ERROR --file_message_level NONE
+RC=$?
+
+NPRED=$(ls "$OUT"/*_test_predictions.csv 2>/dev/null | wc -l | tr -d ' ')
+if [ $RC -ne 0 ] || [ "$NPRED" -ne 50 ]; then
+  echo "FAILED: evaluate_rnn rc=$RC, produced $NPRED/50 prediction files"
+  exit 1
+fi
+
+printf '{"train_sec":%d,"total_sec":%d,"type":"%s","cell":%d,"run":%d,"preds":%d,"bp_iterations":%d}\n' \
+  "$TRAIN_SEC" "$(( $(date +%s) - START ))" "$RNN_TYPE" "$CELL" "$RUN" "$NPRED" "$BP" > "$OUT/timing.json"
+touch "$OUT/.done"
+echo "OK $RNN_TYPE $TAG run $RUN -- ${TRAIN_SEC}s train, $NPRED prediction files"
