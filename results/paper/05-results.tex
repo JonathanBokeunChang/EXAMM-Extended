@@ -1,4 +1,4 @@
-% ---------------------------------------------------------------------------
+ % ---------------------------------------------------------------------------
 % Results section (\input as 05-results from sigconf.tex).
 %
 % STATUS (2026-08-06): eight result tables. Prose is written for
@@ -100,18 +100,7 @@ Trade year & Construction & IC & MSE & MAE & L/S~10 \\
 \end{tabular}
 \end{table*}
 
-Before comparing pooled EXAMM against other models, we first ask whether pooling itself
-is doing any work. Table~\ref{tab:pooling-ablation} compares the pooled-panel construction
-against training an independent EXAMM model per stock, holding the walk-forward cohorts,
-10-run ensembling, and conditional long/short strategy fixed. Point-prediction accuracy
-(MSE, MAE) is nearly identical between the two constructions in both years -- pooling does
-not make any individual stock's forecast more accurate. The gap is entirely in
-cross-sectional IC: individual training produces predictions with essentially no ranking
-ability ($\text{IC}\approx 0$ in 2022, negative in 2023), while the pooled model is clearly
-positive in both years. Because the long/short strategy trades on the relative ranking of
-predicted returns across stocks rather than their absolute accuracy, this is the direct
-mechanism behind pooling's trading advantage, and the reason every other table in this
-section uses the pooled construction.
+Before comparing pooled EXAMM against other models, we first check whether pooling itself is doing any work. Table~\ref{tab:pooling-ablation} compares the pooled-panel construction against training an independent EXAMM model per stock, holding the walk-forward cohorts, 10-run ensembling, and long/short strategy fixed. Point-prediction accuracy (MSE, MAE) is nearly identical between the two constructions in both years, so pooling does not make individual forecasts more accurate. The difference shows up entirely in cross-sectional IC: individual training produces almost no ranking ability ($\text{IC}\approx 0$ in 2022, negative in 2023), while pooled training is clearly positive in both years. Since the long/short strategy trades on relative ranking rather than absolute accuracy, this IC gap is what drives pooling's trading advantage -- and why we use the pooled construction throughout the rest of this section.
 
 
 % ---------------------------------------------------------------------------
@@ -308,9 +297,8 @@ EXAMM, Crossformer, PatchTST and DeformTime only.
 % to prevent. tab:hp-grid-sharpe reports gross for the same reason.
 %
 % NO DASHES REMAIN: DLinear and DeformTime are now complete on all 14 cells, so
-% every entry is measured. The dash convention is kept for the reason below, which
-% still applies to Crossformer (omitted from this table) and would apply to any
-% future arm:
+% every entry is measured. The convention is kept for the reason below, which still
+% applies to Crossformer (omitted here) and to any future arm:
 %   - Crossformer on 8 of the replication cells: the Algorithm 2 gate opens on 0 of
 %     ~250 days, so the book never opens. trade_portfolio.py reports +0.00 for
 %     these, but "never traded" is not "traded to a flat result" and Sharpe on a
@@ -326,12 +314,11 @@ EXAMM, Crossformer, PatchTST and DeformTime only.
 % was added. EXAMM's values come from the rep3 run trees, which reproduce
 % tab:midhighmid's IC on 12 of 12 cells exactly.
 %
-% DATASET A's 2022 COLUMN IS DATE-FILTERED. cohort_2020's test split spans 501 days
-% (2022-01-03..2023-12-29); scoring it whole returns a two-year blend, and
-% results/hp_grid_orig records that costing +0.0157 against a true +0.0030. IC is
-% restricted by slicing the frame, but RETURNS COMPOUND and cannot be sliced after
-% the fact -- and a sliced frame fails the trader outright, since --align suffix
-% trims to the trailing window while 2022 is the PREFIX. The trader's
+% DATASET A's 2022 COLUMN IS DATE-FILTERED. cohort_2020's test split spans 501 days;
+% scoring it whole returns a two-year blend, which results/hp_grid_orig records as
+% +0.0157 against a true +0.0030. IC is restricted by slicing the frame, but RETURNS
+% COMPOUND and cannot be -- and a sliced frame fails the trader outright, since
+% --align suffix trims to the trailing window while 2022 is the PREFIX. The trader's
 % --window-start/--window-end restrict trading dates after alignment instead.
 % ---------------------------------------------------------------------------
 % CAPTION KEPT SHORT -- the detail it used to carry lives here:
@@ -339,7 +326,7 @@ EXAMM, Crossformer, PatchTST and DeformTime only.
 %     trade_portfolio_daily_curve.py refuses a curve under --use-tc because its
 %     self-check fails at +12.7248% vs +12.7257%; a net Sharpe would need a second
 %     implementation of the strategy.
-%   * DASHES, if any reappear, mean a cell where the Algorithm 2 gate never opened --
+%   * DASHES, if any reappear, mark a cell where the Algorithm 2 gate never opened --
 %     the book never opens, so +0.00 is not break-even and Sharpe on a flat curve is
 %     0/0. Every cell in this table is currently measured.
 %   * BOLDING MARKS THE POINT ESTIMATE ONLY. At ~250 trading days the standard error on
@@ -395,6 +382,7 @@ set4 & 2024 & \underline{+0.0065} & \underline{+0.033} & \underline{+5.96} & \un
 
 \subsection{Respberry Pi Zero Results}
 \label{sec:ina-219}
+We evaluate each trained RNN on-device on a Raspberry Pi Zero to characterize inference accuracy, latency, and power consumption under realistic edge-deployment conditions. Each evaluation loads a serialized \texttt{RNN\_Genome} produced by EXAMM~\cite{examm} together with its saved normalization parameters (min--max or mean--standard-deviation), applies the same normalization to the held-out test series, and reports mean squared error (MSE) and mean absolute error (MAE) over the full test set. Wall-clock inference time is measured around the forward pass only (excluding I/O and prediction-writing overhead) using \texttt{std::chrono::high\_resolution\_clock}, from which we derive per-data-point latency and throughput (points/second). Concurrently with inference, an INA219 current/power sensor connected over I2C is polled from a dedicated sampling thread, recording bus voltage, shunt voltage, current, and power at fixed intervals; energy consumption is obtained by trapezoidal integration of power over the sampler's timestamped readings, and normalized by the number of test points to yield an energy-per-inference estimate. This setup allows us to directly relate model size and predictive accuracy to their on-device latency and energy cost.
 
 % CAPTION KEPT SHORT -- detail retained here:
 %   * The 32-rank row IS the paper's production configuration and reproduces that
