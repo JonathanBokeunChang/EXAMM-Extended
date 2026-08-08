@@ -49,8 +49,13 @@ shard_worker() {   # $1 = shard index, $2.. = models
         if [ $(( idx % NSHARDS )) -eq "$sh" ]; then
           OUT="$REPO/results/transformer_bench/$PROFILE/$COHORT/$M/L$SEQ_LEN/seed_$SEED"
           if [ ! -f "$OUT/.done" ]; then
+            # SLURM_ARRAY_TASK_ID, NOT SEED. anvil_transformer.sb line 53 is
+            # SEED=${SLURM_ARRAY_TASK_ID:-1} -- it ignores an env SEED entirely and falls back to 1
+            # outside SLURM. Passing SEED= silently ran all 20 jobs as seed 1: two completed and
+            # eighteen hit the .done check and reported "already complete -- skipping", which reads
+            # like success. run_portfolio_campaign.sh sets SLURM_ARRAY_TASK_ID for this reason.
             SLURM_SUBMIT_DIR="$REPO" MODEL="$M" COHORT="$COHORT" SEQ_LEN="$SEQ_LEN" \
-            PROFILE="$PROFILE" SEED="$SEED" NUM_WORKERS=4 \
+            PROFILE="$PROFILE" SLURM_ARRAY_TASK_ID="$SEED" NUM_WORKERS=4 \
             CUDA_VISIBLE_DEVICES=$(( sh % NGPU )) \
               bash scripts/transformer_bench/anvil_transformer.sb \
               >> "/workspace/dsA_${M}_shard${sh}.log" 2>&1 \
