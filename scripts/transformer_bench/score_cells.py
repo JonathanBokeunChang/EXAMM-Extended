@@ -75,7 +75,7 @@ def gate_days(df, long=10, short=10):
     return n
 
 
-def sharpe(split_dir, data_dir, long=10, short=10):
+def sharpe(split_dir, data_dir, long=10, short=10, window=None):
     """Annualised Sharpe from the REAL strategy's daily equity curve.
 
     Reported GROSS only. trade_portfolio_daily_curve.py refuses to emit a curve under --use-tc:
@@ -87,7 +87,9 @@ def sharpe(split_dir, data_dir, long=10, short=10):
     r = subprocess.run(
         [sys.executable, os.path.join(REPO, "scripts/stock_run/trade_portfolio_daily_curve.py"),
          "--pred-dir", split_dir, "--data-dir", data_dir,
-         "--long", str(long), "--short", str(short)], capture_output=True, text=True)
+         "--long", str(long), "--short", str(short)]
+        + (["--window-start", window[0], "--window-end", window[1]] if window else []),
+        capture_output=True, text=True)
     for line in r.stdout.splitlines():
         if "Sharpe" in line:
             try:
@@ -97,9 +99,16 @@ def sharpe(split_dir, data_dir, long=10, short=10):
     return float("nan")
 
 
-def trade(df, data_dir, long=10, short=10, strategy="daily_hybrid_long_short_return", tc=False):
+def trade(df, data_dir, long=10, short=10, strategy="daily_hybrid_long_short_return", tc=False,
+          window=None):
     """Algorithm 2 return for the ensemble. --strategy is explicit; the trader's default is the
     unconditional variant, which silently yields roughly half-sized, wrongly-ranked returns.
+
+    window=(start, end) restricts TRADING DATES without touching the prediction/price pairing.
+    Dataset A's cohort_2020 test split spans 2022-2023, and slicing the predictions instead would
+    hand the trader a 250-row prefix of a 501-row price file -- --align suffix trims to the trailing
+    window, so it fails outright (rc=1). The trader applies this filter AFTER alignment, which is
+    exactly what it is for. Unused by the portfolio cells, whose splits are single-year.
 
     tc=True charges the per-share CRSP TRAN_COST on every trade. It relies on the short-selling fix
     in the local Financial_toolbox checkout (Stock.short_stock returning the realised credit rather
@@ -114,7 +123,9 @@ def trade(df, data_dir, long=10, short=10, strategy="daily_hybrid_long_short_ret
         r = subprocess.run(
             [sys.executable, TRADER, "--pred-dir", split, "--data-dir", data_dir,
              "--align", "suffix", "--expect-n", "50", "--long", str(long), "--short", str(short),
-             "--strategy", strategy] + (["--use-tc"] if tc else []), capture_output=True, text=True)
+             "--strategy", strategy]
+            + (["--window-start", window[0], "--window-end", window[1]] if window else [])
+            + (["--use-tc"] if tc else []), capture_output=True, text=True)
         ret = float("nan")
         for line in r.stdout.splitlines():
             if "portfolio" in line.lower() or "return" in line.lower():
@@ -124,7 +135,7 @@ def trade(df, data_dir, long=10, short=10, strategy="daily_hybrid_long_short_ret
                     except ValueError:
                         pass
         err = "" if r.returncode == 0 else f"rc={r.returncode}"
-        sh = sharpe(split, data_dir, long, short) if not tc else float("nan")
+        sh = sharpe(split, data_dir, long, short, window=window) if not tc else float("nan")
         return ret, n_tic, err, sh
 
 
