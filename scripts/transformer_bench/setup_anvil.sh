@@ -369,6 +369,13 @@ PYTHON="$TF_ENV_DIR/bin/python" \
 # model is unreachable, since argparse rejects the flags before run.py ever builds it.
 PYTHON="$TF_ENV_DIR/bin/python" \
   bash "$REPO_ROOT/scripts/transformer_bench/install_timemixer_official.sh" "$TF_HARNESS"
+# ---- install the LSTM/GRU recurrent baselines. NOT an upstream vendoring: this is our own model
+# file, which used to exist only in one working copy because external/ is gitignored. A pod built
+# from a clean clone therefore had no recurrent baseline at all and rejected MODEL=LSTMBaseline at
+# argparse time -- losing a whole arm of the study silently. The source is tracked at
+# scripts/transformer_bench/models/RNNBaseline.py and copied in here.
+PYTHON="$TF_ENV_DIR/bin/python" \
+  bash "$REPO_ROOT/scripts/transformer_bench/install_rnn_baseline.sh" "$TF_HARNESS"
 
 "$TF_ENV_DIR/bin/python" - <<'PYEOF'
 import sys; sys.path.insert(0, ".")
@@ -383,7 +390,7 @@ from src.exp.exp_basic import Exp_Basic            # must import; registry lives
 # never printed "setup complete", making a healthy build look broken. Replaced with a check that
 # actually means something: every model this study runs must import.
 for _m in ("PatchTSTOfficial", "CrossformerOfficial", "ITransformerOfficial", "DeformTime",
-           "DLinearOfficial", "TimeMixer"):
+           "DLinearOfficial", "TimeMixer", "LSTMBaseline", "GRUBaseline"):
     __import__("src.models." + _m)
 import src.layers.PatchTST_backbone as _b
 assert "BatchNorm" in open(_b.__file__).read(), "authors' backbone missing BatchNorm -- wrong file?"
@@ -397,7 +404,7 @@ _missing = [f for f in ("--task_name", "--down_sampling_layers", "--down_samplin
                         "--top_k", "--num_class", "--use_future_temporal_feature")
             if f"'{f}'" not in _r]
 assert not _missing, f"run.py missing TimeMixer flags: {_missing} -- re-run install_timemixer_official.sh"
-print("### verified: stock_pooled registered; all six authors' models importable; TimeMixer flags present")
+print("### verified: stock_pooled registered; all eight models importable; TimeMixer flags present")
 PYEOF
 
 cat <<EOF
