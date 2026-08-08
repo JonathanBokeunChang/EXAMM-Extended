@@ -166,8 +166,13 @@ if not already_imported(s):
     assert k == 1, "could not find the 'from src.models import ...' line"
 
 if "'TimeMixer':" not in s:
-    s, k = re.subn(r"(\n(\s*)'DeformTime': DeformTime,)",
-                   r"\1\n\2'TimeMixer': TimeMixer,", s, count=1)
+    # The trailing comma is OPTIONAL and must be, because harnesses in the wild differ: a pod set up
+    # before the RNN baselines has 'DeformTime': DeformTime as the LAST dict entry with no comma,
+    # while one set up after has LSTMBaseline/GRUBaseline following it and therefore a comma.
+    # Requiring the comma made this installer fail outright on the older layout. Re-emitting the
+    # captured comma AFTER the new entry keeps both shapes valid Python.
+    s, k = re.subn(r"(\n(\s*)'DeformTime': DeformTime)(,?)",
+                   r"\1,\n\2'TimeMixer': TimeMixer\3", s, count=1)
     assert k == 1, "could not find the 'DeformTime' model_dict entry to anchor to"
 
 ast.parse(s)                                       # must still be valid Python
