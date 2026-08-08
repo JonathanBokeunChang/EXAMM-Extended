@@ -93,6 +93,37 @@ WORKERS=$(( CORES - 1 ))
 [ "$WORKERS" -ge 1 ] || { echo "ERROR: need >=2 ranks (1 master + >=1 worker)" >&2; exit 1; }
 
 mkdir -p "$OUT_ROOT" results/scaling slurm_logs
+
+# ---- quota guard: prove we can actually write before spending SU ----------------------
+# Backported from anvil_mse_pooled.sb. On 2026-08-06 a full home QUOTA silently destroyed 59
+# mse_pooled runs. EXAMM kept running, wrote nothing, stopped at a random genome count, and every
+# MPI rank still exited 0 -- srun reported COMPLETED, slurm's .err was EMPTY (it could not be
+# written either), and the only visible symptom was a truncated train.log. Four wrong diagnoses
+# went by before anyone ran `myquota`.
+#
+# df IS USELESS FOR THIS. During that failure df reported 12 TB free on /home while the user sat
+# at 25.0/25.0 GB. Quota exhaustion is invisible to filesystem capacity, so the probe allocates a
+# real file and verifies it reached full size.
+#
+# THIS MATTERS MORE HERE THAN IN THE PAPER CAMPAIGN, not less. The only write check downstream is
+# `[ -f "$FLOG" ]`, which runs AFTER srun has already burned up to 128 cores x 72 min on the 8-rank
+# arm. And a PARTIAL quota failure is worse than a total one: it leaves a short fitness_log.csv, so
+# a timing row gets appended with a truncated genomes_done and the arm looks fast rather than
+# broken. scaling_report.py's 2% work gate would catch it, but only after the whole study is spent.
+PROBE_MB=${PROBE_MB:-32}
+PROBE="$OUT_ROOT/.write_probe_$$"
+if ! dd if=/dev/zero of="$PROBE" bs=1M count="$PROBE_MB" 2>/dev/null \
+   || [ "$(wc -c < "$PROBE" 2>/dev/null || echo 0)" -lt $(( PROBE_MB * 1024 * 1024 )) ]; then
+    rm -f "$PROBE"
+    echo "ERROR: cannot write ${PROBE_MB}MB under $OUT_ROOT." >&2
+    echo "       Almost certainly a full quota -- check with: myquota" >&2
+    echo "       df will NOT show this; it reports filesystem capacity, not your quota." >&2
+    echo "       Refusing to start: a run that cannot write burns SU and produces a" >&2
+    echo "       truncated log that looks like a code failure." >&2
+    exit 1
+fi
+rm -f "$PROBE"
+
 rm -rf "$OUT"; mkdir -p "$OUT"
 
 echo "### EXAMM scaling | ranks $CORES (workers $WORKERS) | rep $REP | max_genomes $MAXG"
