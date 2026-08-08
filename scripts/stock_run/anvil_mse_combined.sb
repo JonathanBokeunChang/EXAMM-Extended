@@ -171,8 +171,13 @@ rm -rf "$OUT"; mkdir -p "$OUT"
 BIN_SHA=$(shasum -a 256 "$BIN" 2>/dev/null | awk '{print $1}' || sha256sum "$BIN" | awk '{print $1}')
 BIN_MTIME=$(date -r "$BIN" '+%Y-%m-%dT%H:%M:%S' 2>/dev/null || stat -c '%y' "$BIN" 2>/dev/null | cut -d. -f1)
 GIT_HEAD=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
-printf 'data_dir=%s\nloss=mse\ntarget=RET\nrun=%s\nmax_genomes=%s\nseed=%s\nstocks=%s\nbin=%s\nbin_sha256=%s\nbin_mtime=%s\ngit_head=%s\n' \
-    "$DATA_DIR" "$RUN" "$MAXG" "$RUN" "$N_TRAIN" "$BIN" "$BIN_SHA" "$BIN_MTIME" "$GIT_HEAD" > "$OUT/.config"
+# construction=combined and the input/output counts, NOT pooled's stocks= count. The pooled script
+# records stocks=$N_TRAIN, the number of FILES it was handed; combined is handed one file, so that
+# variable does not exist here and referencing it aborted the first submission under `set -u`
+# (5 s, before srun -- which is exactly why one array index was run before twenty). The shape is
+# what distinguishes this construction, so record the shape.
+printf 'data_dir=%s\nloss=mse\ntarget=RET\nconstruction=combined\nrun=%s\nmax_genomes=%s\nseed=%s\nstocks=%s\ninputs=%s\noutputs=%s\nbin=%s\nbin_sha256=%s\nbin_mtime=%s\ngit_head=%s\n' \
+    "$DATA_DIR" "$RUN" "$MAXG" "$RUN" "$N_OUT" "$N_IN" "$N_OUT" "$BIN" "$BIN_SHA" "$BIN_MTIME" "$GIT_HEAD" > "$OUT/.config"
 echo "### binary: $BIN  sha256 ${BIN_SHA:0:12}  mtime $BIN_MTIME  git $GIT_HEAD"
 
 
