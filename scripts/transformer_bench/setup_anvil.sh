@@ -362,6 +362,13 @@ PYTHON="$TF_ENV_DIR/bin/python" \
 # authors' constant weight-init lines, which they ship commented out -- so it cannot stand in.
 PYTHON="$TF_ENV_DIR/bin/python" \
   bash "$REPO_ROOT/scripts/transformer_bench/install_dlinear_official.sh" "$TF_HARNESS"
+# ---- vendor the TimeMixer authors' own model as MODEL=TimeMixer (ICLR 2024).
+# Vendors the layer stack too, unlike the iTransformer installer: its AST guard was written to reuse
+# the harness's layers and FAILED on TimeFeatureEmbedding and DataEmbedding_wo_pos. It also adds the
+# nine argparse flags the authors' model reads and this harness does not define -- without them the
+# model is unreachable, since argparse rejects the flags before run.py ever builds it.
+PYTHON="$TF_ENV_DIR/bin/python" \
+  bash "$REPO_ROOT/scripts/transformer_bench/install_timemixer_official.sh" "$TF_HARNESS"
 
 "$TF_ENV_DIR/bin/python" - <<'PYEOF'
 import sys; sys.path.insert(0, ".")
@@ -375,13 +382,22 @@ from src.exp.exp_basic import Exp_Basic            # must import; registry lives
 # very last step -- after every install had in fact succeeded -- so the script exited non-zero and
 # never printed "setup complete", making a healthy build look broken. Replaced with a check that
 # actually means something: every model this study runs must import.
-for _m in ("PatchTSTOfficial", "CrossformerOfficial", "ITransformerOfficial", "DeformTime"):
+for _m in ("PatchTSTOfficial", "CrossformerOfficial", "ITransformerOfficial", "DeformTime",
+           "DLinearOfficial", "TimeMixer"):
     __import__("src.models." + _m)
 import src.layers.PatchTST_backbone as _b
 assert "BatchNorm" in open(_b.__file__).read(), "authors' backbone missing BatchNorm -- wrong file?"
 import src.models.ITransformerOfficial as _i
 assert "configs.use_norm" in open(_i.__file__).read(), "iTransformer ignores use_norm -- wrong file?"
-print("### verified: stock_pooled registered; all four authors' models importable")
+# TimeMixer is unreachable unless run.py grew all nine of its flags: argparse rejects an undefined
+# flag before the model is ever constructed, so a missing one kills the run at launch, not at import.
+_r = open("run.py").read()
+_missing = [f for f in ("--task_name", "--down_sampling_layers", "--down_sampling_window",
+                        "--down_sampling_method", "--channel_independence", "--decomp_method",
+                        "--top_k", "--num_class", "--use_future_temporal_feature")
+            if f"'{f}'" not in _r]
+assert not _missing, f"run.py missing TimeMixer flags: {_missing} -- re-run install_timemixer_official.sh"
+print("### verified: stock_pooled registered; all six authors' models importable; TimeMixer flags present")
 PYEOF
 
 cat <<EOF

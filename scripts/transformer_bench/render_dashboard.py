@@ -42,12 +42,14 @@ EXCLUDE = {"CrossformerOfficial"}
 ZEROSHOT = {"moirai20Rsmall"}
 SHORT = {"PatchTSTOfficial": "PatchTST", "ITransformerOfficial": "iTransformer",
          "CrossformerOfficial": "Crossformer", "DeformTime": "DeformTime",
-         "DLinearOfficial": "DLinear", "EXAMM": "EXAMM", "moirai20Rsmall": "MOIRAI 2.0"}
+         "DLinearOfficial": "DLinear", "EXAMM": "EXAMM", "moirai20Rsmall": "MOIRAI 2.0",
+         "TimeMixer": "TimeMixer"}
 PAL = {"EXAMM": "var(--accent)", "PatchTSTOfficial": "#7C8CF0",
        "ITransformerOfficial": "var(--pos)", "DeformTime": "#C77DBB",
-       "DLinearOfficial": "var(--flat)", "moirai20Rsmall": "#3FA8A0"}
+       "DLinearOfficial": "var(--flat)", "moirai20Rsmall": "#3FA8A0",
+       "TimeMixer": "#E0A458"}
 ORDER = ["EXAMM", "PatchTSTOfficial", "ITransformerOfficial", "DeformTime", "DLinearOfficial",
-         "moirai20Rsmall"]
+         "TimeMixer", "moirai20Rsmall"]
 
 CSS = """
 :root{
@@ -246,6 +248,27 @@ def matrix(by_model, examm, models):
 def main():
     d = json.load(open(sys.argv[1]))
     ex = json.load(open(os.path.join(HERE, "examm_cells.json")))["cells"]
+    # MERGE THE LOCAL SCORE CACHE OVER THE POD'S. The status JSON carries only the pod it was
+    # polled from, and the campaign now spans two: DeformTime on one, DLinear on the other. The
+    # local cache is scored from results synced off BOTH, so it is the only complete view. Pod
+    # status is still used for live progress (arms, in-flight, GPU) -- that genuinely is per-pod.
+    local_cells = {}
+    try:
+        for r in json.load(open(os.path.join(
+                os.path.dirname(HERE), "..",
+                "results/transformer_bench/.cell_scores.json"))).values():
+            if r.get("ic") is None:
+                continue
+            k = (r["model"], r["set"], r["yr"])
+            if r["n"] >= local_cells.get(k, {}).get("n", -1):
+                local_cells[k] = r
+    except FileNotFoundError:
+        pass
+    if local_cells:
+        keep = [c for c in d.get("cells", [])
+                if (c["model"], c["set"], c["yr"]) not in local_cells]
+        d["cells"] = keep + list(local_cells.values())
+
     # merge the locally-scored zero-shot grid; same score_cells.py path, same trader
     zs = []
     try:

@@ -545,6 +545,62 @@ if [ "$PROFILE" = "author" ]; then
       EXTRA=()
       LRADJ=${LRADJ:-constant}
       ;;
+    TimeMixer)
+      # SOURCE: kwuking/TimeMixer @e2461058, scripts/long_term_forecast/ETT_script/
+      # TimeMixer_ETTh1_unify.sh -- the authors' own released script. "TimeMixer: Decomposable
+      # Multiscale Mixing for Time Series Forecasting", ICLR 2024.
+      #
+      # THE THIRD ARCHITECTURAL FAMILY. Every other baseline here is attention (PatchTST,
+      # iTransformer, DeformTime, Crossformer) or linear (DLinear). This is MLP-based multiscale
+      # decomposition, and the only model in the study that explicitly mixes several temporal
+      # resolutions -- a different hypothesis about where signal lives, not another transformer.
+      #
+      # NOT TimeMixer++: it has no runnable reference implementation (absent from
+      # thuml/Time-Series-Library, issue #839 March 2026; the only port targets imputation). See
+      # install_timemixer_official.sh.
+      #
+      # NO LOOKBACK DEVIATION. Their ETTh1 script is seq_len 96, this study's protocol length, so
+      # like DLinear and iTransformer -- and unlike PatchTST and DeformTime, which publish only 336
+      # -- TimeMixer runs at its own published L.
+      #
+      # BATCH 128 IS THEIRS, and is deliberately NOT the 16 their script appears to say. The script
+      # defines batch_size=16 as a shell variable and then never uses it: every python invocation
+      # passes a literal `--batch_size 128`. 128 is what the published numbers were produced with.
+      #
+      # --channel_independence 0 IS FORCED, NOT CHOSEN, and this is the one deviation that changes
+      # the model. At their default of 1 the model builds a 1-wide embedding and reshapes the decoder
+      # output to (B, c_out, pred_len); with enc_in 6 and c_out 1 that reshape raises "shape [B,1,1]
+      # is invalid for input of size 6B" -- verified, it does not run at all. 0 is also what this
+      # study wants, since it lets the five exogenous fields inform RET rather than modelling each
+      # variate alone. Their default is only viable under features=M, where c_out == enc_in.
+      #
+      # --freq h IS THEIR OWN DEFAULT, not a claim the data is hourly. TimeFeatureEmbedding sizes its
+      # input projection from freq_map, and the pooled loader always emits FOUR calendar features;
+      # freq_map['d'] is 3 and dies in a 768x4-by-3x32 matmul, freq_map['h'] is 4. COMMON hardcodes
+      # --freq d, so this must be re-passed here -- EXTRA is appended after COMMON, so it wins.
+      # TimeMixer is the first model in this harness to use TimeFeatureEmbedding at all, which is
+      # why no other arm has needed this.
+      #
+      # LRADJ IS THE SECOND DEVIATION. Their run.py defaults to 'TST', a scheduler this harness does
+      # not implement -- and since setup_anvil.sh patch (10) makes an unknown lradj fail loudly,
+      # passing it would abort. type1 is what every other author-profile model here runs.
+      #
+      # Everything else is theirs: d_model 16, d_ff 32, e_layers 2, down_sampling 3 levels of avg
+      # pooling at window 2, moving_avg 25 decomposition, 10 epochs, patience 10, lr 0.01, and
+      # dropout 0.1 / top_k 5 / use_norm 1 / use_future_temporal_feature 0 from their argparse
+      # defaults, which their ETTh1 script does not override.
+      #
+      # DELIBERATE DEVIATIONS: pred_len 96 -> 1 (our horizon), enc_in 7 -> 6 (our field count),
+      # features M -> MS, plus channel_independence and lradj above.
+      EPOCHS=${EPOCHS_OVERRIDE:-10}; PATIENCE=${PATIENCE_OVERRIDE:-10}; BATCH=${BATCH:-128}
+      LR=${LR:-0.01}
+      CAPACITY=( --d_model 16 --d_ff 32 --e_layers 2 --dropout 0.1 --use_norm 1 )
+      EXTRA=( --task_name long_term_forecast --channel_independence 0
+              --down_sampling_layers 3 --down_sampling_window 2 --down_sampling_method avg
+              --decomp_method moving_avg --moving_avg 25 --top_k 5
+              --use_future_temporal_feature 0 --freq h )
+      LRADJ=${LRADJ:-type1}
+      ;;
     DLinear)
       # src/models/DLinear.py is a MODIFIED port, not the authors' file: it trains every seed from
       # an identical constant init that the authors ship commented out. Running it under an
@@ -652,6 +708,14 @@ elif [ "$SEQ_LEN" -ge 64 ]; then
     Crossformer) EXTRA=( --seg_len 12 --win_size 2 ) ;;
     DeformTime)  EXTRA=( --n_reshape 16 --patch_len 16 --stride 8 --kernel 6 ) ;;
     PatchTST|PatchTSTOfficial) EXTRA=( --patch_len 16 --stride 8 ) ;;
+    # TimeMixer needs no tokenizer rescaling -- its scales are seq_len/2^i, which stay >=1 at any L
+    # this study uses. It is listed anyway because falling through to `*)` would clear EXTRA and
+    # drop --channel_independence 0, and the model does not merely degrade without it: it raises a
+    # reshape error and the run dies. Same reason below.
+    TimeMixer)   EXTRA=( --task_name long_term_forecast --channel_independence 0
+                         --down_sampling_layers 3 --down_sampling_window 2 --down_sampling_method avg
+                         --decomp_method moving_avg --moving_avg 25 --top_k 5
+                         --use_future_temporal_feature 0 --freq h ) ;;
     *)           EXTRA=() ;;
   esac
 else
@@ -659,6 +723,12 @@ else
     Crossformer) EXTRA=( --seg_len 4 --win_size 2 ) ;;
     DeformTime)  EXTRA=( --n_reshape 4 --patch_len 4 --stride 2 --kernel 3 ) ;;
     PatchTST|PatchTSTOfficial) EXTRA=( --patch_len 4 --stride 2 ) ;;
+    # down_sampling_layers 2, not 3: at L=20 a third halving gives a length-2 scale, and the
+    # decomposition's moving average is wider than the series it decomposes.
+    TimeMixer)   EXTRA=( --task_name long_term_forecast --channel_independence 0
+                         --down_sampling_layers 2 --down_sampling_window 2 --down_sampling_method avg
+                         --decomp_method moving_avg --moving_avg 25 --top_k 5
+                         --use_future_temporal_feature 0 --freq h ) ;;
     *)           EXTRA=() ;;
   esac
 fi
