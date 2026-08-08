@@ -1,0 +1,214 @@
+#!/bin/bash -l
+# NOTE the -l flag!
+#
+# Raw-MSE COMBINED (wide) EXAMM training -- the third dataset construction.
+#
+# COMBINED means: all 50 stocks' predictors live in ONE wide series, 300 inputs
+# (50 tickers x 6 fields) predicting 50 outputs (every ticker's RET) at once. That
+# is the opposite axis from pooled: pooled is 50 FILES x 6 columns sharing one
+# genome; combined is 1 FILE x 300 columns. The two mechanisms are orthogonal in
+# time_series.cxx -- N files means N independent series, N parameter names means
+# the width of each -- so nothing in the C++ changes.
+#
+# WHY IT EXISTS: 05-results.tex:55 is titled "Comparing individual, combined, and
+# pooled datasets" but tab:pooling-ablation carries only two constructions, and
+# tab:constructions' Combined column is transcribed from the Evostar PDF rather
+# than measured (04-datasets.tex:178-184, OPEN ITEM 4). This fills both.
+#
+# HYPERPARAMETERS ARE POOLED'S, DELIBERATELY AND WITHOUT EXCEPTION. The untracked
+# scripts/stock_run/train_combined.sh diverges (bp_iterations 20, num_mutations 2,
+# no --loss mse, plus --repeat_extinction / EraseWorst / explicit node types). Any
+# of those would confound CONSTRUCTION with TUNING, which is the one thing this
+# ablation exists to separate. Everything below is byte-identical to
+# anvil_mse_pooled.sb except what the wide shape forces.
+#
+# COST: the minimal seed genome is 300x50 = 15,000 edges against pooled's handful,
+# and it grows from there. Measured ~672 core-hours per run (10k genomes, 3-4 days
+# on 8 cores, the professor's own figure) -- roughly 18x pooled PER GENOME. That is
+# why this runs on a whole node rather than 32 shared cores.
+#
+
+#
+# submit from the repo root:
+#   mkdir -p slurm_logs
+#   sbatch --array=0-9 scripts/stock_run/anvil_mse_combined.sb                                      # full 10-run ensemble, default cohort
+#   sbatch --export=ALL,DATA_DIR=datasets/walkforward/cohort_2020_aligned_combined --array=0-9 ...         # other cohort
+#
+
+
+#SBATCH --account=cis251123
+#SBATCH --partition=wholenode
+#SBATCH --nodes=1
+#SBATCH --exclusive
+#SBATCH --ntasks=128
+#SBATCH --cpus-per-task=1
+#SBATCH --time=16:00:00
+#SBATCH --job-name=mse_combined
+#SBATCH --array=0-9
+#SBATCH --output=slurm_logs/mcomb_%A_%a.out
+#SBATCH --error=slurm_logs/mcomb_%A_%a.err
+
+module --force purge
+module load gcc/11.2.0 openmpi/4.1.6
+
+cd "$SLURM_SUBMIT_DIR"
+set -u
+
+MAXG=${MAXG:-10000}
+# 'none' writes only the final global best, at natural termination. Set to
+# all_best_genomes to also write every new global-best genome DURING the run --
+# useful for a canary, unnecessary noise for a production ensemble.
+SAVE_GENOMES=${SAVE_GENOMES:-none}
+DATA_DIR=${DATA_DIR:-datasets/walkforward/cohort_2021_aligned_combined}
+# BIN is overridable so a DIFFERENT BUILD can be tested against the same data, scripts and
+# protocol -- one variable changed, everything else held. The use that motivated it: Table 1's
+# 2023 cell (IC +0.0195) was produced 2026-07-23 by a binary predating commit 57b375b0, while
+# five later ensembles built after it landed at +0.0013, -0.0155, -0.0116 and two more
+# negatives. Perfect 1-vs-5 separation by build, and the 2022 cell -- which was always on the
+# newer binary -- reproduces cleanly. Code review finds no mechanism (the mse path is
+# byte-equivalent), so the split is either a real regression or a lucky draw, and the only way
+# to tell is to rebuild the old tree and run it.
+#
+# Build it in a git worktree, NOT by checking out in place: the old commit predates this very
+# script, so an in-place checkout deletes the thing you are trying to run.
+#   git worktree add ~/EXAMM-old f5f98365
+#   cd ~/EXAMM-old && cmake -S . -B build && cmake --build build -j8 --target examm_mpi
+#   BIN=~/EXAMM-old/build/mpi/examm_mpi REPLICATE_TAG=oldbin sbatch ...
+BIN=${BIN:-build/mpi/examm_mpi}
+
+# REPLICATE_TAG appends a suffix so an independent reproduction lands in its OWN tree.
+# Without it, re-running this script finds the existing .done markers, skips all ten runs and
+# EXITS 0 -- reporting success while producing nothing. That is the failure mode to fear here,
+# because nothing in the output looks wrong.
+#
+# Deliberately a SUFFIX rather than a free-form output path: a tag can only ever create a new
+# directory, so no typo can point a fresh run at test_output/mse_cohort_*_aligned and overwrite
+# the campaign the paper's Table 1 is built from.
+#
+#   REPLICATE_TAG=rep3 -> test_output/mse_cohort_2021_aligned_rep3
+OUT_ROOT=test_output/mse_combined_$(basename "$DATA_DIR")${REPLICATE_TAG:+_$REPLICATE_TAG}
+IDX=${SLURM_ARRAY_TASK_ID:-0}
+RUN=$(( IDX + 1 ))
+OUT=$OUT_ROOT/run_$RUN
+
+echo "### mse COMBINED train | run $RUN | max_genomes $MAXG | ranks ${SLURM_NTASKS} | data $DATA_DIR"
+
+if [ ! -x "$BIN" ]; then echo "ERROR: $BIN not found -- build examm_mpi first" >&2; exit 1; fi
+if [ ! -d "$DATA_DIR" ]; then echo "ERROR: $DATA_DIR missing -- run align_cohort.py + transfer" >&2; exit 1; fi
+
+# ---- the wide panel: ONE file per split, 300 inputs -> 50 outputs -------------
+# Built by scripts/stock_run/build_combined_panel.py, which asserts 301 columns and
+# zero NaNs and refuses duplicate dates. Re-assert here anyway: this job costs ~672
+# core-hours and a malformed header would only surface deep inside EXAMM.
+TRAIN_FILE="$DATA_DIR/combined_predictors_train.csv"
+VAL_FILE="$DATA_DIR/combined_predictors_val.csv"
+for f in "$TRAIN_FILE" "$VAL_FILE"; do
+    [ -f "$f" ] || { echo "ERROR: $f missing -- run build_combined_panel.py first" >&2; exit 1; }
+done
+
+# Names come from the header, not a literal list: 300 of them cannot be maintained by hand,
+# and deriving them guarantees they match the file actually being trained on.
+HEADER=$(head -1 "$TRAIN_FILE" | sed 's/^#//')
+INPUTS=$(echo "$HEADER"  | tr ',' '\n' | grep -v '^date$' | tr '\n' ' ')
+OUTPUTS=$(echo "$HEADER" | tr ',' '\n' | grep '_RET$'     | tr '\n' ' ')
+N_IN=$(echo $INPUTS  | wc -w | tr -d ' ')
+N_OUT=$(echo $OUTPUTS | wc -w | tr -d ' ')
+if [ "$N_IN" -ne 300 ] || [ "$N_OUT" -ne 50 ]; then
+    echo "ERROR: expected 300 inputs / 50 outputs, got $N_IN / $N_OUT in $TRAIN_FILE" >&2
+    exit 1
+fi
+# train and val must describe the SAME columns or the genome cannot be evaluated on val.
+if [ "$(head -1 "$VAL_FILE" | sed 's/^#//')" != "$HEADER" ]; then
+    echo "ERROR: train and val headers differ in $DATA_DIR" >&2
+    exit 1
+fi
+echo "combined: $N_IN inputs -> $N_OUT outputs, $(( $(wc -l < "$TRAIN_FILE") - 1 )) train rows"
+
+# ---- WRITABILITY PRECONDITION -------------------------------------------------------------
+# On 2026-08-06 a full home QUOTA silently destroyed 59 runs. EXAMM kept running, wrote nothing,
+# stopped at a random genome count, and every rank still exited 0 -- srun reported COMPLETED,
+# slurm's .err was EMPTY (it could not be written either), and the only visible symptom was a
+# truncated train.log. It cost four wrong diagnoses before anyone ran `myquota`.
+#
+# df IS USELESS FOR THIS. During that failure df reported 12 TB free on /home while the user was
+# at 25.0/25.0 GB -- filesystem capacity and per-user quota are different things, and it is the
+# quota that stops the writes. myquota is not guaranteed on compute nodes either.
+#
+# So probe the only thing that actually matters: can we write? Allocate a real file, verify it
+# reached full size, delete it. A quota-exhausted filesystem fails this in under a second, and a
+# job that cannot write must not consume an hour of SU producing a truncated log.
+PROBE_MB=${PROBE_MB:-32}
+mkdir -p "$(dirname "$OUT")"
+PROBE="$(dirname "$OUT")/.write_probe_$$"
+if ! dd if=/dev/zero of="$PROBE" bs=1M count="$PROBE_MB" 2>/dev/null \
+   || [ "$(wc -c < "$PROBE" 2>/dev/null || echo 0)" -lt $(( PROBE_MB * 1024 * 1024 )) ]; then
+    rm -f "$PROBE"
+    echo "ERROR: cannot write ${PROBE_MB}MB under $(dirname "$OUT")." >&2
+    echo "       Almost certainly a full quota -- check with: myquota" >&2
+    echo "       df will NOT show this; it reports filesystem capacity, not your quota." >&2
+    echo "       Refusing to start: a run that cannot write burns SU and produces a" >&2
+    echo "       truncated log that looks like a code failure." >&2
+    exit 1
+fi
+rm -f "$PROBE"
+
+if [ -f "$OUT/.done" ]; then
+    echo "[run $RUN] already done, skipping"; exit 0
+fi
+
+mkdir -p "$(dirname "$OUT")"
+if ! mkdir "$OUT.lock" 2>/dev/null; then
+    echo "[run $RUN] another task owns $OUT, skipping"; exit 0
+fi
+trap 'rmdir "$OUT.lock" 2>/dev/null' EXIT
+
+case "$OUT" in */run_[0-9]*) ;; *) echo "ERROR: refusing rm -rf '$OUT'" >&2; exit 1;; esac
+rm -rf "$OUT"; mkdir -p "$OUT"
+# RECORD THE BINARY, not just the hyperparameters. The whole difficulty in attributing Table 1's
+# 2023 cell was that nothing in a run directory said which build produced it -- the campaign had
+# to be dated from file mtimes and cross-referenced against git log by hand. Log the path, its
+# mtime, its sha256 and the repo HEAD so any future run is self-describing.
+BIN_SHA=$(shasum -a 256 "$BIN" 2>/dev/null | awk '{print $1}' || sha256sum "$BIN" | awk '{print $1}')
+BIN_MTIME=$(date -r "$BIN" '+%Y-%m-%dT%H:%M:%S' 2>/dev/null || stat -c '%y' "$BIN" 2>/dev/null | cut -d. -f1)
+GIT_HEAD=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
+printf 'data_dir=%s\nloss=mse\ntarget=RET\nrun=%s\nmax_genomes=%s\nseed=%s\nstocks=%s\nbin=%s\nbin_sha256=%s\nbin_mtime=%s\ngit_head=%s\n' \
+    "$DATA_DIR" "$RUN" "$MAXG" "$RUN" "$N_TRAIN" "$BIN" "$BIN_SHA" "$BIN_MTIME" "$GIT_HEAD" > "$OUT/.config"
+echo "### binary: $BIN  sha256 ${BIN_SHA:0:12}  mtime $BIN_MTIME  git $GIT_HEAD"
+
+
+srun --kill-on-bad-exit -n "${SLURM_NTASKS}" "$BIN" \
+    --training_filenames "$TRAIN_FILE" \
+    --validation_filenames "$VAL_FILE" \
+    --seed "$RUN" \
+    --time_offset 1 \
+    --input_parameter_names $INPUTS \
+    --output_parameter_names $OUTPUTS \
+    --loss mse \
+    --number_islands 10 \
+    --island_size 10 \
+    --max_genomes "$MAXG" \
+    --bp_iterations 10 \
+    --num_mutations 1 \
+    --normalize avg_std_dev \
+    --extinction_event_generation_number 500 \
+    --islands_to_exterminate 1 \
+    --repopulation_method bestGenome \
+    --output_directory "$OUT" \
+    --save_genome_option "$SAVE_GENOMES" \
+    --std_message_level INFO \
+    --file_message_level NONE > "$OUT/train.log" 2>&1
+RC=$?
+
+GB=$(ls "$OUT"/global_best_genome_*.bin 2>/dev/null \
+     | sed 's/.*_\([0-9]*\)\.bin/\1 &/' | sort -rn | head -1 | cut -d' ' -f2-)
+LOGGED=$(wc -l < "$OUT/fitness_log.csv" 2>/dev/null || echo 0)
+MIN_LOGGED=$(( MAXG * 9 / 10 ))
+
+if [ $RC -eq 0 ] && [ -n "$GB" ] && [ -s "$GB" ] && [ "$LOGGED" -ge "$MIN_LOGGED" ]; then
+    touch "$OUT/.done"
+    echo "[run $RUN] FINISHED  genome=$(basename "$GB")  genomes_logged=$LOGGED"
+else
+    echo "[run $RUN] FAILED rc=$RC genome='${GB:-none}' logged=$LOGGED (need >=$MIN_LOGGED)" >&2
+    echo "          see $OUT/train.log" >&2
+    exit 1
+fi
