@@ -22,6 +22,17 @@
 # ablation exists to separate. Everything below is byte-identical to
 # anvil_mse_pooled.sb except what the wide shape forces.
 #
+# SHARED, NOT WHOLENODE -- 32 ranks on wholenode took a whole 128-core node and used a
+# quarter of it, and wholenode bills all 128 regardless. Measured on the first production
+# run: ~10.5 h wall, so 128 x 10.5 = 1,344 SU per run against 672 on shared at the same
+# 32 ranks and the same wall-clock. Over 20 runs that is ~26,900 SU versus ~13,400.
+#
+# --mem-per-cpu=4G is what makes shared viable: its default is ~2 GB/core against a
+# measured 2.33 GB peak, so the default would OOM exactly as 128 ranks did. Anvil bills
+# memory as core-equivalents (4G / 2G per core = 2x), hence 64 billed cores rather than
+# 32 -- still half of wholenode. 4G also leaves headroom for growth: edges rose 15,000 ->
+# 16,009 (+6.7%) over the first 4,570 genomes, so peak RSS climbs slowly through a run.
+#
 # 32 RANKS, NOT 128, AND MEMORY IS WHY. A 128-rank attempt was OOM-killed
 # (StepId .0, task 51). Measured per-rank peak RSS on this panel is 2.33 GB, against a
 # wholenode node's 251 GB: 128 x 2.33 = 298 GB, so it could never have fit. The scaling
@@ -47,11 +58,11 @@
 
 
 #SBATCH --account=cis251123
-#SBATCH --partition=wholenode
+#SBATCH --partition=shared
 #SBATCH --nodes=1
-#SBATCH --exclusive
 #SBATCH --ntasks=32
 #SBATCH --cpus-per-task=1
+#SBATCH --mem-per-cpu=4G
 #SBATCH --time=24:00:00
 #SBATCH --job-name=mse_combined
 #SBATCH --array=0-9
