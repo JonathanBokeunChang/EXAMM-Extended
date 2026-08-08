@@ -232,6 +232,18 @@ int main(int argc, char** argv) {
     genome->get_weights(best_parameters);
     rnn->set_weights(best_parameters);
 
+    // PERSIST THE TRAINED NETWORK. Without this, train_rnn trains and then discards its work: it
+    // logs the errors and exits, leaving nothing on disk to run against the test split. That is why
+    // the fixed-architecture baselines (lstm/gru/mgu) could not be scored through the same pipeline
+    // as EXAMM. Writing the genome in the same format examm.cxx:422 uses lets evaluate_rnn read it
+    // unchanged, so a fixed-topology run and an evolved one are evaluated by identical code -- which
+    // is the whole point of comparing them.
+    if (output_directory != "") {
+        string genome_bin = output_directory + "/" + rnn_type + "_genome.bin";
+        genome->write_to_file(genome_bin);
+        Log::info("wrote trained genome to %s\n", genome_bin.c_str());
+    }
+
     Log::info("TRAINING ERRORS:\n");
     Log::info("MSE: %lf\n", genome->get_mse(best_parameters, training_inputs, training_outputs));
     Log::info("MAE: %lf\n", genome->get_mae(best_parameters, training_inputs, training_outputs));
