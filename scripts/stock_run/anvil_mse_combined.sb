@@ -22,10 +22,20 @@
 # ablation exists to separate. Everything below is byte-identical to
 # anvil_mse_pooled.sb except what the wide shape forces.
 #
-# COST: the minimal seed genome is 300x50 = 15,000 edges against pooled's handful,
-# and it grows from there. Measured ~672 core-hours per run (10k genomes, 3-4 days
-# on 8 cores, the professor's own figure) -- roughly 18x pooled PER GENOME. That is
-# why this runs on a whole node rather than 32 shared cores.
+# 32 RANKS, NOT 128, AND MEMORY IS WHY. A 128-rank attempt was OOM-killed
+# (StepId .0, task 51). Measured per-rank peak RSS on this panel is 2.33 GB, against a
+# wholenode node's 251 GB: 128 x 2.33 = 298 GB, so it could never have fit. The scaling
+# study ran 128 ranks on one node happily, but on the NARROW pooled panel whose genomes
+# are ~24 edges; combined's seed alone is 15,000, and EXAMM holds per-edge state at every
+# one of 3,542 timesteps for BPTT. 32 ranks leaves 7.8 GB each, which survives the growth
+# the 48-genome probe could not observe.
+#
+# COST IS THE OPEN QUESTION, not the memory. The probe implies 19.25 core-s/genome
+# (48 genomes, 7 workers, 132 s) -> ~53 core-hours for 10,000. The professor's own figure
+# for this construction is ~672 core-hours (10k genomes, 3-4 days on 8 cores). That 12x
+# spread is entirely how much the networks grow over a full search, which nothing yet run
+# has measured. At 32 ranks it means somewhere between 1.7 h and 22 h per run, hence
+# --time=24:00:00. RUN ONE AND READ THE WALL-CLOCK BEFORE SUBMITTING THE OTHER NINETEEN.
 #
 
 #
@@ -40,9 +50,9 @@
 #SBATCH --partition=wholenode
 #SBATCH --nodes=1
 #SBATCH --exclusive
-#SBATCH --ntasks=128
+#SBATCH --ntasks=32
 #SBATCH --cpus-per-task=1
-#SBATCH --time=16:00:00
+#SBATCH --time=24:00:00
 #SBATCH --job-name=mse_combined
 #SBATCH --array=0-9
 #SBATCH --output=slurm_logs/mcomb_%A_%a.out
@@ -206,14 +216,25 @@ RC=$?
 
 GB=$(ls "$OUT"/global_best_genome_*.bin 2>/dev/null \
      | sed 's/.*_\([0-9]*\)\.bin/\1 &/' | sort -rn | head -1 | cut -d' ' -f2-)
+# COUNT GENOMES ACTUALLY EVALUATED, NOT LINES IN THE LOG. The pooled script tests
+# `wc -l fitness_log.csv >= MAXG*9/10`, which works there only because pooled's tiny genomes
+# improve on almost every insertion -- 9,913 lines for 10,031 genomes, ~99%. EXAMM writes a line
+# per NEW BEST, and combined's 15,000-edge networks improve far less often: the 8-rank probe logged
+# 25 lines for 48 genomes, ~52%. At MAXG=10000 that guard would demand 9,000 lines against ~5,200
+# produced, so every SUCCESSFUL run would be marked FAILED and no .done written.
+#
+# fitness_log.csv's first column IS the inserted-genome count, so read the last row. That measures
+# the work done rather than how often it happened to improve, and it still catches the truncation
+# the guard exists for -- a run killed by a full quota stops at a low genome count.
+LAST_G=$(awk -F, '$1+0>0 {n=$1+0} END{print n+0}' "$OUT/fitness_log.csv" 2>/dev/null || echo 0)
 LOGGED=$(wc -l < "$OUT/fitness_log.csv" 2>/dev/null || echo 0)
-MIN_LOGGED=$(( MAXG * 9 / 10 ))
+MIN_G=$(( MAXG * 9 / 10 ))
 
-if [ $RC -eq 0 ] && [ -n "$GB" ] && [ -s "$GB" ] && [ "$LOGGED" -ge "$MIN_LOGGED" ]; then
+if [ $RC -eq 0 ] && [ -n "$GB" ] && [ -s "$GB" ] && [ "$LAST_G" -ge "$MIN_G" ]; then
     touch "$OUT/.done"
-    echo "[run $RUN] FINISHED  genome=$(basename "$GB")  genomes_logged=$LOGGED"
+    echo "[run $RUN] FINISHED  genome=$(basename "$GB")  genomes=$LAST_G  log_lines=$LOGGED"
 else
-    echo "[run $RUN] FAILED rc=$RC genome='${GB:-none}' logged=$LOGGED (need >=$MIN_LOGGED)" >&2
+    echo "[run $RUN] FAILED rc=$RC genome='${GB:-none}' genomes=$LAST_G (need >=$MIN_G) log_lines=$LOGGED" >&2
     echo "          see $OUT/train.log" >&2
     exit 1
 fi
