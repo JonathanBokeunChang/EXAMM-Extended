@@ -178,7 +178,12 @@ if "'TimeMixer':" not in s:
 ast.parse(s)                                       # must still be valid Python
 open(p, "w").write(s)
 assert already_imported(s), "import not present after patch"
-assert s.count("'TimeMixer': TimeMixer,") == 1, "duplicate model_dict entry"
+# Count WITHOUT the trailing comma. With it, this check fails on exactly the layout the substitution
+# above was just fixed to support -- the entry lands last and unterminated -- and because the write
+# happens first, it aborted a correctly-registered harness under `set -e` before the argparse flags
+# were added. That is the worst possible failure here: a half-installed model that imports fine and
+# then dies at launch on an unrecognised flag.
+assert s.count("'TimeMixer': TimeMixer") == 1, "duplicate model_dict entry"
 assert s.count("TimeMixer, TimeMixer") == 0, "duplicate import"
 print("    [ok]   model_dict entry added (import + registry, exactly once)")
 PY
