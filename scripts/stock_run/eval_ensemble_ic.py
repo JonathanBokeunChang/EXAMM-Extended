@@ -119,6 +119,20 @@ def main():
     # run_*/. Both are ensembled identically once the directory is located, so this takes a
     # subdirectory instead of assuming one -- pass "." for the flat layout. Defaults to the EXAMM
     # layout so every existing caller is unaffected.
+    # LEVEL SCREEN. A prediction-mean ensemble is a MEAN, so one run that converges to a
+    # pathological output level moves the whole ensemble by level/N -- and the paper's trading rule
+    # gates on SIGNS, so a shifted level closes the book entirely while leaving IC untouched.
+    # Measured on rnn_gru_set3_cohort_2022: nine runs sat at -0.003..+0.007, run_5 at -0.463, and
+    # the ensemble inherited -0.0458 (= -0.463/10) exactly. That took Algorithm 2 from 251 tradeable
+    # days to 0 while IC still read a healthy +0.0259.
+    #
+    # The threshold is expressed in units of the TARGET's own standard deviation, so it transfers
+    # across fields and universes without retuning. A run whose average prediction exceeds ten
+    # standard deviations of the thing it is predicting is broken under any reading; healthy runs
+    # here sit below 0.4. Screening is OFF by default so existing numbers are unchanged.
+    ap.add_argument("--max-level-sd", type=float, default=None, metavar="K",
+                    help="drop runs whose |mean prediction| exceeds K x the target's stdev "
+                         "(e.g. 10). Off by default.")
     ap.add_argument("--eval-subdir", default=None,
                     help='subdirectory under run_*/ holding the prediction CSVs '
                          '(default "eval_<split>"; pass "." for train_rnn\'s flat layout)')
@@ -164,6 +178,29 @@ def main():
             f"{empty}\n       evaluate_rnn failed for those genomes; fix that rather than "
             f"ensembling the remainder."
         )
+
+    # Apply the level screen BEFORE averaging. Runs are dropped whole, not per-stock: a run that
+    # diverged did so as a model, and keeping its "good" stocks would mix two different models into
+    # one ensemble member.
+    if args.max_level_sd is not None:
+        tgt_sd = _std([v for s_ in preds for v in expected[s_]], ddof=1)
+        limit = args.max_level_sd * tgt_sd
+        n_runs = max(len(v) for v in preds.values())
+        levels = []
+        for j in range(n_runs):
+            vals = [x for s_ in preds for x in (preds[s_][j] if j < len(preds[s_]) else [])]
+            levels.append(_mean(vals) if vals else 0.0)
+        drop = {j for j, lv in enumerate(levels) if abs(lv) > limit}
+        for j in sorted(drop):
+            print(f"  DROPPED {_run_label(eval_dirs[j])}: mean prediction {levels[j]:+.5f} "
+                  f"exceeds {args.max_level_sd}x target sd ({limit:.5f})")
+        if len(drop) == n_runs:
+            sys.exit("ERROR: the level screen would drop every run -- threshold is wrong, "
+                     "or this cell is uniformly degenerate. Refusing to emit an empty ensemble.")
+        if drop:
+            for s_ in preds:
+                preds[s_] = [p for j, p in enumerate(preds[s_]) if j not in drop]
+            print(f"  screened {len(drop)} of {n_runs} run(s); ensembling {n_runs - len(drop)}")
 
     stocks = sorted(preds)
     row_counts = set(nrows[s] for s in stocks)

@@ -23,6 +23,12 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO" || exit 1
 TYPES=${1:-"lstm gru"}
 SPLIT=${SPLIT:-test}
+# Drop runs whose average prediction exceeds K standard deviations of the target. One diverged run
+# shifts a prediction-MEAN ensemble by level/N, and because Algorithm 2 gates on signs that closes
+# the book completely while leaving IC untouched -- measured on set3/2022, where run_5 sat at -0.463
+# against nine runs in -0.003..+0.007 and took the cell from 251 tradeable days to 0.
+# Set MAX_LEVEL_SD= (empty) to reproduce the unscreened numbers.
+MAX_LEVEL_SD=${MAX_LEVEL_SD-10}
 OUT_TAR=${OUT_TAR:-$REPO/rnn_ensembles.tar.gz}
 
 CELLS=()
@@ -32,7 +38,7 @@ done
 CELLS+=( "dsA_cohort_2020_aligned" "dsA_cohort_2021_aligned" )
 
 SUMMARY="$REPO/rnn_campaign_ic.csv"
-echo "type,cell,runs,stocks,dates,mean_ic,ic_ir,hit_rate" > "$SUMMARY"
+echo "type,cell,runs,dropped,stocks,dates,mean_ic,ic_ir,hit_rate" > "$SUMMARY"
 
 ok=0; miss=0; fail=0
 for T in $TYPES; do
@@ -47,6 +53,7 @@ for T in $TYPES; do
     # CSVs straight into run_N/, where EXAMM's pipeline would have put them in run_N/eval_test/.
     python3 scripts/stock_run/eval_ensemble_ic.py \
       --run-root "$ROOT" --split "$SPLIT" --eval-subdir . \
+      ${MAX_LEVEL_SD:+--max-level-sd "$MAX_LEVEL_SD"} \
       --emit-dir "$ROOT/ensemble_${SPLIT}" > "$LOG" 2>&1
     rc=$?
     if [ $rc -ne 0 ]; then
@@ -59,8 +66,10 @@ for T in $TYPES; do
     ST=$(grep -oE 'universe      : [0-9]+' "$LOG" | awk '{print $NF}')
     DT=$(grep -oE 'dates         : [0-9]+' "$LOG" | awk '{print $NF}')
     RN=$(grep -oE 'runs ensembled: [0-9]+' "$LOG" | awk '{print $NF}')
-    printf '%s,%s,%s,%s,%s,%s,%s,%s\n' "$T" "$CELL" "${RN:-$n}" "$ST" "$DT" "$IC" "$IR" "$HR" >> "$SUMMARY"
-    printf '  %-4s %-26s %2s runs  IC %-10s IR %-8s hit %s\n' "$T" "$CELL" "${RN:-$n}" "$IC" "$IR" "$HR"
+    DR=$(grep -c '^  DROPPED ' "$LOG" 2>/dev/null || echo 0)
+    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s\n' "$T" "$CELL" "${RN:-$n}" "$DR" "$ST" "$DT" "$IC" "$IR" "$HR" >> "$SUMMARY"
+    printf '  %-4s %-26s %2s runs (%s dropped)  IC %-10s IR %-8s hit %s\n' "$T" "$CELL" "${RN:-$n}" "$DR" "$IC" "$IR" "$HR"
+    [ "$DR" -gt 0 ] && grep '^  DROPPED ' "$LOG" | sed 's/^/     /' 
     ok=$((ok+1)); rm -f "$LOG"
   done
 done
