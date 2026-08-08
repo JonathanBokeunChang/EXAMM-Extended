@@ -89,6 +89,19 @@ def read_pred(path, target_col):
     return h, exp, pred
 
 
+def _run_label(d):
+    """The run_* component of a prediction directory, whichever depth it sits at.
+
+    EXAMM gives run_7/eval_test, train_rnn gives run_7 -- a fixed index picks the wrong component
+    for one of them, and the failure is silent: every run gets the same label and the
+    zero-contribution guard below then names the wrong run as empty.
+    """
+    for part in reversed(os.path.normpath(d).split(os.sep)):
+        if part.startswith("run_"):
+            return part
+    return os.path.basename(d)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--run-root", required=True,
@@ -101,14 +114,29 @@ def main():
     ap.add_argument("--target-col", default="RET",
                     help="output parameter name (prediction CSV column suffix); "
                          "RET for the raw/IC arms, RET_CS for the z-score-MSE arm")
+    # EXAMM's pipeline evaluates genomes in a SEPARATE pass, so its predictions land in
+    # run_*/eval_<split>/. anvil_train_rnn.sb runs evaluate_rnn inline and writes them straight into
+    # run_*/. Both are ensembled identically once the directory is located, so this takes a
+    # subdirectory instead of assuming one -- pass "." for the flat layout. Defaults to the EXAMM
+    # layout so every existing caller is unaffected.
+    ap.add_argument("--eval-subdir", default=None,
+                    help='subdirectory under run_*/ holding the prediction CSVs '
+                         '(default "eval_<split>"; pass "." for train_rnn\'s flat layout)')
     args = ap.parse_args()
 
     suffix = f"_{args.split}_predictions.csv"
-    eval_dirs = sorted(glob.glob(os.path.join(args.run_root, "run_*", f"eval_{args.split}")))
+    sub = args.eval_subdir if args.eval_subdir is not None else f"eval_{args.split}"
+    eval_dirs = sorted(glob.glob(os.path.join(args.run_root, "run_*", sub)))
+    # A "." subdir globs to "run_N/." -- harmless for reading, but the old d.split("/")[-2] label
+    # would then read the CELL directory instead of the run, tagging all ten runs identically.
+    # Normalise, then pick the run_* component by name rather than by position, so the label is
+    # correct for both layouts.
+    eval_dirs = [os.path.normpath(d) for d in eval_dirs]
     if not eval_dirs:
-        sys.exit(f"ERROR: no run_*/eval_{args.split}/ under {args.run_root} "
-                 f"(run eval_ic_run.sh {args.run_root} {args.split} first)")
-    print(f"ensembling {len(eval_dirs)} run(s): {[d.split('/')[-2] for d in eval_dirs]}")
+        sys.exit(f"ERROR: no run_*/{sub}/ under {args.run_root} "
+                 f"(for EXAMM runs, run eval_ic_run.sh {args.run_root} {args.split} first; "
+                 f"for train_rnn runs, pass --eval-subdir .)")
+    print(f"ensembling {len(eval_dirs)} run(s): {[_run_label(d) for d in eval_dirs]}")
 
     # stock -> list of pred arrays (one per run); expected taken from first run
     preds = defaultdict(list)
@@ -129,7 +157,7 @@ def main():
     # stock for that genome. Averaging the survivors silently reports a confident-looking IC
     # off a fraction of the ensemble -- observed for real: 9 of 10 genomes contributed zero
     # and this printed "runs ensembled: 10, mean IC +0.000071". Refuse instead.
-    empty = [d.split("/")[-2] for d in eval_dirs if not glob.glob(os.path.join(d, f"*{suffix}"))]
+    empty = [_run_label(d) for d in eval_dirs if not glob.glob(os.path.join(d, f"*{suffix}"))]
     if empty:
         sys.exit(
             f"ERROR: {len(empty)} of {len(eval_dirs)} run(s) produced no predictions at all: "
