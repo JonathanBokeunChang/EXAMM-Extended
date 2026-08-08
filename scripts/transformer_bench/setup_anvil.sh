@@ -311,7 +311,10 @@ patch("src/exp/exp_basic.py", [
 ])
 print("### patches applied")
 
-# (10) add lradj 'type3', and make an unknown lradj fail loudly.
+# (10) add lradj 'type3' and 'constant', and make an unknown lradj fail loudly.
+#      'constant' (empty dict -> the epoch is never in lr_adjust, so the LR is never touched) is
+#      for the LSTM/GRU baselines: Lyu et al. specify Adam at a flat 1e-4 with no schedule, and
+#      every other option here decays. Without it the else branch below correctly refuses the run.
 #      PatchTST's published ETTh1/ETTh2 runs inherit lradj=type3 from run_longExp.py, but this
 #      harness implements only type1/type2/cosine AND has no else branch -- so --lradj type3 raised
 #      "UnboundLocalError: lr_adjust" several minutes into training instead of saying what was
@@ -322,9 +325,13 @@ patch("src/utils/tools.py", [
      "\\n\\2elif args.lradj == 'type3':\\n"
      "\\2    lr_adjust = {epoch: args.learning_rate if epoch < 3 else args.learning_rate * (0.9 ** ((epoch - 3) // 1))}\\1",
      "'type3'", "add lradj type3"),
+    (r"(\n(\s*)elif args\.lradj == \"cosine\":)",
+     "\\n\\2elif args.lradj == 'constant':\\n"
+     "\\2    lr_adjust = {}\\1",
+     "'constant'", "add lradj constant"),
     (r"(\n(\s*)if epoch in lr_adjust\.keys\(\):)",
      "\\n\\2else:\\n"
-     "\\2    raise ValueError('unknown --lradj ' + str(args.lradj) + '; supported: type1, type2, type3, cosine')\\1",
+     "\\2    raise ValueError('unknown --lradj ' + str(args.lradj) + '; supported: type1, type2, type3, constant, cosine')\\1",
      "unknown --lradj", "fail loudly on unknown lradj"),
 ])
 
