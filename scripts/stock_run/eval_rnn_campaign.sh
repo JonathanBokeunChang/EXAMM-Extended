@@ -66,7 +66,10 @@ for T in $TYPES; do
     ST=$(grep -oE 'universe      : [0-9]+' "$LOG" | awk '{print $NF}')
     DT=$(grep -oE 'dates         : [0-9]+' "$LOG" | awk '{print $NF}')
     RN=$(grep -oE 'runs ensembled: [0-9]+' "$LOG" | awk '{print $NF}')
-    DR=$(grep -c '^  DROPPED ' "$LOG" 2>/dev/null || echo 0)
+    # grep -c ALREADY prints 0 when it matches nothing; it just exits non-zero doing so. The
+    # `|| echo 0` that used to be here appended a SECOND zero, making DR the two-line string
+    # "0\n0" and breaking the [ -gt ] test below on every clean cell.
+    DR=$(grep -c '^  DROPPED ' "$LOG" 2>/dev/null); DR=${DR:-0}
     printf '%s,%s,%s,%s,%s,%s,%s,%s,%s\n' "$T" "$CELL" "${RN:-$n}" "$DR" "$ST" "$DT" "$IC" "$IR" "$HR" >> "$SUMMARY"
     printf '  %-4s %-26s %2s runs (%s dropped)  IC %-10s IR %-8s hit %s\n' "$T" "$CELL" "${RN:-$n}" "$DR" "$IC" "$IR" "$HR"
     [ "$DR" -gt 0 ] && grep '^  DROPPED ' "$LOG" | sed 's/^/     /' 
