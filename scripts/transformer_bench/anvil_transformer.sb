@@ -19,6 +19,17 @@
 #   sbatch --export=ALL,MODEL=DeformTime  --array=1-10 scripts/transformer_bench/anvil_transformer.sb
 #   sbatch --export=ALL,MODEL=PatchTST    --array=1-10 scripts/transformer_bench/anvil_transformer.sb
 #
+#   # 3. published-settings runs (each model at ITS OWN author configuration -- see PROFILE below).
+#   #    Writes to results/transformer_bench/author/<cohort>/<MODEL>/L<L>/, never beside the
+#   #    shared-protocol results, because the two are not comparable.
+#   #    NOTE PatchTSTOfficial, not PatchTST: the latter is the Time-Series-Library port bundled
+#   #    with the DeformTime repo, not the authors' code. Install it once with
+#   #    scripts/transformer_bench/install_patchtst_official.sh (setup_anvil.sh does this).
+#   sbatch --export=ALL,MODEL=PatchTSTOfficial,PROFILE=author,SEQ_LEN=96 \
+#          --array=1-10 scripts/transformer_bench/anvil_transformer.sb
+#   sbatch --export=ALL,MODEL=DeformTime,PROFILE=author,SEQ_LEN=96 \
+#          --array=1-10 scripts/transformer_bench/anvil_transformer.sb
+#
 # ACCOUNT: Anvil bills GPU against a SEPARATE allocation from CPU, named with a -gpu suffix. Our CPU
 # account is cis251123, so GPU jobs use cis251123-gpu. Confirm with `mybalance` -- if that line is
 # absent or has no hours, nothing below queues and the error is a cryptic account rejection.
@@ -42,6 +53,61 @@ SMOKE=${SMOKE:-0}
 SEED=${SLURM_ARRAY_TASK_ID:-1}
 COHORT=${COHORT:-cohort_2020_aligned}
 
+# PROFILE selects which hyperparameter regime the run uses.
+#   shared -- the matched protocol behind every published result in this repo: ONE capacity, batch,
+#             LR and schedule for every model, so that only --model and the tokenizer differ. This is
+#             what makes the cross-model comparison fair, and what 05-results.tex claims.
+#   author -- each model at ITS OWN published configuration, taken from the authors' released
+#             scripts. Easier to defend as "we ran their model the way they run it", but the models
+#             are then no longer matched to each other, so the two regimes answer different
+#             questions and their numbers must never be put in the same column.
+# Because they are not comparable, they must not share an output path -- see the OUT/MID block, which
+# inserts an /author segment. With PROFILE=shared every path below is byte-identical to what it was
+# before this flag existed, so all previously collected .done markers still skip correctly.
+PROFILE=${PROFILE:-shared}
+case "$PROFILE" in
+  shared|author) ;;
+  *) echo "ERROR: PROFILE must be 'shared' or 'author' (got '$PROFILE')" >&2; exit 1 ;;
+esac
+
+# VARIANT + per-run overrides. These exist to test DEVIATIONS from a model's published
+# configuration (e.g. Crossformer's own --baseline flag, or a schedule that actually trains) without
+# ever contaminating the pinned author results.
+#
+# THE GUARD BELOW IS THE POINT: setting any override without also setting VARIANT is refused. A
+# deviating run must land in its own tree, because a row labelled "authors' published settings" that
+# silently contains a modified run is the single most damaging error available here -- it is
+# invisible in the output and fatal to the claim.
+VARIANT=${VARIANT:-}
+CF_BASELINE=${CF_BASELINE:-}
+# A non-default CF_CONFIG AUTOMATICALLY gets its own tree. Both configs are legitimate published
+# settings, so neither is a "deviation" needing the guard below -- but they are different models and
+# must never share a results directory, so the variant tag is derived rather than left to the caller.
+CF_CONFIG=${CF_CONFIG:-etth1}
+# VARIANT_EXPLICIT records whether the CALLER named a variant, as opposed to one being derived from
+# CF_CONFIG below. The guard further down must test the caller's intent, not the derived value.
+VARIANT_EXPLICIT=$([ -n "$VARIANT" ] && echo 1 || echo 0)
+if [ "$CF_CONFIG" != "etth1" ] && [ -z "$VARIANT" ]; then VARIANT="cf${CF_CONFIG}"; fi
+EPOCHS_OVERRIDE=${EPOCHS_OVERRIDE:-}
+PATIENCE_OVERRIDE=${PATIENCE_OVERRIDE:-}
+# THE GUARD MUST KEY ON VARIANT_EXPLICIT, NOT VARIANT. It previously tested `-z "$VARIANT"`, which
+# the CF_CONFIG derivation three lines above had already filled in for any non-etth1 config. So
+# `CF_CONFIG=traffic CF_BASELINE=1` with no VARIANT sailed straight through and wrote a
+# baseline=1 run into var_cftraffic/ -- the PINNED baseline=0 tree -- under a byte-identical
+# model_id. That is precisely the "deviating run inside a published-settings tree" this guard
+# exists to prevent, and it was reachable by the single most likely command anyone would type.
+# Verified by DRY_RUN before the fix: OUT and MID were indistinguishable from a pinned run.
+if [ "$PROFILE" = "author" ] && [ "$VARIANT_EXPLICIT" = "0" ]; then
+  for v in CF_BASELINE CF_REVIN DATA_OVERRIDE EPOCHS_OVERRIDE PATIENCE_OVERRIDE LRADJ LR; do
+    if [ -n "${!v:-}" ]; then
+      echo "ERROR: $v is set but VARIANT is empty." >&2
+      echo "       Any deviation from the published configuration must be written to its own tree." >&2
+      echo "       Re-run with VARIANT=<short-label> (e.g. VARIANT=base1)." >&2
+      exit 1
+    fi
+  done
+fi
+
 REPO=$SLURM_SUBMIT_DIR
 TF_HARNESS=${TF_HARNESS:-$REPO/external/DeformTime}
 # The venv is normally on scratch, not in the repo: $HOME on Anvil is quota-limited (~25 GB) and the
@@ -50,7 +116,59 @@ if [ -z "${TF_ENV_DIR:-}" ] && [ -f "$REPO/external/.tfenv_path" ]; then
   TF_ENV_DIR=$(cat "$REPO/external/.tfenv_path")
 fi
 TF_ENV_DIR=${TF_ENV_DIR:-$REPO/external/tfenv}
-DATA=$REPO/datasets/walkforward/$COHORT
+
+# UNIVERSE selects WHICH walk-forward panel is trained on. Both panels are 50 stocks with the same
+# six fields, so nothing else in this script changes -- but they are different data and their
+# numbers belong in different tables.
+#   original    -- datasets/walkforward/<cohort>. The 50-stock universe behind every transformer
+#                  row currently in the paper.
+#   mid_highmid -- datasets/walkforward/mid_highmid_price/<set>/<cohort>. Dr Lyu's 200-ticker
+#                  mid/high-mid-cap replication panel, split into 4 RANDOM sets of 50; SET picks
+#                  one. Three cohorts per set (2020/2021/2022) against the original's two.
+#
+# BOTH UNIV_SEG AND UNIV_MID ARE EMPTY FOR `original`, deliberately: that keeps every output path
+# and every --model_id on the original universe byte-identical to what they were before this flag
+# existed, so all 140 already-collected .done markers still skip and nothing already published
+# moves. Verified by diffing DRY_RUN output across the change.
+UNIVERSE=${UNIVERSE:-original}
+SET=${SET:-}
+case "$UNIVERSE" in
+  original)
+    # Refuse rather than ignore: a SET typo'd onto an original-universe run would otherwise train
+    # the wrong panel into the published tree with no sign in the log that anything was wrong.
+    [ -z "$SET" ] || { echo "ERROR: SET is only meaningful with UNIVERSE=mid_highmid" >&2; exit 1; }
+    DATA=$REPO/datasets/walkforward/$COHORT
+    UNIV_SEG=""
+    UNIV_MID=""
+    ;;
+  mid_highmid)
+    [ -n "$SET" ] || { echo "ERROR: UNIVERSE=mid_highmid requires SET=set1|set2|set3|set4" >&2; exit 1; }
+    case "$SET" in
+      set1|set2|set3|set4) ;;
+      *) echo "ERROR: SET must be set1|set2|set3|set4 (got '$SET')" >&2; exit 1 ;;
+    esac
+    DATA=$REPO/datasets/walkforward/mid_highmid_price/$SET/$COHORT
+    UNIV_SEG="/mid_highmid/$SET"
+    # UNIV_MID IS LOAD-BEARING, not cosmetic. The harness writes every run into ONE shared
+    # $TF_HARNESS/results/ tree named by --model_id, and the collection glob below matches on it.
+    # The four sets reuse the same cohort names, so without a set tag in the model_id, set1 and
+    # set2 at the same cohort/seed would collide on that glob -- the second run would collect both
+    # directories and collect_predictions.py would abort on two pred.npy files.
+    UNIV_MID="${SET}_"
+    ;;
+  *) echo "ERROR: UNIVERSE must be 'original' or 'mid_highmid' (got '$UNIVERSE')" >&2; exit 1 ;;
+esac
+
+# DATA_OVERRIDE points the run at a DIFFERENT panel while keeping everything else -- guards,
+# collection glob, timing.json, the test-count check -- identical. It exists for preprocessing
+# ablations (e.g. a winsorised copy of a cell) that must not be mistaken for the pinned data.
+# It is in the deviation-guard list below, so it cannot be used without naming a VARIANT, and the
+# path is asserted to exist here rather than failing later inside the loader.
+DATA_OVERRIDE=${DATA_OVERRIDE:-}
+if [ -n "$DATA_OVERRIDE" ]; then
+  [ -d "$DATA_OVERRIDE" ] || { echo "ERROR: DATA_OVERRIDE='$DATA_OVERRIDE' is not a directory" >&2; exit 1; }
+  DATA="$DATA_OVERRIDE"
+fi
 
 # SMOKE must never write where a real seed writes, or a 2-epoch pred.npy sits at the path the
 # analysis script expects for seed 1.
@@ -61,14 +179,54 @@ TAG=$([ "$SMOKE" = "1" ] && echo "smoke" || echo "seed_${SEED}")
 # otherwise overwrite them in place -- same class of collision as SMOKE above, but silent and
 # unrecoverable (the originals are GPU runs we cannot cheaply reproduce). Default LR keeps the
 # original path exactly, so every existing .done still skips and nothing already collected moves.
-LR=${LR:-0.0005}
-if [ "$LR" = "0.0005" ]; then
-  OUT=$REPO/results/transformer_bench/$COHORT/${MODEL}/${TAG}
+# Under PROFILE=author the LR is per model (each paper tuned it jointly with its own batch size),
+# so it is left unset here and defaulted inside the author capacity block below. The author branch of
+# the OUT/MID block does not reference LR, so nothing reads it before then.
+if [ "$PROFILE" = "author" ]; then LR=${LR:-}; else LR=${LR:-0.0005}; fi
+# SEQ_LEN is the lookback. It is part of the output path for exactly the same reason LR is: the
+# published results are all L=20 and a longer-context probe would otherwise overwrite them.
+# WHY A LONGER L IS WORTH TESTING: at L=20 every tokenizer here runs far outside its designed
+# regime (see the tokenizer block below -- Crossformer gets 5 segments, PatchTST 9 patches, only
+# because we shrank seg_len/patch_len to make them function at all). A reviewer will reasonably ask
+# whether these architectures lose because of the venue rather than the data. Our own evidence says
+# context is NOT the binding constraint -- EXAMM restricted to a 20-step budget (k_seq20) scored
+# +0.0065 vs +0.0056 unrestricted on 12 powered cells, DLinear at L=20 beats EXAMM on IC, and the
+# failing transformers OVERFIT at epoch 1-2 rather than underfit -- but that argument is much
+# stronger as a measurement than as a claim.
+SEQ_LEN=${SEQ_LEN:-20}
+# MID (the --model_id) must ALSO carry the LR, not just OUT. The harness names its own output dir
+# "<model_id>_<model>_<data>_ft..._lr<LR>_..." inside the SHARED $TF_HARNESS/results/, and the
+# collection glob below matches on <model_id>. With the LR absent from model_id, a probe run's glob
+# also matched the ALREADY-PUBLISHED 5e-4 run of the same seed still sitting in that shared dir, so
+# BOTH were copied into OUT and collect_predictions.py aborted with "expected exactly one pred.npy"
+# (verified: every seed 1-4 of the first probe attempt failed exactly this way). The published tree
+# was never at risk -- it is only ever the copy SOURCE -- but the probe produced no predictions at
+# all. Putting the LR in model_id makes the harness dir, and therefore the glob, unambiguous.
+if [ "$PROFILE" = "author" ]; then
+  # Author-profile runs get their own tree, keyed by L. Capacity, batch, LR and schedule all differ
+  # from the shared protocol, so these results are NOT interchangeable with anything under the
+  # default or longctx trees and must never be collected into the same table column.
+  OUT=$REPO/results/transformer_bench${UNIV_SEG}/author${VARIANT:+/var_$VARIANT}/$COHORT/${MODEL}/L${SEQ_LEN}/${TAG}
+  MID="${MODEL}_author${VARIANT:+_$VARIANT}_L${SEQ_LEN}_${UNIV_MID}${COHORT}_${TAG}"
+elif [ "$LR" = "0.0005" ] && [ "$SEQ_LEN" = "20" ]; then
+  OUT=$REPO/results/transformer_bench${UNIV_SEG}/$COHORT/${MODEL}/${TAG}
+  MID="${MODEL}_L20_${UNIV_MID}${COHORT}_${TAG}"
+elif [ "$SEQ_LEN" != "20" ]; then
+  OUT=$REPO/results/transformer_bench${UNIV_SEG}/longctx/$COHORT/${MODEL}/L${SEQ_LEN}/${TAG}
+  MID="${MODEL}_L${SEQ_LEN}_${UNIV_MID}${COHORT}_${TAG}"
 else
   LRTAG=$(printf 'lr%s' "$LR" | tr -d '.')
-  OUT=$REPO/results/transformer_bench/lowlr/$COHORT/${MODEL}/${LRTAG}/${TAG}
+  OUT=$REPO/results/transformer_bench${UNIV_SEG}/lowlr/$COHORT/${MODEL}/${LRTAG}/${TAG}
+  MID="${MODEL}_L20_${UNIV_MID}${COHORT}_${LRTAG}_${TAG}"
 fi
 
+# DRY_RUN=1 builds every argument exactly as a real run would, prints the resulting command line and
+# output path, and exits before touching the environment, the data or the filesystem. It is the only
+# way to verify a settings change off the GPU box -- and, more to the point, to prove that a change
+# intended for one profile left the other profile's command line BYTE-IDENTICAL.
+DRY_RUN=${DRY_RUN:-0}
+
+if [ "$DRY_RUN" != "1" ]; then
 module --force purge
 # modtree/gpu is only meaningful on a GPU node. This job can also be submitted to a CPU partition to
 # validate the whole pipeline before GPU hours exist -- run.py:85 does
@@ -91,33 +249,370 @@ done
 
 mkdir -p "$OUT"
 if [ -f "$OUT/.done" ]; then echo "$TAG already complete -- skipping"; exit 0; fi
+fi   # end of the non-DRY_RUN environment/preflight section
 
-# ---- shared protocol. Identical for every model; this is what makes the comparison fair.
-# LR is set above (it feeds the output path). Do NOT reassign it here -- that is what made it
-# non-overridable before, so --export=ALL,LR=... was accepted and then silently discarded.
-EPOCHS=30; PATIENCE=5; BATCH=256
+# ---- training protocol and model capacity.
+#
+# CAPACITY, EXTRA (tokenizer), and the whole optimisation schedule -- batch, LR, epochs, patience,
+# lradj -- are set together, per model, because under PROFILE=author they are NOT separable. Each
+# paper tuned its schedule jointly with its architecture: PatchTST's 1e-4 was chosen at batch 128,
+# DeformTime's 1e-3 at batch 16. Imposing one shared schedule across the three would pair every
+# model's architecture with someone else's optimiser settings, which reproduces none of them.
+# PROFILE=shared keeps the single matched schedule; that is the other question, asked deliberately.
+if [ "$PROFILE" = "author" ]; then
+  case "$MODEL" in
+    PatchTSTOfficial)
+      # SOURCE: yuqinie98/PatchTST, PatchTST_supervised/scripts/PatchTST/etth1.sh
+      # (etth2.sh is byte-identical in every hyperparameter). This is the authors' SMALLEST
+      # configuration -- on the large low-noise datasets they use d_model 128 / d_ff 256, and drop
+      # dropout to 0.05. They shrink capacity and triple dropout specifically for ETTh1/h2, the
+      # small high-noise datasets, which is the regime daily stock returns sit in.
+      #
+      # Flags the authors' script does not pass fall back to run_longExp.py argparse defaults. The
+      # ones that bind here: lradj=type3, revin=1, affine=0, subtract_last=0, padding_patch=end.
+      #   revin/affine/subtract_last/individual/padding_patch/decomposition/kernel_size -- left
+      #                   unset, exactly as etth1.sh leaves them, so the authors' own argparse
+      #                   defaults apply (1/0/0/0/end/0/25). PatchTSTOfficial.py supplies those same
+      #                   defaults, so an unset flag reproduces their behaviour rather than
+      #                   inventing one.
+      #   attn_dropout -- deliberately NOT passed. The authors hardcode attn_dropout=0. in the Model
+      #                   signature and never read it from configs; passing it would fake a knob the
+      #                   published model does not have.
+      #   fc_dropout   -- passed at 0.3 as etth1.sh does, though it is inert upstream: it reaches
+      #                   only create_pretrain_head(), which is gated behind pretrain_head=False.
+      #                   Passed anyway so the command line matches their script literally.
+      #
+      # DELIBERATE DEVIATIONS FROM THE AUTHORS (all forced by this study, not preference):
+      #   seq_len  336 -> set by SEQ_LEN. 336 is infeasible: test borrows L-1 days from a ~251-day
+      #                   validation year, capping usable L at ~252.
+      #   pred_len  96 -> 1. This paper forecasts one day ahead.
+      #   enc_in     7 -> 6. Our field count (ETT has 7 channels).
+      #   patience 100 -> 20. The authors' default equals train_epochs, i.e. early stopping never
+      #                   fires and every run costs a full 100 epochs. These models overfit stock
+      #                   returns within a few epochs, so a real patience is required.
+      EPOCHS=100; PATIENCE=20; BATCH=128; LR=${LR:-0.0001}
+      CAPACITY=( --d_model 16 --n_heads 4 --d_ff 128 --dropout 0.3 --e_layers 3
+                 --fc_dropout 0.3 --head_dropout 0 )
+      EXTRA=( --patch_len 16 --stride 8 )
+      LRADJ=${LRADJ:-type3}   # authors' inherited default; TSLib implements it identically
+      ;;
+    DeformTime)
+      # SOURCE: this repo's own scripts/DeformTime/ETTh1.sh -- external/DeformTime IS the authors'
+      # repository, so unlike PatchTST/Crossformer the implementation here is already theirs.
+      #
+      # WHICH CONFIG. There is no single "ETTh1 setup": the authors tune PER HORIZON, and the four
+      # columns disagree sharply (d_model 32-64, lr 2e-4..1e-3, batch 16-64, patch_len 6-24,
+      # kernel 3-7). ETTh2 disagrees again. Our pred_len=1 is not among their horizons (96/192/336/
+      # 720), so no author configuration exists for it. We take the pred_len=96 column -- the
+      # nearest horizon, and the shortest. This ambiguity is inherent and belongs in the writeup:
+      # "the authors' setting" is simply not uniquely defined for a 1-step horizon.
+      #
+      #   ETTh1 pred_len 96: batch 16, d_model 32, lr 1e-3, n_reshape 24, patch_len 6, kernel 7
+      #
+      # CAPACITY CROSS-CHECK. Built at the authors' own shape (seq_len 336, pred_len 96, 7 channels)
+      # this config has 398,247 parameters against the 395,285 the DeformTime paper reports -- 0.75%
+      # apart, and the closest of all eight released ETTh columns. d_model 512, the figure printed in
+      # the Evostar comparison, yields 8,857,527, so that number is a typo rather than a variant.
+      #
+      # STRIDE. The authors never pass --stride, so upstream `args.stride = args.patch_len` (run.py)
+      # sets stride = patch_len and their patches are NON-OVERLAPPING. setup_anvil.sh patches that
+      # line out so --stride is honoured, which is right for the shared protocol but INVERTS the
+      # authors' behaviour here. Passing --stride 6 = --patch_len 6 restores it exactly.
+      #
+      # LRADJ. The authors do not pass --lradj either, so run.py's default `type1` applies: LR
+      # halves EVERY epoch, reaching ~1e-6 by epoch 10. Their 100-epoch budget with patience 5
+      # therefore terminates in the low teens in practice. That is their protocol, so it is what we
+      # run -- `cosine` would be our choice, not theirs.
+      #
+      # NON-DIFFERENCES, verified in the source rather than assumed:
+      #   layer_dropout -- authors pass 0, we default 0.6, and it does not matter: the flag appears
+      #                    only in run.py's setting-NAME string (hence `ld0.6` in directory names)
+      #                    and never reaches any model.
+      #   c_out         -- authors pass 7, we pass 1; DeformTime.py:27 assigns self.c_out and never
+      #                    uses it.
+      #
+      # DELIBERATE DEVIATIONS: seq_len 336 -> SEQ_LEN (data limit), pred_len 96 -> 1 (our horizon),
+      # enc_in 7 -> 6 (our field count). features MS and label_len 0 already match the authors.
+      EPOCHS=100; PATIENCE=5; BATCH=16; LR=${LR:-0.001}
+      CAPACITY=( --d_model 32 --n_heads 4 --dropout 0 --e_layers 2 --d_layers 2 )
+      EXTRA=( --n_reshape 24 --patch_len 6 --stride 6 --kernel 7 )
+      LRADJ=${LRADJ:-type1}
+      ;;
+    CrossformerOfficial)
+      # SOURCE: Thinklab-SJTU/Crossformer, scripts/ETTh1.sh. That script overrides only five flags
+      # (in_len, out_len, seg_len, learning_rate, itr); everything else comes from
+      # main_crossformer.py's argparse defaults, which is where the real configuration lives.
+      #
+      # WHICH COLUMN. Like DeformTime, the authors tune per horizon, in two groups:
+      #   out_len  24 /  48  ->  in_len 168, seg_len  6, lr 1e-4
+      #   out_len 168/336/720 -> in_len 720, seg_len 24, lr 1e-5
+      # Our horizon is 1, so we take the SHORT-horizon group -- nearest to a 1-step forecast, and
+      # its seg_len 6 keeps the authors' segment granularity at our shorter input.
+      #
+      # ARGPARSE DEFAULTS THAT BIND (main_crossformer.py):
+      #   win_size 2, factor 10, d_model 256, d_ff 512, n_heads 4, e_layers 3, dropout 0.2,
+      #   batch_size 32, train_epochs 20, patience 3, lradj type1, baseline False.
+      # NOTE these are NOT the Crossformer class's own signature defaults (d_model 512, d_ff 1024,
+      # n_heads 8, win_size 4) -- argparse overrides those, so the signature values never execute.
+      # Reading the class rather than the argparse layer is the easy way to get this wrong.
+      #
+      # DELIBERATE DEVIATIONS: in_len 168 -> SEQ_LEN (96; 168 is feasible for us but 96 is the
+      # chosen common input length), out_len 24 -> 1 (our horizon), data_dim 7 -> 6 (our fields).
+      # WHICH DATASET'S CONFIG -- selected by CF_CONFIG, and BOTH are the authors' own published
+      # scripts, not tuning by us.
+      #
+      #   etth1   (default)  scripts/ETTh1.sh out_len-24 column + argparse defaults.
+      #   traffic            scripts/Traffic.sh out_len-24 column + the same argparse defaults.
+      #
+      # WHY TRAFFIC IS WORTH RUNNING, stated so the choice is not mistaken for cherry-picking:
+      #   * its in_len is 96, which is EXACTLY this study's input length -- the ETTh1 column assumes
+      #     168, so that configuration forces a deviation this one does not.
+      #   * its lr is 1e-3, ten times ETTh1's. Under the shared lradj=type1 that puts Crossformer on
+      #     precisely DeformTime's learning-rate trajectory (1e-3 -> 7.8e-06 by epoch 8), and
+      #     DeformTime is the one model that trains adequately under type1 (13.6-14.0% dispersion).
+      #     At ETTh1's 1e-4 Crossformer reaches 7.8e-07 -- 10x below DeformTime, 76x below PatchTST
+      #     -- and collapses to 0.3-0.4% dispersion in all 10 seeds, never opening Algorithm 2's gate.
+      #   * it is far smaller: d_model 64 / d_ff 128 / n_heads 2 gives roughly 700K parameters
+      #     against ETTh1's 11.2M, a better-matched comparison against EXAMM's 55-77.
+      #
+      # BOTH are reported. The ETTh1 collapse is a finding, not a discarded run, and reporting only
+      # the configuration that behaves would be exactly the selection this comment exists to rule out.
+      case "${CF_CONFIG:-etth1}" in
+        traffic)
+          EPOCHS=${EPOCHS_OVERRIDE:-20}; PATIENCE=${PATIENCE_OVERRIDE:-3}; BATCH=32; LR=${LR:-0.001}
+          CAPACITY=( --d_model 64 --d_ff 128 --n_heads 2 --e_layers 3 --dropout 0.2
+                     --baseline ${CF_BASELINE:-0} )
+          EXTRA=( --seg_len 12 --win_size 2 )
+          ;;
+        etth1)
+          EPOCHS=${EPOCHS_OVERRIDE:-20}; PATIENCE=${PATIENCE_OVERRIDE:-3}; BATCH=32; LR=${LR:-0.0001}
+          CAPACITY=( --d_model 256 --d_ff 512 --n_heads 4 --e_layers 3 --dropout 0.2
+                     --baseline ${CF_BASELINE:-0} )
+          EXTRA=( --seg_len 6 --win_size 2 )
+          ;;
+        *) echo "ERROR: CF_CONFIG must be etth1 or traffic (got '${CF_CONFIG}')" >&2; exit 1 ;;
+      esac
+      # CF_REVIN=1 turns on per-instance normalisation inside the Crossformer ADAPTER
+      # (src/models/CrossformerOfficial.py) -- an ABLATION, not the authors' model. It exists
+      # because iTransformer (use_norm=1) and PatchTST (revin=1) both normalise per instance by
+      # their authors' defaults while Crossformer does not, and Crossformer is the only model here
+      # that degenerates to the unconditional mean. It is NOT --baseline: that adds the window mean
+      # to the OUTPUT while the network still sees un-normalised input, which lifts dispersion but
+      # destroys IC (dataset A: +0.0029 -> -0.0002).
+      #
+      # APPENDED ONLY WHEN SET, never as `--revin ${CF_REVIN:-0}`. Passing --revin 0 to the pinned
+      # runs would be behaviourally inert but would change their command line, breaking the
+      # byte-identity checks that let us prove published results are untouched. Unset means the flag
+      # never appears, exactly as before this option existed.
+      if [ -n "${CF_REVIN:-}" ]; then CAPACITY+=( --revin "$CF_REVIN" ); fi
+      LRADJ=${LRADJ:-type1}
+      ;;
+    ITransformerOfficial)
+      # SOURCE: thuml/iTransformer @c2426e68,
+      # scripts/multivariate_forecasting/ETT/iTransformer_ETTh1.sh (the seq_len-96/pred_len-96
+      # column, i.e. the shortest published horizon -- same selection rule used for the other two).
+      #
+      # THE ONE MODEL WITH NO LOOKBACK DEVIATION. Every published iTransformer script -- ETTh1,
+      # ETTm1, Traffic, Weather, ECL -- uses seq_len 96, which is exactly this study's input length.
+      # PatchTST and DeformTime publish only 336 and are therefore off-config on lookback here no
+      # matter what we do; Crossformer is on-config only under its Traffic script. iTransformer is
+      # on-config unconditionally, so it is the cleanest transformer comparison in the paper.
+      #
+      # THE SCRIPT SETS ONLY FOUR FLAGS: seq_len 96, e_layers 2, d_model 256, d_ff 256. Everything
+      # else comes from run.py's argparse defaults, which is where the rest of the configuration
+      # actually lives:
+      #   n_heads 8, d_layers 1, factor 1, dropout 0.1, activation gelu, embed timeF,
+      #   batch_size 32, train_epochs 10, patience 3, learning_rate 1e-4, lradj type1,
+      #   use_norm True, class_strategy 'projection'.
+      # NOTE d_model/d_ff 256 are the SCRIPT's values; the argparse defaults are 512/2048. Reading
+      # only run.py would give a model four times wider than the one the authors report for ETTh1.
+      #
+      # NOTE THE SHORT SCHEDULE: 10 epochs, patience 3 -- an order of magnitude below PatchTST's
+      # 100/20. That is the authors' own budget and is what we run.
+      #
+      # use_norm / class_strategy do not exist in this harness's argparse; install_itransformer_
+      # official.sh adds them with the authors' defaults. They are passed explicitly below so the
+      # run does not depend on that patch having been applied.
+      #
+      # ARCHITECTURAL NOTE, worth stating because it changes what enc_in means. iTransformer inverts
+      # the attention: it embeds each VARIATE's whole series as one token and attends across
+      # variates, not across time. seq_len becomes the embedding input WIDTH rather than the
+      # sequence length. Not a deviation -- it is the model's central idea -- but it does mean
+      # enc_in 6 (vs the authors' 7) changes the token COUNT here, where for every other model in
+      # this study it changes a channel width.
+      #
+      # THE TOKEN COUNT IS 10, NOT 6. DataEmbedding_inverted concatenates x_mark onto the variate
+      # axis, and stock_pooled_loader.py::_time_features always emits four calendar features, so the
+      # encoder sees 6 variate tokens + 4 covariate tokens; the projector output is then sliced
+      # [:, :, :N] back to the 6 real variates. Measured by hooking the embedding (10 with x_mark,
+      # 6 without), not inferred. Worth recording because "attention over six tokens" is the obvious
+      # and wrong reading of enc_in=6 for this architecture.
+      #
+      # --freq d (vs the authors' h) is therefore inert BOTH ways: DataEmbedding_inverted accepts
+      # embed_type and freq and uses neither (it builds only Linear(c_in, d_model)), and our loader
+      # emits its four features regardless of freq. It is still declared a study constraint below
+      # rather than a published default, because our data is daily and theirs is hourly.
+      #
+      # DELIBERATE DEVIATIONS: pred_len 96 -> 1 (our horizon), enc_in/dec_in 7 -> 6 (our field
+      # count), features M -> MS (we forecast one target, not all channels), c_out -> 1.
+      # seq_len needs no deviation: 96 is the authors' own.
+      # --factor IS DELIBERATELY ABSENT, and the reason matters. The authors' default is factor 1,
+      # but COMMON below appends `--factor 10` AFTER "${CAPACITY[@]}", so argparse would take 10 and
+      # the "### capacity:" line would print 1 -- a log that disagrees with the run. Rather than
+      # print a value that does not bind, we omit it and record why it is harmless: iTransformer
+      # instantiates FullAttention, whose __init__ accepts `factor` and never assigns it to self
+      # (verified in src/layers/SelfAttention_Family.py -- it appears once, in the signature, and
+      # nowhere in forward). factor only ever binds for ProbAttention, which this model never
+      # constructs. So factor 1 vs 10 is not a deviation from the authors; it is inert either way.
+      EPOCHS=${EPOCHS_OVERRIDE:-10}; PATIENCE=${PATIENCE_OVERRIDE:-3}; BATCH=32; LR=${LR:-0.0001}
+      CAPACITY=( --d_model 256 --d_ff 256 --e_layers 2 --n_heads 8 --d_layers 1
+                 --dropout 0.1 --activation gelu --embed timeF
+                 --use_norm 1 --class_strategy projection )
+      EXTRA=()
+      LRADJ=${LRADJ:-type1}
+      ;;
+    DLinearOfficial)
+      # SOURCE: cure-lab/LTSF-Linear @0c113668,
+      # scripts/EXP-LookBackWindow/Linear_DiffWindow.sh -- the authors' OWN look-back sweep.
+      #
+      # THE ONLY OTHER MODEL WITH NO LOOKBACK DEVIATION. That sweep includes a seq_len 96 arm
+      # (ETTh1), so like iTransformer -- and unlike PatchTST and DeformTime, which publish only
+      # 336 -- DLinear is on-config at this study's protocol length. Its published line is
+      #     --seq_len 96 --batch_size 8      (learning_rate UNSET)
+      # so lr falls through to run_longExp.py's argparse default of 1e-4, as do
+      #     train_epochs 10 | patience 3 | moving_avg 25 | individual False | lradj type1
+      #
+      # BATCH 8 IS THE AUTHORS' AND IS KEPT. It is the smallest batch in this study (DeformTime
+      # 16, Crossformer/iTransformer 32, PatchTST 128) and it makes DLinear slow per epoch
+      # despite having 42 parameters -- ~4x the steps of DeformTime per pass. That is their
+      # setting at their published lookback, so it stands; it is not a knob we tuned.
+      #
+      # --moving_avg 25 IS PASSED EXPLICITLY even though it is also the argparse default,
+      # because the authors HARDCODE 25 inside their model file while the harness port reads
+      # configs.moving_avg. Passing it makes the two agree by construction rather than by
+      # coincidence, which is what install_dlinear_official.sh's difference (2) is about.
+      #
+      # MODEL=DLinearOfficial, NOT DLinear: src/models/DLinear.py is a modified port whose
+      # constant weight-init lines are UNCOMMENTED -- the authors leave them commented out as a
+      # visualisation aid and train from random init. With 10 epochs and patience 3 the run stops
+      # far short of the convex optimum, so the starting point still shows in the result, and an
+      # identical init also makes a 10-seed "ensemble" far less diverse than it appears. See the
+      # refusal below.
+      #
+      # DELIBERATE DEVIATIONS: pred_len 96 -> 1 (our horizon), enc_in 7 -> 6 (our field count),
+      # features M -> MS. seq_len needs none: 96 is the authors' own.
+      EPOCHS=${EPOCHS_OVERRIDE:-10}; PATIENCE=${PATIENCE_OVERRIDE:-3}; BATCH=8; LR=${LR:-0.0001}
+      CAPACITY=( --moving_avg 25 )
+      EXTRA=()
+      LRADJ=${LRADJ:-type1}
+      ;;
+    LSTMBaseline|GRUBaseline)
+      # THE RECURRENT BASELINES. These are the models EXAMM is really competing with: at d_model 32
+      # a GRU is 3,873 parameters and an LSTM 5,153, against EXAMM's 55-77 and PatchTST's 16,836.
+      # Every other baseline here is 10^2-10^4 x EXAMM, which tests "small beats big" but never
+      # "evolved beats hand-designed at comparable size". These do.
+      #
+      # NO AUTHORS' CONFIGURATION EXISTS AND THAT MUST BE REPORTED, NOT GLOSSED. A plain LSTM has
+      # no upstream paper or released script in this comparison, so unlike every transformer row
+      # these hyperparameters are OUR choice. They are fixed a priori -- hidden 32 follows this
+      # project's own earlier volatility work (LSTM32/GRU32), and the schedule copies the majority
+      # convention among the baselines here (type1, early stopping) rather than being tuned. None
+      # of it was selected against test data. State this asymmetry in the paper.
+      #
+      # INSTANCE NORMALISATION ON (--use_norm 1, iTransformer's scheme; see RNNBaseline.py).
+      # Crossformer, the one model here without it, collapsed on this universe because the global
+      # max-based scaler's denominator is set by single crisis-day returns. Leaving the RNNs
+      # unprotected would risk reproducing that failure and would make them a weaker baseline than
+      # they should be -- the opposite of what a fair comparison needs.
+      EPOCHS=${EPOCHS_OVERRIDE:-50}; PATIENCE=${PATIENCE_OVERRIDE:-10}; BATCH=${BATCH:-32}
+      LR=${LR:-0.001}
+      CAPACITY=( --d_model 32 --e_layers 1 --dropout 0 --use_norm 1 )
+      EXTRA=()
+      LRADJ=${LRADJ:-type1}
+      ;;
+    DLinear)
+      # src/models/DLinear.py is a MODIFIED port, not the authors' file: it trains every seed from
+      # an identical constant init that the authors ship commented out. Running it under an
+      # "author" label would misattribute a training difference that changes results at this epoch
+      # budget. Refuse, exactly as for PatchTST/Crossformer/iTransformer.
+      echo "ERROR: MODEL=DLinear is this harness's modified port, not the authors' code." >&2
+      echo "       For PROFILE=author use MODEL=DLinearOfficial (installed by" >&2
+      echo "       scripts/transformer_bench/install_dlinear_official.sh from cure-lab/LTSF-Linear)." >&2
+      echo "       MODEL=DLinear remains correct for PROFILE=shared, which is what the existing" >&2
+      echo "       120 mid_highmid DLinear runs used." >&2
+      exit 1 ;;
+    iTransformer)
+      # src/models/iTransformer.py is a faithful port, but it hardcodes the Non-stationary
+      # normalization ON instead of reading configs.use_norm, drops class_strategy, and omits the
+      # output_attention return path. At the published defaults it computes the same function --
+      # but "equivalent at today's defaults" is not "the authors' code", and only one of those is
+      # citable. Refuse under PROFILE=author for the same reason as PatchTST and Crossformer.
+      echo "ERROR: MODEL=iTransformer is this harness's port, not the authors' code." >&2
+      echo "       For PROFILE=author use MODEL=ITransformerOfficial (installed by" >&2
+      echo "       scripts/transformer_bench/install_itransformer_official.sh from thuml/iTransformer)." >&2
+      echo "       MODEL=iTransformer remains correct for PROFILE=shared." >&2
+      exit 1 ;;
+    Crossformer)
+      echo "ERROR: MODEL=Crossformer is the Time-Series-Library reimplementation, not the authors' code." >&2
+      echo "       For PROFILE=author use MODEL=CrossformerOfficial (installed by" >&2
+      echo "       scripts/transformer_bench/install_crossformer_official.sh)." >&2
+      echo "       MODEL=Crossformer remains correct for PROFILE=shared." >&2
+      exit 1 ;;
+    PatchTST)
+      # src/models/PatchTST.py is the Time-Series-Library REIMPLEMENTATION (LayerNorm instead of the
+      # authors' BatchNorm, no residual-attention path). Running it under an "author" label would be
+      # precisely the mislabelling this profile exists to prevent, so refuse and name the alternative.
+      echo "ERROR: MODEL=PatchTST is the Time-Series-Library reimplementation, not the authors' code." >&2
+      echo "       For PROFILE=author use MODEL=PatchTSTOfficial (installed by" >&2
+      echo "       scripts/transformer_bench/install_patchtst_official.sh from yuqinie98/PatchTST)." >&2
+      echo "       MODEL=PatchTST remains correct for PROFILE=shared, which is what every" >&2
+      echo "       already-published PatchTST row in the paper used." >&2
+      exit 1 ;;
+    *)
+      # Falling back to the shared capacity here would silently produce a shared-protocol run
+      # sitting in the author tree, labelled as though it used published settings. Fail instead.
+      echo "ERROR: PROFILE=author has no pinned configuration for MODEL=$MODEL." >&2
+      echo "       Pinned: PatchTSTOfficial, CrossformerOfficial, ITransformerOfficial, DeformTime, DLinearOfficial." >&2
+      exit 1 ;;
+  esac
+else
+  EPOCHS=30; PATIENCE=5; BATCH=256
+  CAPACITY=( --d_model 64 --n_heads 4 --d_ff 128 --dropout 0.1 --e_layers 2 --d_layers 1 )
+fi
+# Dataloader workers. 4 is right on Linux/Anvil (fork start method: workers are cheap). On macOS the
+# default start method is SPAWN, so every worker re-imports the harness and re-pickles the dataset
+# once per epoch -- measured 31 s/epoch for DLinear at 4 workers versus 0.9 s/epoch at 0, a 34x
+# penalty with no benefit for a model this small. It also makes local runs non-comparable to the
+# earlier DLinear results, which were produced by run_dlinear_local.sh at num_workers 0. Override
+# with NUM_WORKERS=0 when running locally. (The harness has a module-level print in
+# src/utils/functions.py that emits "23" on import -- seeing it many times in a log is the
+# tell-tale that workers are respawning.)
+NUM_WORKERS=${NUM_WORKERS:-4}
 # A learning-rate probe needs more epochs than the shared protocol: at 1e-5 the model is still
 # descending well past epoch 30, so a 30-epoch cap would confound "lower LR does not help" with
 # "we stopped it early". Patience still governs when it actually halts.
-if [ "$LR" != "0.0005" ]; then EPOCHS=${EPOCHS_OVERRIDE:-60}; fi
+# PROFILE=author is excluded: its LR is the authors' 1e-4, which is "not 5e-4" only incidentally, and
+# letting this fire would silently cap the authors' 100-epoch budget at 60 while the log still
+# claimed author settings.
+if [ "$PROFILE" != "author" ] && [ "$LR" != "0.0005" ]; then EPOCHS=${EPOCHS_OVERRIDE:-60}; fi
 if [ "$SMOKE" = "1" ]; then EPOCHS=2; PATIENCE=1; echo "### SMOKE RUN: $EPOCHS epochs"; fi
 
 # lradj: NOT type1. tools.py:15 implements type1 as lr * 0.5**((epoch-1)//1) -- a halving EVERY
 # epoch, so 5e-4 reaches 5e-7 by epoch 11 and ~5e-10 by epoch 21. A 30-epoch budget would be
 # fiction, --patience 5 would never bind, and the ranking would favour whichever model converges
 # fastest rather than whichever fits best. `cosine` decays over train_epochs as intended.
+# (PROFILE=author sets its own LRADJ above, from the authors' script; this is the shared default.)
 LRADJ=${LRADJ:-cosine}
 
 COMMON=(
-  --is_training 1 --model "$MODEL" --model_id "${MODEL}_L20_${COHORT}_${TAG}"
+  --is_training 1 --model "$MODEL" --model_id "$MID"
   --data stock_pooled --root_path "$DATA" --data_path unused
   --features MS --target RET --freq d
-  --seq_len 20 --label_len 0 --pred_len 1
+  --seq_len "$SEQ_LEN" --label_len 0 --pred_len 1
   --enc_in 6 --dec_in 6 --c_out 1
-  --d_model 64 --n_heads 4 --d_ff 128 --dropout 0.1
-  --e_layers 2 --d_layers 1 --factor 10
+  "${CAPACITY[@]}" --factor 10
   --batch_size "$BATCH" --learning_rate "$LR" --train_epochs "$EPOCHS" --patience "$PATIENCE"
-  --loss MSE --lradj "$LRADJ" --itr 1 --des pooled --num_workers 4
+  --loss MSE --lradj "$LRADJ" --itr 1 --des pooled --num_workers "$NUM_WORKERS"
   --use_gpu True --gpu 0 --checkpoints "$OUT/checkpoints"
 )
 
@@ -130,16 +625,50 @@ COMMON=(
 # Scaling them is not tuning; it is the minimum for each model to function at this L. Both the
 # Crossformer and PatchTST values only take effect because setup_anvil.sh patches their hardcoded
 # defaults -- upstream, these flags are inert.
-case "$MODEL" in
-  Crossformer) EXTRA=( --seg_len 4 --win_size 2 ) ;;
-  DeformTime)  EXTRA=( --n_reshape 4 --patch_len 4 --stride 2 --kernel 3 ) ;;
-  PatchTST)    EXTRA=( --patch_len 4 --stride 2 ) ;;
-  *)           EXTRA=() ;;
-esac
+# At a LONGER L the rescaling above must be undone, or the probe answers the wrong question: 24
+# length-4 patches over a 96-step window is not "PatchTST with more context", it is the same
+# crippled tokenizer fed more tokens. These are the upstream defaults, which is the entire point --
+# at L=96 each model finally runs in the regime its paper describes (Crossformer 8 segments,
+# PatchTST 11 patches).
+if [ "$PROFILE" = "author" ]; then
+  : # EXTRA was set per model in the author block above, from that model's own released script.
+elif [ "$SEQ_LEN" -ge 64 ]; then
+  case "$MODEL" in
+    Crossformer) EXTRA=( --seg_len 12 --win_size 2 ) ;;
+    DeformTime)  EXTRA=( --n_reshape 16 --patch_len 16 --stride 8 --kernel 6 ) ;;
+    PatchTST|PatchTSTOfficial) EXTRA=( --patch_len 16 --stride 8 ) ;;
+    *)           EXTRA=() ;;
+  esac
+else
+  case "$MODEL" in
+    Crossformer) EXTRA=( --seg_len 4 --win_size 2 ) ;;
+    DeformTime)  EXTRA=( --n_reshape 4 --patch_len 4 --stride 2 --kernel 3 ) ;;
+    PatchTST|PatchTSTOfficial) EXTRA=( --patch_len 4 --stride 2 ) ;;
+    *)           EXTRA=() ;;
+  esac
+fi
 
-echo "### $MODEL | cohort $COHORT | $TAG | L=20 h=1 | pooled 50 stocks | lradj $LRADJ"
+echo "### $MODEL | universe $UNIVERSE${SET:+/$SET} | cohort $COHORT | $TAG | profile=$PROFILE | L=$SEQ_LEN h=1 | pooled 50 stocks"
+echo "### capacity: ${CAPACITY[*]}"
+echo "### schedule: lr $LR | batch $BATCH | epochs $EPOCHS | patience $PATIENCE | lradj $LRADJ"
 echo "### tokenizer: ${EXTRA[*]:-none}"
-nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || true
+if [ "$DRY_RUN" = "1" ]; then
+  echo "### OUT=$OUT"
+  echo "### MID=$MID"
+  echo -n "### cmd:"
+  printf ' %s' run.py "${COMMON[@]}" ${EXTRA[@]+"${EXTRA[@]}"}
+  echo
+  exit 0
+fi
+
+# CAPTURE the card rather than just printing it. This line used to write straight to the job's
+# stdout, which is not $OUT/train.log and was never retained -- so for the entire original-universe
+# campaign there is now no record anywhere of which GPU produced the numbers, and it cannot be
+# recovered. Step times cannot substitute: runs were up to 9-way concurrent, so per-process timing
+# reflects contention as much as the hardware. Recorded into timing.json below.
+GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)
+GPU_MEM=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader 2>/dev/null | head -1)
+echo "### gpu: ${GPU_NAME:-unknown} | ${GPU_MEM:-unknown} | CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-unset} | host $(hostname)"
 
 cd "$TF_HARNESS"
 export RUN_SEED=$SEED
@@ -153,10 +682,40 @@ grep -q "RUN_SEED" run.py \
   || { echo "ERROR: run.py unpatched -- all 10 seeds would be identical. Run setup_anvil.sh" >&2; exit 1; }
 grep -q "^\s*#\s*args\.stride = args\.patch_len" run.py \
   || { echo "ERROR: run.py:82 still overwrites --stride. Run setup_anvil.sh" >&2; exit 1; }
+# Third silent-corruption guard, and the reason it must exist: if run.py accepts --attn_dropout but
+# src/models/PatchTST.py still hardwires configs.dropout, argparse takes the flag WITHOUT ERROR and
+# the model ignores it. The run would over-regularize at 0.3 on attention and on the prediction head
+# while the log, the path and the model_id all say "author". Fail loudly instead.
+if [ "$MODEL" = "PatchTSTOfficial" ]; then
+  [ -f src/models/PatchTSTOfficial.py ] && [ -f src/layers/PatchTST_backbone.py ] \
+    || { echo "ERROR: the authors' PatchTST is not installed in this harness." >&2
+         echo "       Run scripts/transformer_bench/install_patchtst_official.sh" >&2; exit 1; }
+fi
+if [ "$MODEL" = "CrossformerOfficial" ]; then
+  [ -f src/models/CrossformerOfficial.py ] && [ -f src/models/_crossformer_official/cross_former.py ] \
+    || { echo "ERROR: the authors' Crossformer is not installed in this harness." >&2
+         echo "       Run scripts/transformer_bench/install_crossformer_official.sh" >&2; exit 1; }
+fi
+if [ "$MODEL" = "ITransformerOfficial" ]; then
+  [ -f src/models/ITransformerOfficial.py ] \
+    || { echo "ERROR: the authors' iTransformer is not installed in this harness." >&2
+         echo "       Run scripts/transformer_bench/install_itransformer_official.sh" >&2; exit 1; }
+  # Unlike the other two, this model imports layers it does not ship, so --use_norm reaching the
+  # model is not guaranteed by the file existing. If run.py lacks the flag, argparse REJECTS it and
+  # the run dies; if run.py has it but a stale ITransformerOfficial.py ignores it, the run silently
+  # trains with normalization hardcoded on. Assert both halves.
+  grep -q -- "--use_norm'" run.py \
+    || { echo "ERROR: run.py has no --use_norm; re-run install_itransformer_official.sh" >&2; exit 1; }
+  grep -q "configs.use_norm" src/models/ITransformerOfficial.py \
+    || { echo "ERROR: ITransformerOfficial.py ignores configs.use_norm -- it is not the authors'" >&2
+         echo "       file. Re-run install_itransformer_official.sh" >&2; exit 1; }
+fi
 
+train_t0=$SECONDS
 "$PY" run.py "${COMMON[@]}" ${EXTRA[@]+"${EXTRA[@]}"} 2>&1 | tee "$OUT/train.log"
 rc=${PIPESTATUS[0]}
 [ "$rc" = "0" ] || { echo "ERROR: $TAG failed rc=$rc" >&2; exit 1; }
+run_sec=$(( SECONDS - train_t0 ))
 
 # ---- collect. exp_MTS_forecasting.py:248 hardcodes './results/' and CWD is the SHARED $TF_HARNESS, so all
 # array tasks write into one tree. Copy only this task's setting dir -- a blanket `cp -r results/*`
@@ -168,18 +727,86 @@ rc=${PIPESTATUS[0]}
 # 10's directory as well. Observed format, for reference:
 #   E2E_L20_smoke_DeformTime_stock_pooled_ftMS_sl20_ll0_pl1_dm64_nh4_el2_d0.1_ld0.6_lr0.0005_e2e_0
 found=0
-for d in results/"${MODEL}_L20_${COHORT}_${TAG}_${MODEL}_stock_pooled_"*; do
+for d in results/"${MID}_${MODEL}_stock_pooled_"*; do
   [ -d "$d" ] || continue
   cp -r "$d" "$OUT/" && found=1
 done
 [ "$found" = "1" ] || { echo "ERROR: no results dir matching ${TAG}" >&2; exit 1; }
 
-# expected test samples = 50 stocks x (test_rows - seq_len - pred_len + 1)
+# Expected test samples, derived rather than assumed. stock_pooled_loader borrows
+# ctx = seq_len - pred_len rows of lookback from the PREVIOUS split, so per stock:
+#   rows available = test_rows + (seq_len - pred_len)
+#   windows        = rows_available - seq_len - pred_len + 1 = test_rows - pred_len
+# The seq_len terms cancel: the count is INDEPENDENT of L. That cancellation is the whole point of
+# the lookback-borrowing fix (every L scores the identical set of target days), so this check is
+# also the cheapest end-to-end test that the fix is still in force.
+#
+# This previously read `50 * (tr - 20)`, hardcoding L=20 and predating the fix. It understated the
+# count by 950 (24,050 vs the true 25,000) and so fired on EVERY run, at both L=20 and L=96 -- into
+# the job's stdout rather than train.log, which is why nobody saw it. A guard that always fires is
+# strictly worse than no guard, so this is now exact and fatal: at this point a mismatch means the
+# loader's windowing changed underneath us, and the predictions would not line up with EXAMM's rows.
+PRED_LEN=1
 tr=$(( $(wc -l < "$(ls "$DATA"/*_test.csv | head -1)") - 1 ))
-want=$(( 50 * (tr - 20) ))
+want=$(( 50 * (tr - PRED_LEN) ))
 got=$(( $(wc -l < "$OUT/test_index.csv") - 1 ))
-[ "$got" -eq "$want" ] || echo "WARN: expected $want test samples for $COHORT, got $got"
+[ "$got" -eq "$want" ] || {
+  echo "ERROR: test sample count mismatch for $COHORT at L=$SEQ_LEN: expected $want, got $got." >&2
+  echo "       Windowing should be L-independent; check the lookback borrowing in" >&2
+  echo "       scripts/transformer_bench/stock_pooled_loader.py before trusting any output." >&2
+  exit 1
+}
 
 "$PY" "$REPO/scripts/transformer_bench/collect_predictions.py" --run-dir "$OUT" || exit 1
+
+# ---- TIMING RECORD, written before .done and REQUIRED for it.
+#
+# WHY THIS EXISTS. Per-epoch cost is written in exactly one place, train.log, and on this project
+# that file has already been lost once: the ITransformerOfficial and CrossformerOfficial-traffic
+# runs on the original universe were pruned down to predictions.csv + .done, which destroyed every
+# epoch time for 40 of 100 author runs. Nothing detected it, because .done was already there and
+# said the run had succeeded. Half the cost model for this campaign is guesswork as a direct result,
+# and the only way to recover those numbers is to retrain.
+#
+# A ~300-byte timing.json survives the kind of selective copy that drops a 79 KB log, so the
+# measurement no longer depends on train.log outliving the campaign. Emitting it BEFORE .done also
+# turns a missing/empty log into a hard failure at the moment it happens, rather than a silent gap
+# discovered weeks later: a run that cannot prove how long it took is not a complete run.
+"$PY" - "$OUT" "$MODEL" "$UNIVERSE" "${SET:-}" "$COHORT" "$SEED" "$SEQ_LEN" "$PROFILE" \
+      "${VARIANT:-}" "${CF_CONFIG:-}" "$BATCH" "$run_sec" "$NUM_WORKERS" \
+      "${GPU_NAME:-unknown}" "${GPU_MEM:-unknown}" "${CUDA_VISIBLE_DEVICES:-unset}" "$(hostname)" \
+      <<'PYEOF' || exit 1
+import json, os, re, sys
+(out, model, univ, st, coh, seed, L, prof, var, cfg, batch, wall, workers,
+ gpu, gpumem, cvd, host) = sys.argv[1:18]
+p = os.path.join(out, "train.log")
+try:
+    log = open(p, errors="ignore").read()
+except OSError as e:
+    sys.exit("ERROR: cannot read %s (%s)" % (p, e))
+ep = [float(x) for x in re.findall(r"Epoch: \d+ cost time: ([\d.]+)", log)]
+if not ep:
+    sys.exit("ERROR: no 'Epoch: N cost time:' lines in %s -- refusing to mark this run complete.\n"
+             "       Without them the run's cost is unmeasurable and cannot be reconstructed." % p)
+json.dump({
+    "model": model, "variant": var or None, "cf_config": cfg or None,
+    "universe": univ, "set": st or None, "cohort": coh, "seed": int(seed),
+    "seq_len": int(L), "profile": prof, "batch_size": int(batch),
+    # num_workers changes NO result -- it is dataloader parallelism only -- but it DOES change
+    # wall_sec and per-epoch time, and this project ran some arms at 2 and others at 4. Recording
+    # it makes timing comparable after the fact instead of depending on recalling the launch line.
+    "num_workers": int(workers),
+    "epochs": len(ep), "epoch_sec": [round(e, 2) for e in ep],
+    "train_sec": round(sum(ep), 1),          # summed epoch time: comparable across cards
+    "wall_sec": int(wall),                   # includes data construction, val, test inference
+    # HARDWARE. Without these a step time is uninterpretable -- it is a property of the card AND of
+    # how many other runs shared it. host + visible-device + finish time is enough to reconstruct
+    # concurrency across a campaign after the fact, which is exactly what could not be done for the
+    # original universe.
+    "gpu": gpu, "gpu_mem": gpumem, "cuda_visible_devices": cvd, "host": host,
+}, open(os.path.join(out, "timing.json"), "w"), indent=1)
+print("### timing: %d epochs, %.0fs training, %ss wall on %s" % (len(ep), sum(ep), wall, gpu))
+PYEOF
+
 echo "### $TAG done | $got predictions in raw RET units -> $OUT/predictions.csv"
 [ "$SMOKE" = "1" ] || touch "$OUT/.done"

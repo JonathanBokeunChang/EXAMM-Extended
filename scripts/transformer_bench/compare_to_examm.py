@@ -49,10 +49,16 @@ sys.path.insert(0, os.path.join(REPO, "scripts", "vol_baselines"))
 from ic_stats import daily_ic, paired, report  # noqa: E402
 
 SEQ_LEN = 20          # must match the transformer protocol
-EXAMM_DROP = SEQ_LEN - 1
+EXAMM_DROP_DEFAULT = SEQ_LEN - 1
+# EXAMM_DROP_DEFAULT (19) only matters for models built against the OLD stock_pooled_loader.py,
+# which never let a test window's lookback cross the val/test boundary, so the first 19 test days
+# had no prediction (481/stock, not 500). The loader now prepends val-tail context instead, so any
+# model built after that fix emits the SAME 500/stock EXAMM does and needs --examm-drop 0. Mixing
+# a drop=19 model (Linear/Reversal baselines, or a stale transformer run) with a drop=0 model in
+# the same --tf-root would fail the identical-row gate below by construction -- that is intentional.
 
 
-def load_examm_run(run_dir, data_dir):
+def load_examm_run(run_dir, data_dir, examm_drop):
     """One EXAMM run -> tidy (ticker, date, pred, exp), truncated to the transformer's row set."""
     frames = []
     for f in sorted(glob.glob(f"{run_dir}/eval_test/*_test_predictions.csv")):
@@ -78,7 +84,7 @@ def load_examm_run(run_dir, data_dir):
 
         d = pd.DataFrame({"ticker": ticker, "date": dates,
                           "pred": p[pcol].values, "exp": truth})
-        frames.append(d.iloc[EXAMM_DROP:].reset_index(drop=True))
+        frames.append(d.iloc[examm_drop:].reset_index(drop=True))
     if not frames:
         raise FileNotFoundError(f"no EXAMM predictions under {run_dir}/eval_test/")
     return pd.concat(frames, ignore_index=True)
@@ -115,6 +121,11 @@ def main():
                     help="restrict scoring to one calendar year (e.g. 2022). The cohort-2020 test "
                          "window spans 2022-2023, and the two years behave very differently, so a "
                          "combined number hides more than it shows.")
+    ap.add_argument("--examm-drop", type=int, default=EXAMM_DROP_DEFAULT,
+                    help=f"rows to drop from EXAMM's predictions to align row sets with the "
+                         f"tf-root models (default {EXAMM_DROP_DEFAULT}, for the OLD loader's "
+                         f"481/stock transformer output; use 0 for models built after the "
+                         f"val-tail-context loader fix, which emit the full 500/stock).")
     a = ap.parse_args()
 
     data_dir = os.path.join(REPO, "datasets", "walkforward", a.cohort)
@@ -124,7 +135,7 @@ def main():
     def yr(df):
         return df if a.year is None else df[df.date.astype(str).str.startswith(a.year)].reset_index(drop=True)
 
-    examm_runs = [yr(load_examm_run(d, data_dir))
+    examm_runs = [yr(load_examm_run(d, data_dir, a.examm_drop))
                   for d in sorted(glob.glob(os.path.join(REPO, a.examm_root, "run_*")))
                   if os.path.isdir(os.path.join(d, "eval_test"))]
     if not examm_runs or len(examm_runs[0]) == 0:
@@ -132,7 +143,7 @@ def main():
                  + (f" for year {a.year}" if a.year else ""))
     n_rows = len(examm_runs[0])
     print(f"[EXAMM]  {len(examm_runs)} runs x {n_rows} rows "
-          f"(first {EXAMM_DROP} predictions dropped to match L={SEQ_LEN})")
+          f"(first {a.examm_drop} predictions dropped, L={SEQ_LEN})")
 
     # ---- transformers, grouped by model
     models = {}

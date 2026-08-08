@@ -1,0 +1,24 @@
+{
+  "_provenance": {
+    "source": "results/paper/05-results.tex, tab:midhighmid-transformers (EXAMM columns)",
+    "runs": "test_output/mse_pooled_mid_highmid{,_rep2,_rep3,_rep4} -- the 10-run replicate ensemble",
+    "ensemble": "10 seeds per cell, all 12 cells complete",
+    "trading": "Algorithm 2 (Lyu et al. arXiv:2410.17212) at L/S 10, annual %",
+    "note": "'ret' is the GROSS column, which is what the transformer runs are scored on: score_cells.py applies no transaction cost. 'net' is carried alongside so the dashboard never silently compares a gross number against a net one.",
+    "benchmarks": "ew = equal-weight buy-and-hold over the same 50 stocks; sp500 = index total return over the same window"
+  },
+  "cells": [
+    {"set": "set1", "yr": 2022, "ic": -0.0035, "ret":  -4.11, "net":  -4.63, "ew":  -7.14, "sp500": -19.75},
+    {"set": "set1", "yr": 2023, "ic":  0.0112, "ret":  23.04, "net":  21.34, "ew":   5.21, "sp500":  25.08},
+    {"set": "set1", "yr": 2024, "ic":  0.0082, "ret":  18.76, "net":  17.19, "ew":  -4.70, "sp500":  24.54},
+    {"set": "set2", "yr": 2022, "ic":  0.0103, "ret":  35.94, "net":  35.22, "ew": -11.39, "sp500": -19.75},
+    {"set": "set2", "yr": 2023, "ic":  0.0127, "ret":  17.78, "net":  16.92, "ew":  15.41, "sp500":  25.08},
+    {"set": "set2", "yr": 2024, "ic":  0.0181, "ret":  15.07, "net":  13.80, "ew":  12.17, "sp500":  24.54},
+    {"set": "set3", "yr": 2022, "ic":  0.0122, "ret":  37.30, "net":  36.68, "ew": -11.36, "sp500": -19.75},
+    {"set": "set3", "yr": 2023, "ic": -0.0120, "ret":  -3.52, "net":  -3.82, "ew":  14.80, "sp500":  25.08},
+    {"set": "set3", "yr": 2024, "ic": -0.0115, "ret":  -1.94, "net":  -2.88, "ew":  13.15, "sp500":  24.54},
+    {"set": "set4", "yr": 2022, "ic":  0.0277, "ret":  -5.30, "net":  -5.43, "ew": -10.22, "sp500": -19.75},
+    {"set": "set4", "yr": 2023, "ic":  0.0022, "ret":   2.34, "net":   1.84, "ew":   9.45, "sp500":  25.08},
+    {"set": "set4", "yr": 2024, "ic":  0.0065, "ret":   6.11, "net":   5.96, "ew":   6.72, "sp500":  24.54}
+  ]
+}

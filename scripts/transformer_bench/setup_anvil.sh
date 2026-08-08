@@ -65,22 +65,29 @@ echo "### venv      : $TF_ENV_DIR"
 # ---------------------------------------------------------------- 1. modules
 # Anvil GPU jobs need the GPU module tree. Module names differ across RCAC clusters, so we probe
 # rather than assume, and print `module avail` if nothing matches -- do not guess in a batch job.
-module --force purge
-module load modtree/gpu 2>/dev/null || echo "WARN: modtree/gpu unavailable (fine on a login node)"
-# The venv's interpreter links against whichever python module is loaded here, so the batch job must
-# load the SAME one or it may fail to find libpython. Record the name for anvil_transformer.sb.
-PYMOD=""
-if   module load anaconda    2>/dev/null; then PYMOD=anaconda
-elif module load python/3.10 2>/dev/null; then PYMOD=python/3.10
-elif module load python      2>/dev/null; then PYMOD=python
-fi
-if [ -n "$PYMOD" ]; then
-  echo "### loaded $PYMOD"
-  mkdir -p "$REPO_ROOT/external" && printf '%s' "$PYMOD" > "$REPO_ROOT/external/.pymodule"
+# `module` itself (Lmod) only exists on HPC login/compute nodes -- on a local machine (e.g. running
+# this to validate the pipeline or use Apple MPS before GPU hours land) there is no module system at
+# all, and that is not an error: system python3 is already on PATH.
+if command -v module >/dev/null 2>&1; then
+  module --force purge
+  module load modtree/gpu 2>/dev/null || echo "WARN: modtree/gpu unavailable (fine on a login node)"
+  # The venv's interpreter links against whichever python module is loaded here, so the batch job
+  # must load the SAME one or it may fail to find libpython. Record the name for anvil_transformer.sb.
+  PYMOD=""
+  if   module load anaconda    2>/dev/null; then PYMOD=anaconda
+  elif module load python/3.10 2>/dev/null; then PYMOD=python/3.10
+  elif module load python      2>/dev/null; then PYMOD=python
+  fi
+  if [ -n "$PYMOD" ]; then
+    echo "### loaded $PYMOD"
+    mkdir -p "$REPO_ROOT/external" && printf '%s' "$PYMOD" > "$REPO_ROOT/external/.pymodule"
+  else
+    echo "ERROR: no python module found. Available:" >&2
+    module avail python 2>&1 | head -20 >&2
+    exit 1
+  fi
 else
-  echo "ERROR: no python module found. Available:" >&2
-  module avail python 2>&1 | head -20 >&2
-  exit 1
+  echo "### no 'module' command -- assuming local/non-Lmod environment, using system python3"
 fi
 python3 -c 'import sys; print("### python", sys.version.split()[0])'
 
@@ -118,7 +125,17 @@ if [ ! -x "$TF_ENV_DIR/bin/python" ]; then
   python3 -m venv "$TF_ENV_DIR"
   "$TF_ENV_DIR/bin/pip" install --quiet --upgrade pip
   "$TF_ENV_DIR/bin/pip" install --quiet torch --index-url https://download.pytorch.org/whl/cu118
-  "$TF_ENV_DIR/bin/pip" install --quiet numpy pandas scikit-learn einops timm matplotlib
+  "$TF_ENV_DIR/bin/pip" install --quiet numpy pandas scikit-learn einops matplotlib
+  # timm is needed only for TemporalDeformAttention.py's `trunc_normal_` import, but timm's own
+  # __init__ eagerly imports its full layers tree, which pulls in torchvision. Installing timm
+  # plain (no --index-url) pulls torchvision's torch dependency from DEFAULT PyPI -- a DIFFERENT
+  # index than the cu118 one torch itself came from -- which silently drags in a second,
+  # mismatched torch build (observed: nvidia-nccl-cu13, i.e. CUDA 13, alongside our pinned CUDA
+  # 11.8 build). Fix: install timm with --no-deps (keep our torch), then install torchvision
+  # explicitly from the SAME cu118 index so it resolves against the torch already present instead
+  # of fetching its own.
+  "$TF_ENV_DIR/bin/pip" install --quiet --no-deps timm
+  "$TF_ENV_DIR/bin/pip" install --quiet torchvision --index-url https://download.pytorch.org/whl/cu118
 else
   echo "### venv exists -- skipping install"
 fi
@@ -209,23 +226,155 @@ patch("src/models/PatchTST.py", [
      "patch_len=None, stride=None", "patch_len/stride from configs"),
 ])
 
+# (8) expose --attn_dropout / --head_dropout, defaulting to None ("use --dropout")
+patch("run.py", [
+    (r"(\n\s*parser\.add_argument\('--layer_dropout'[^\n]*\n)",
+     r"\1    parser.add_argument('--attn_dropout', type=float, default=None,\n"
+     r"                        help='attention dropout; None => use --dropout (PatchTST paper uses 0)')\n"
+     r"    parser.add_argument('--head_dropout', type=float, default=None,\n"
+     r"                        help='prediction-head dropout; None => use --dropout (PatchTST paper uses 0)')\n",
+     "'--attn_dropout'", "add --attn_dropout/--head_dropout"),
+])
+
+# (9) PatchTST: separate attention and head dropout from --dropout.
+#     This file is a REIMPLEMENTATION and wired both to configs.dropout. The authors do neither --
+#     PatchTST_supervised/models/PatchTST.py hardcodes attn_dropout=0. and never reads it from
+#     configs, and the ETTh1/ETTh2 scripts leave head_dropout=0. At --dropout 0.3 that is 0.3 applied
+#     at two sites the published model leaves clean. The head site is the serious one: FlattenHead
+#     applies its dropout AFTER the linear, so at pred_len=1 it zeroes the model's single prediction
+#     on ~p of training samples. Both fall back to configs.dropout when the flags are absent, so the
+#     entire pre-existing shared-protocol tree keeps its original semantics.
+patch("src/models/PatchTST.py", [
+    (r"(\n\s*padding = stride\n)",
+     r"\1        attn_dropout = getattr(configs, 'attn_dropout', None)\n"
+     r"        attn_dropout = configs.dropout if attn_dropout is None else attn_dropout\n"
+     r"        head_dropout = getattr(configs, 'head_dropout', None)\n"
+     r"        head_dropout = configs.dropout if head_dropout is None else head_dropout\n",
+     "attn_dropout = getattr", "derive attn/head dropout"),
+    (r"attention_dropout=configs\.dropout",
+     "attention_dropout=attn_dropout",
+     "attention_dropout=attn_dropout", "attention dropout from --attn_dropout"),
+    (r"head_dropout=configs\.dropout",
+     "head_dropout=head_dropout",
+     "head_dropout=head_dropout", "head dropout from --head_dropout"),
+])
+
 # (7) drop the per-epoch test evaluation (bias hazard + ~24k extra bs=1 forwards per epoch)
 patch("src/exp/exp_MTS_forecasting.py", [
     (r"\n(\s*)test_loss, test_mse = self\.vali\(test_data, test_loader[^\n]*\n",
      r"\n\1test_loss, test_mse = float('nan'), float('nan')  # PATCHED: no per-epoch test eval\n",
      "PATCHED: no per-epoch test eval", "remove per-epoch test eval"),
 ])
+
+# (8) MPS fallback for local (no-CUDA) runs, e.g. Apple Silicon -- OFF BY DEFAULT, opt in with
+#     EXAMM_TF_USE_MPS=1. run.py only ever checked torch.cuda.is_available(), so on a Mac
+#     args.use_gpu silently went False and every local run used plain CPU even though
+#     torch.backends.mps.is_available() is True. Tried enabling it unconditionally first: on this
+#     torch 2.8.0 build BOTH Crossformer and PatchTST abort mid-first-epoch with
+#     "MPSNDArray ... buffer is not large enough" (a backend bug in their
+#     unfold/windowing ops, not a config issue -- reproduced on two unrelated models). Silently
+#     mixing a crashing accelerator into a benchmark whose whole point is identical settings across
+#     models is worse than plain CPU, so this stays opt-in until verified stable per-model.
+#     On Anvil torch.cuda.is_available() is True so this branch is never taken either way.
+patch("run.py", [
+    (r"args\.use_gpu = True if torch\.cuda\.is_available\(\) and args\.use_gpu else False",
+     "args.use_gpu = True if (torch.cuda.is_available() or (__import__('os').environ.get("
+     "'EXAMM_TF_USE_MPS') == '1' and hasattr(torch.backends, 'mps') "
+     "and torch.backends.mps.is_available())) and args.use_gpu else False",
+     "EXAMM_TF_USE_MPS", "allow opt-in MPS in addition to CUDA"),
+])
+patch("src/exp/exp_basic.py", [
+    (r"    def _acquire_device\(self\):\n"
+     r"        if self\.args\.use_gpu:\n"
+     r"            os\.environ\[\"CUDA_VISIBLE_DEVICES\"\] = str\(\n"
+     r"                self\.args\.gpu\) if not self\.args\.use_multi_gpu else self\.args\.devices\n"
+     r"            device = torch\.device\('cuda:\{\}'\.format\(self\.args\.gpu\)\)\n"
+     r"            print\('Use GPU: cuda:\{\}'\.format\(self\.args\.gpu\)\)\n"
+     r"        else:\n"
+     r"            device = torch\.device\('cpu'\)\n"
+     r"            print\('Use CPU'\)\n"
+     r"        return device\n",
+     "    def _acquire_device(self):\n"
+     "        if self.args.use_gpu and torch.cuda.is_available():\n"
+     "            os.environ[\"CUDA_VISIBLE_DEVICES\"] = str(\n"
+     "                self.args.gpu) if not self.args.use_multi_gpu else self.args.devices\n"
+     "            device = torch.device('cuda:{}'.format(self.args.gpu))\n"
+     "            print('Use GPU: cuda:{}'.format(self.args.gpu))\n"
+     "        elif self.args.use_gpu and hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():\n"
+     "            device = torch.device('mps')\n"
+     "            print('Use GPU: mps')\n"
+     "        else:\n"
+     "            device = torch.device('cpu')\n"
+     "            print('Use CPU')\n"
+     "        return device\n",
+     "Use GPU: mps", "acquire mps device when CUDA is unavailable"),
+])
 print("### patches applied")
+
+# (10) add lradj 'type3', and make an unknown lradj fail loudly.
+#      PatchTST's published ETTh1/ETTh2 runs inherit lradj=type3 from run_longExp.py, but this
+#      harness implements only type1/type2/cosine AND has no else branch -- so --lradj type3 raised
+#      "UnboundLocalError: lr_adjust" several minutes into training instead of saying what was
+#      wrong. Formula copied from the PatchTST authors' utils/tools.py: flat for the first two
+#      epochs, then x0.9 per epoch. The else branch converts any future typo into a clear message.
+patch("src/utils/tools.py", [
+    (r"(\n(\s*)elif args\.lradj == \"cosine\":)",
+     "\\n\\2elif args.lradj == 'type3':\\n"
+     "\\2    lr_adjust = {epoch: args.learning_rate if epoch < 3 else args.learning_rate * (0.9 ** ((epoch - 3) // 1))}\\1",
+     "'type3'", "add lradj type3"),
+    (r"(\n(\s*)if epoch in lr_adjust\.keys\(\):)",
+     "\\n\\2else:\\n"
+     "\\2    raise ValueError('unknown --lradj ' + str(args.lradj) + '; supported: type1, type2, type3, cosine')\\1",
+     "unknown --lradj", "fail loudly on unknown lradj"),
+])
+
 PYEOF
 
 # ---------------------------------------------------------------- 5. verify
 cd "$TF_HARNESS"
+# ---- vendor the PatchTST authors' own implementation as MODEL=PatchTSTOfficial.
+# MUST run after patch (8) above: the installer anchors its argparse insert on the --head_dropout
+# line that (8) creates. It is idempotent and checksum-verifies the upstream files.
+# Absolute paths: this script has already cd'd into $TF_HARNESS by now, so a path relative to
+# ${BASH_SOURCE[0]} resolves against the WRONG directory and the installers are silently not found.
+PYTHON="$TF_ENV_DIR/bin/python" \
+  bash "$REPO_ROOT/scripts/transformer_bench/install_patchtst_official.sh" "$TF_HARNESS"
+PYTHON="$TF_ENV_DIR/bin/python" \
+  bash "$REPO_ROOT/scripts/transformer_bench/install_crossformer_official.sh" "$TF_HARNESS"
+# ---- vendor the iTransformer authors' own model as MODEL=ITransformerOfficial.
+# Unlike the two above this vendors ONLY the model file: every layer class it uses is AST-identical
+# between thuml/iTransformer and this harness, and the installer asserts that at install time rather
+# than assuming it. It also adds --use_norm and --class_strategy to run.py, which the authors' model
+# reads and this harness's argparse does not define.
+PYTHON="$TF_ENV_DIR/bin/python" \
+  bash "$REPO_ROOT/scripts/transformer_bench/install_itransformer_official.sh" "$TF_HARNESS"
+# ---- vendor the DLinear authors' own model as MODEL=DLinearOfficial.
+# THIS WAS MISSING and the omission was silent: install_dlinear_official.sh existed and was never
+# called, so a pod built by this script had no DLinearOfficial and PROFILE=author would refuse it
+# at run time rather than at setup. src/models/DLinear.py is a MODIFIED port -- it trains from the
+# authors' constant weight-init lines, which they ship commented out -- so it cannot stand in.
+PYTHON="$TF_ENV_DIR/bin/python" \
+  bash "$REPO_ROOT/scripts/transformer_bench/install_dlinear_official.sh" "$TF_HARNESS"
+
 "$TF_ENV_DIR/bin/python" - <<'PYEOF'
 import sys; sys.path.insert(0, ".")
 from data.data_provider.data_factory import data_dict
 assert "stock_pooled" in data_dict, "loader did not register"
-from src.exp.exp_basic import Exp_Basic
-print("### verified: stock_pooled registered; models available")
+from src.exp.exp_basic import Exp_Basic            # must import; registry lives here
+# This line previously read:
+#     assert "PatchTSTOfficial" in Exp_Basic.__init__.__doc__ or True
+# which ALWAYS raises TypeError: __init__ has no docstring, so __doc__ is None, and Python
+# evaluates the `in` before it can ever reach `or True`. Under `set -e` that aborted setup at the
+# very last step -- after every install had in fact succeeded -- so the script exited non-zero and
+# never printed "setup complete", making a healthy build look broken. Replaced with a check that
+# actually means something: every model this study runs must import.
+for _m in ("PatchTSTOfficial", "CrossformerOfficial", "ITransformerOfficial", "DeformTime"):
+    __import__("src.models." + _m)
+import src.layers.PatchTST_backbone as _b
+assert "BatchNorm" in open(_b.__file__).read(), "authors' backbone missing BatchNorm -- wrong file?"
+import src.models.ITransformerOfficial as _i
+assert "configs.use_norm" in open(_i.__file__).read(), "iTransformer ignores use_norm -- wrong file?"
+print("### verified: stock_pooled registered; all four authors' models importable")
 PYEOF
 
 cat <<EOF

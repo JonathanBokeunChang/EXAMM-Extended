@@ -24,13 +24,23 @@ TSLib's own windowing already produces exactly this, so the target is just the r
 manual shifting: with label_len=0 and pred_len=1, seq_y = data[s_end : s_end+1], i.e. the row
 immediately after the input window. Do NOT pre-shift the csv -- that would double-shift.
 
-Sample counts follow len - seq_len - pred_len + 1 (cohort 2020):
-    train 3,290 rows -> 3,270/stock -> 163,500 pooled
-    val     252 rows ->   232/stock ->  11,600 pooled
-    test    501 rows ->   481/stock ->  24,050 pooled
+Sample counts (cohort 2020). Only TRAIN follows the bare len - seq_len - pred_len + 1, because
+nothing precedes it to borrow lookback from; val and test each prepend the tail of the split before
+them (see __read_data__) and so yield rows - pred_len windows, independent of seq_len:
+    train 3,290 rows                -> 3,270/stock -> 163,500 pooled
+    val     252 rows + 19 from train ->   251/stock ->  12,550 pooled
 
-The 481 test samples per stock are targets t[21]..t[501], which is exactly the range EXAMM must be
-truncated to for the comparison (EXAMM emits 500, so its first 19 predictions are dropped).
+TEST IS DIFFERENT: __read_data__ prepends the last (seq_len - pred_len) rows of val to test before
+windowing, so the first test window's lookback doesn't have to be burned entirely inside the test
+file. This is leak-free (val is already fully in the past relative to test; it is used only as
+INPUT context, never as a target) and it is why test has 500/stock, not 481: targets now cover
+t[2]..t[501], the SAME range EXAMM's own predictions cover (EXAMM: 500 predictions from 501 rows,
+time_offset=1). No truncation/alignment step is needed when comparing to EXAMM any more -- both
+emit one prediction per test row after the first, covering the identical (ticker, date) set.
+(Before this fix, test windows never crossed the val/test boundary, so the first prediction needed
+20 full days already inside the test file: only 481/stock, targets t[21]..t[501], and EXAMM's own
+predictions had to be truncated by 19 to align. That older data lives in the "_trading_shadow"
+matched-window comparisons and any results built before this docstring changed.)
 
 TARGET COLUMN ORDER
 -------------------
@@ -72,7 +82,7 @@ harness's test loop only emits a flat array. So on construction this writes `<sp
 (sample_idx, ticker, target_date) to STOCK_META_DIR. Row i of that file describes prediction i, in
 dataloader order. Two properties of data_factory.py make that alignment hold for the test split and
 must not be changed: shuffle_flag=False, and batch_size=1 (so its drop_last=True drops nothing,
-since 481*50 % 1 == 0). The val split IS shuffled, so val_index.csv is written for completeness but
+since any count % 1 == 0). The val split IS shuffled, so val_index.csv is written for completeness but
 its row order is not meaningful -- use it only via a (ticker, date) join, never positionally.
 """
 
@@ -132,7 +142,14 @@ class Dataset_StockPooled(Dataset):
 
     def _load_split(self, split):
         """{ticker: (values[n,6] float32, dates[n] datetime)} for one split, tickers sorted."""
-        paths = sorted(f for f in os.listdir(self.root_path) if f.endswith(f"_{split}.csv"))
+        # `not f.startswith(".")` is load-bearing, not hygiene. os.listdir returns dotfiles (a glob
+        # would not), and a tarball built on macOS carries an AppleDouble "._NAME" sidecar beside
+        # every file. "._ADM_train.csv" ends with "_train.csv", so without this filter a panel
+        # unpacked from such an archive silently doubles: 100 "tickers" for 50 stocks, half of them
+        # 163-byte binary metadata blobs parsed as price data. Observed on this project when the
+        # portfolio bundle was built on a Mac and unpacked on the pod.
+        paths = sorted(f for f in os.listdir(self.root_path)
+                       if f.endswith(f"_{split}.csv") and not f.startswith("."))
         if not paths:
             raise FileNotFoundError(f"no *_{split}.csv under {self.root_path}")
         out = {}
@@ -156,6 +173,44 @@ class Dataset_StockPooled(Dataset):
             if self.norm_scope == "train_val":
                 fit_rows += [v for _, (v, _) in sorted(self._load_split("val").items())]
             self.scaler.fit(np.concatenate(fit_rows, axis=0))
+
+        # ---- VAL AND TEST: prepend the tail of the PRECEDING split as lookback context, so the
+        # first target of a split does not require seq_len-1 of that split's own days to be burned
+        # building the first window. Leak-free: the preceding split lies entirely in the past
+        # (verified across all 700 stocks / 14 datasets -- train ends 2020-12-31, val starts
+        # 2021-01-04), and it is used only as INPUT, never as a target. That last part is
+        # structural, not incidental: borrowed rows occupy combined indices [0, ctx) with
+        # ctx = seq_len - pred_len, while the earliest target sits at index seq_len, so for any
+        # seq_len the two ranges cannot overlap.
+        #
+        # WHY ctx IS seq_len - pred_len AND NOT seq_len. With this ctx, window s=0's target lands
+        # on the split's SECOND row -- exactly the first row EXAMM can score, since time_offset=1
+        # predicts row t+1 from row t and so can never score a split's first row either.
+        # Crossformer's upstream loader borrows the full in_len (border1s = train_num - in_len),
+        # which lets it predict the split's first row; that yields 252 val / 501 test windows
+        # against EXAMM's 251 / 500 and breaks the row-for-row comparison the paper depends on.
+        # Borrowing one fewer row is deliberate.
+        #
+        # VALIDATION WAS PREVIOUSLY EXCLUDED FROM THIS, and it was a real defect. Validation burned
+        # its first seq_len rows, so at L=20 it began 2021-02-02 rather than 2021-01-05 (232
+        # windows/stock vs EXAMM's 251), and at L=96 it would not have begun until 2021-05-21 (156
+        # windows). That under-fed early stopping, hid every January from model selection while
+        # January is fully present at test time, and made validation size depend on seq_len -- so a
+        # longer-context probe would have silently competed on a third less selection data.
+        if self.flag in ("val", "test"):
+            prev_split = "train" if self.flag == "val" else "val"
+            prev_data = self._load_split(prev_split)
+            ctx = self.seq_len - self.pred_len
+            for ticker in list(data):
+                if ticker not in prev_data:
+                    raise ValueError(f"{ticker}: in {self.flag} but not {prev_split} -- cohorts not aligned")
+                pvals, pdates = prev_data[ticker]
+                if len(pvals) < ctx:
+                    raise ValueError(f"{ticker}/{prev_split}: {len(pvals)} rows < {ctx} needed "
+                                     f"for {self.flag} lookback")
+                cvals, cdates = data[ticker]
+                data[ticker] = (np.concatenate([pvals[-ctx:], cvals], axis=0),
+                                np.concatenate([pdates[-ctx:], cdates], axis=0))
 
         # ---- per-stock windows; a window never spans two stocks
         self.series, self.stamps, self.tickers = [], [], []
