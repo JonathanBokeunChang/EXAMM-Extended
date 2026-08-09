@@ -180,60 +180,60 @@ $40$ & $+9.05$ & $+30.62$ & $+4.29$ & & $-4.96$ & $+13.52$ & $+4.41$ \\
 % the authors' lookback. Crossformer's Traffic script is the single published
 % configuration among all three that natively uses in_len=96.
 % ---------------------------------------------------------------------------
-\begin{table*}[t]
-\centering
-\caption{Transformer hyperparameters, each at its own authors' published configuration and
-pinned commit. PatchTST and DeformTime publish only \texttt{seq\_len}~$336$, so at our $96$
-they carry the authors' capacity but not their lookback.}
-\label{tab:transformer-hparams}
-\resizebox{\textwidth}{!}{%
-\begin{tabular}{llllll}
-\toprule
-Model & Params & Capacity & Tokenizer & Schedule & Source (pinned commit) \\
-\midrule
-PatchTST & $16{,}836$
-  & \texttt{d\_model 16}, \texttt{n\_heads 4}, \texttt{d\_ff 128},
-    \texttt{e\_layers 3}, \texttt{dropout 0.3}
-  & \texttt{patch\_len 16}, \texttt{stride 8}
-  & \texttt{lr 1e-4}, \texttt{bs 128}, $100$ ep, \texttt{pat.\ 20}, \texttt{type3}
-  & \texttt{yuqinie98/PatchTST@204c21ef} \\
- & & \texttt{fc\_dropout 0.3}, \texttt{head\_dropout 0} & & & \texttt{scripts/PatchTST/etth1.sh} \\
-\addlinespace
-DeformTime & $67{,}449$
-  & \texttt{d\_model 32}, \texttt{n\_heads 4}, \texttt{e\_layers 2},
-    \texttt{d\_layers 2}, \texttt{dropout 0}
-  & \texttt{n\_reshape 24}, \texttt{patch\_len 6}, \texttt{kernel 7}
-  & \texttt{lr 1e-3}, \texttt{bs 16}, $100$ ep, \texttt{pat.\ 5}, \texttt{type1}
-  & \texttt{ClaudiaShu/DeformTime@cb99f4f6} \\
- & & & & & \texttt{scripts/DeformTime/ETTh1.sh} \\
-\addlinespace
-\textbf{Crossformer} & $722{,}032$
-  & \texttt{d\_model 64}, \texttt{d\_ff 128}, \texttt{n\_heads 2},
-    \texttt{e\_layers 3}, \texttt{dropout 0.2}
-  & \texttt{seg\_len 12}, \texttt{win\_size 2}
-  & \texttt{lr 1e-3}, \texttt{bs 32}, $20$ ep, \texttt{pat.\ 3}, \texttt{type1}
-  & \texttt{Thinklab-SJTU/Crossformer@c10c8ead} \\
-(\textsc{Traffic}, reported) & & \texttt{baseline 0} & & & \texttt{scripts/Traffic.sh} (\texttt{in\_len 96}) \\
-\addlinespace
-Crossformer & $11{,}185{,}944$
-  & \texttt{d\_model 256}, \texttt{d\_ff 512}, \texttt{n\_heads 4},
-    \texttt{e\_layers 3}, \texttt{dropout 0.2}
-  & \texttt{seg\_len 6}, \texttt{win\_size 2}
-  & \texttt{lr 1e-4}, \texttt{bs 32}, $20$ ep, \texttt{pat.\ 3}, \texttt{type1}
-  & \texttt{Thinklab-SJTU/Crossformer@c10c8ead} \\
-(ETTh1, see text) & & \texttt{baseline 0} & & & \texttt{scripts/ETTh1.sh} (\texttt{in\_len 168}) \\
-\addlinespace
-\textbf{iTransformer} & $817{,}153$
-  & \texttt{d\_model 256}, \texttt{d\_ff 256}, \texttt{n\_heads 8},
-    \texttt{e\_layers 2}, \texttt{d\_layers 1}, \texttt{dropout 0.1}
-  & none (inverted embedding)
-  & \texttt{lr 1e-4}, \texttt{bs 32}, $10$ ep, \texttt{pat.\ 3}, \texttt{type1}
-  & \texttt{thuml/iTransformer@c2426e68} \\
- & & \texttt{use\_norm 1}, \texttt{activation gelu}, \texttt{embed timeF} & & & \texttt{iTransformer\_ETTh1.sh} (\texttt{seq\_len 96}) \\
-\bottomrule
-\end{tabular}%
-}
-\end{table*}
+% \begin{table*}[t]
+% \centering
+% \caption{Transformer hyperparameters, each at its own authors' published configuration and
+% pinned commit. PatchTST and DeformTime publish only \texttt{seq\_len}~$336$, so at our $96$
+% they carry the authors' capacity but not their lookback.}
+% \label{tab:transformer-hparams}
+% \resizebox{\textwidth}{!}{%
+% \begin{tabular}{llllll}
+% \toprule
+% Model & Params & Capacity & Tokenizer & Schedule & Source (pinned commit) \\
+% \midrule
+% PatchTST & $16{,}836$
+%   & \texttt{d\_model 16}, \texttt{n\_heads 4}, \texttt{d\_ff 128},
+%     \texttt{e\_layers 3}, \texttt{dropout 0.3}
+%   & \texttt{patch\_len 16}, \texttt{stride 8}
+%   & \texttt{lr 1e-4}, \texttt{bs 128}, $100$ ep, \texttt{pat.\ 20}, \texttt{type3}
+%   & \texttt{yuqinie98/PatchTST@204c21ef} \\
+%  & & \texttt{fc\_dropout 0.3}, \texttt{head\_dropout 0} & & & \texttt{scripts/PatchTST/etth1.sh} \\
+% \addlinespace
+% DeformTime & $67{,}449$
+%   & \texttt{d\_model 32}, \texttt{n\_heads 4}, \texttt{e\_layers 2},
+%     \texttt{d\_layers 2}, \texttt{dropout 0}
+%   & \texttt{n\_reshape 24}, \texttt{patch\_len 6}, \texttt{kernel 7}
+%   & \texttt{lr 1e-3}, \texttt{bs 16}, $100$ ep, \texttt{pat.\ 5}, \texttt{type1}
+%   & \texttt{ClaudiaShu/DeformTime@cb99f4f6} \\
+%  & & & & & \texttt{scripts/DeformTime/ETTh1.sh} \\
+% \addlinespace
+% \textbf{Crossformer} & $722{,}032$
+%   & \texttt{d\_model 64}, \texttt{d\_ff 128}, \texttt{n\_heads 2},
+%     \texttt{e\_layers 3}, \texttt{dropout 0.2}
+%   & \texttt{seg\_len 12}, \texttt{win\_size 2}
+%   & \texttt{lr 1e-3}, \texttt{bs 32}, $20$ ep, \texttt{pat.\ 3}, \texttt{type1}
+%   & \texttt{Thinklab-SJTU/Crossformer@c10c8ead} \\
+% (\textsc{Traffic}, reported) & & \texttt{baseline 0} & & & \texttt{scripts/Traffic.sh} (\texttt{in\_len 96}) \\
+% \addlinespace
+% Crossformer & $11{,}185{,}944$
+%   & \texttt{d\_model 256}, \texttt{d\_ff 512}, \texttt{n\_heads 4},
+%     \texttt{e\_layers 3}, \texttt{dropout 0.2}
+%   & \texttt{seg\_len 6}, \texttt{win\_size 2}
+%   & \texttt{lr 1e-4}, \texttt{bs 32}, $20$ ep, \texttt{pat.\ 3}, \texttt{type1}
+%   & \texttt{Thinklab-SJTU/Crossformer@c10c8ead} \\
+% (ETTh1, see text) & & \texttt{baseline 0} & & & \texttt{scripts/ETTh1.sh} (\texttt{in\_len 168}) \\
+% \addlinespace
+% \textbf{iTransformer} & $817{,}153$
+%   & \texttt{d\_model 256}, \texttt{d\_ff 256}, \texttt{n\_heads 8},
+%     \texttt{e\_layers 2}, \texttt{d\_layers 1}, \texttt{dropout 0.1}
+%   & none (inverted embedding)
+%   & \texttt{lr 1e-4}, \texttt{bs 32}, $10$ ep, \texttt{pat.\ 3}, \texttt{type1}
+%   & \texttt{thuml/iTransformer@c2426e68} \\
+%  & & \texttt{use\_norm 1}, \texttt{activation gelu}, \texttt{embed timeF} & & & \texttt{iTransformer\_ETTh1.sh} (\texttt{seq\_len 96}) \\
+% \bottomrule
+% \end{tabular}%
+% }
+% \end{table*}
 
 
 % ---------------------------------------------------------------------------
@@ -301,8 +301,9 @@ Crossformer & $11{,}185{,}944$
 
 \subsection{EXAMM vs Transformers}
 \label{sec:examm-vs-transformers}
+Transformer models generally perform well on real-world, multidimensional data, yet simpler architectures such as linear models have been claimed to outperform them for time series forecasting~\cite{zeng2023transformers}. We bring these different families of models together to compare their ability to forecast stock returns and how that translates into portfolio returns.
 
-We also compared EXAMM's and other state of the art Transformer models in their ability in forecasting stock return accuracy, and how the predictiin turn into portfolio investment returns. We tested DLinear~\cite{zeng2023transformers}, PatchTST~\cite{nie2022time}, iTransformer~\cite{liu2024itransformer},DeformTime~\cite{shu2024deformtime}, Crossformer~\cite{zhang2023crossformer} with input length $96$, and output length 1, we select 96 because it is generally widely reported input sequence length across all transformer models. Other hyperparameters were adopted from default settings. 
+We also compared EXAMM against state-of-the-art time series forecasting models, both Transformer-based and otherwise, in their ability to forecast stock returns and how those predictions translate into portfolio investment returns. We tested the linear model DLinear~\cite{zeng2023transformers}, along with the Transformer-based PatchTST~\cite{nie2022time}, iTransformer~\cite{liu2024itransformer}, DeformTime~\cite{shu2024deformtime}, and Crossformer~\cite{zhang2023crossformer}, with an input length of $96$ and an output length of $1$. We chose an input length of $96$ because it is the most widely reported input sequence length across these models, and an output length of $1$ so that the results are directly comparable to the one-step-ahead forecasts of the EXAMM-evolved RNNs. All other hyperparameters were adopted from the default settings.
 
 % Table~\ref{tab:all-datasets} places three published attention baselines --
 % Crossformer, DeformTime and PatchTST -- alongside EXAMM. Each transformer is run
@@ -419,33 +420,34 @@ EXAMM, Crossformer, PatchTST and DeformTime only.
 \centering
 \caption{All panels and models. Rank IC, ICIR, return net of transaction costs, and gross
 Sharpe ($r_f{=}0$), at the pre-committed L/S~10 book. Bold/underline is best/second per
-metric; parameter counts are in the header. Every cell is a 10-run ensemble. LSTM, LSTM-i and GRU-i are fixed-topology baselines trained through EXAMM's own pipeline; -i denotes causal instance normalisation, which raises gate days from $9$ to $248$ without changing IC. A $+0.00$ return marks a cell where the Algorithm~2 gate never opened, so the book held cash and Sharpe is undefined.}
+metric; parameter counts are in the header. Every cell is a 10-run ensemble. LSTM-i and GRU-i are fixed-topology recurrent baselines trained through EXAMM's own pipeline under causal instance normalisation.}
 \label{tab:all-datasets}
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{llrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr}
 \toprule
-Panel & Trade yr & \multicolumn{4}{c}{EXAMM $55$--$77$} & \multicolumn{4}{c}{DLinear $42$} & \multicolumn{4}{c}{PatchTST $16{,}836$} & \multicolumn{4}{c}{iTransf. $817{,}153$} & \multicolumn{4}{c}{DeformT. $67{,}449$} & \multicolumn{4}{c}{LSTM $295$} & \multicolumn{4}{c}{LSTM-i $295$} & \multicolumn{4}{c}{GRU-i $295$} \\
-\cmidrule(lr){3-6} \cmidrule(lr){7-10} \cmidrule(lr){11-14} \cmidrule(lr){15-18} \cmidrule(lr){19-22} \cmidrule(lr){23-26} \cmidrule(lr){27-30} \cmidrule(lr){31-34}
+Panel & Trade yr & \multicolumn{4}{c}{EXAMM $55$--$77$} & \multicolumn{4}{c}{DLinear $42$} & \multicolumn{4}{c}{PatchTST $16{,}836$} & \multicolumn{4}{c}{iTransf. $817{,}153$} & \multicolumn{4}{c}{DeformT. $67{,}449$} & \multicolumn{4}{c}{TimeMixer $77{,}589$} & \multicolumn{4}{c}{LSTM-i $295$} & \multicolumn{4}{c}{GRU-i $295$} \\
+\cmidrule(lr){3-6} \cmidrule(lr){7-10} \cmidrule(lr){11-14} \cmidrule(lr){15-18} \cmidrule(lr){19-22}
+\cmidrule(lr){23-26} \cmidrule(lr){27-30} \cmidrule(lr){31-34}
 & & IC & ICIR & Net (\%) & Sharpe & IC & ICIR & Net (\%) & Sharpe & IC & ICIR & Net (\%) & Sharpe & IC & ICIR & Net (\%) & Sharpe & IC & ICIR & Net (\%) & Sharpe & IC & ICIR & Net (\%) & Sharpe & IC & ICIR & Net (\%) & Sharpe & IC & ICIR & Net (\%) & Sharpe \\
 \midrule
-Dataset A & 2022 & +0.0030 & +0.012 & \textbf{+12.73} & \textbf{+0.98} & -0.0019 & -0.009 & -17.75 & -0.87 & +0.0041 & +0.016 & -1.91 & +0.17 & \textbf{+0.0257} & \textbf{+0.117} & -1.94 & +0.17 & +0.0010 & +0.004 & +4.84 & +0.45 & +0.0042 & +0.015 & +0.00 & --- & \underline{+0.0166} & \underline{+0.059} & +1.60 & +0.34 & +0.0143 & +0.050 & \underline{+8.23} & \underline{+0.62} \\
-Dataset A & 2023 & \textbf{+0.0195} & \textbf{+0.109} & \textbf{+30.24} & \textbf{+2.32} & \underline{+0.0050} & \underline{+0.024} & \underline{+22.29} & \underline{+1.83} & -0.0089 & -0.043 & +9.18 & +0.93 & -0.0094 & -0.049 & -22.52 & -1.75 & -0.0227 & -0.104 & -24.73 & -1.69 & +0.0001 & +0.001 & -16.26 & -2.26 & -0.0209 & -0.094 & -33.04 & -2.24 & -0.0247 & -0.106 & -31.02 & -2.01 \\
+Dataset A & 2022 & +0.0030 & +0.012 & \textbf{+12.73} & \textbf{+0.98} & -0.0019 & -0.009 & -17.75 & -0.87 & +0.0041 & +0.016 & -1.91 & +0.17 & \textbf{+0.0257} & \textbf{+0.117} & -1.94 & +0.17 & +0.0010 & +0.004 & +4.84 & +0.45 & +0.0065 & +0.029 & +2.93 & +0.43 & \underline{+0.0166} & \underline{+0.059} & +1.60 & +0.34 & +0.0143 & +0.050 & \underline{+8.23} & \underline{+0.62} \\
+Dataset A & 2023 & \textbf{+0.0195} & \textbf{+0.109} & \textbf{+30.24} & \textbf{+2.32} & \underline{+0.0050} & \underline{+0.024} & \underline{+22.29} & \underline{+1.83} & -0.0089 & -0.043 & +9.18 & +0.93 & -0.0094 & -0.049 & -22.52 & -1.75 & -0.0227 & -0.104 & -24.73 & -1.69 & -0.0013 & -0.008 & -4.91 & -0.09 & -0.0209 & -0.094 & -33.04 & -2.24 & -0.0247 & -0.106 & -31.02 & -2.01 \\
 \midrule
-set1 & 2022 & -0.0035 & -0.013 & -4.63 & -0.13 & +0.0003 & +0.001 & +6.15 & \textbf{+0.52} & +0.0103 & +0.039 & +3.54 & +0.35 & +0.0159 & +0.066 & +0.80 & +0.25 & +0.0114 & +0.039 & +2.48 & +0.27 & -0.0018 & -0.007 & -3.73 & -0.27 & \textbf{+0.0238} & \textbf{+0.079} & \textbf{+7.13} & \underline{+0.50} & \underline{+0.0236} & \underline{+0.078} & \underline{+6.65} & +0.48 \\
-set1 & 2023 & \underline{+0.0112} & \underline{+0.057} & \textbf{+21.34} & \textbf{+1.59} & +0.0069 & +0.032 & -4.27 & -0.06 & +0.0086 & +0.039 & -10.61 & -0.44 & -0.0010 & -0.005 & -0.94 & +0.21 & +0.0025 & +0.011 & -4.64 & -0.11 & \textbf{+0.0175} & \textbf{+0.076} & -4.40 & -0.33 & +0.0079 & +0.034 & -5.20 & -0.02 & +0.0064 & +0.027 & \underline{+1.48} & \underline{+0.35} \\
-set1 & 2024 & +0.0082 & +0.046 & \textbf{+17.19} & \textbf{+1.11} & \underline{+0.0123} & \textbf{+0.062} & -15.48 & -0.60 & \textbf{+0.0140} & \underline{+0.062} & -23.11 & -1.04 & -0.0025 & -0.013 & -17.28 & -0.84 & +0.0075 & +0.032 & \underline{+1.73} & \underline{+0.28} & +0.0078 & +0.042 & -9.56 & -0.58 & -0.0090 & -0.040 & -15.49 & -0.61 & -0.0086 & -0.038 & -15.57 & -0.60 \\
+set1 & 2022 & -0.0035 & -0.013 & -4.63 & -0.13 & +0.0003 & +0.001 & +6.15 & \textbf{+0.52} & +0.0103 & +0.039 & +3.54 & +0.35 & +0.0159 & +0.066 & +0.80 & +0.25 & +0.0114 & +0.039 & +2.48 & +0.27 & -0.0131 & -0.063 & -0.18 & +0.18 & \textbf{+0.0238} & \textbf{+0.079} & \textbf{+7.13} & \underline{+0.50} & \underline{+0.0236} & \underline{+0.078} & \underline{+6.65} & +0.48 \\
+set1 & 2023 & \underline{+0.0112} & \underline{+0.057} & \underline{+21.34} & \underline{+1.59} & +0.0069 & +0.032 & -4.27 & -0.06 & +0.0086 & +0.039 & -10.61 & -0.44 & -0.0010 & -0.005 & -0.94 & +0.21 & +0.0025 & +0.011 & -4.64 & -0.11 & \textbf{+0.0158} & \textbf{+0.094} & \textbf{+23.46} & \textbf{+1.79} & +0.0079 & +0.034 & -5.20 & -0.02 & +0.0064 & +0.027 & +1.48 & +0.35 \\
+set1 & 2024 & +0.0082 & +0.046 & \textbf{+17.19} & \underline{+1.11} & \underline{+0.0123} & \textbf{+0.062} & -15.48 & -0.60 & \textbf{+0.0140} & \underline{+0.062} & -23.11 & -1.04 & -0.0025 & -0.013 & -17.28 & -0.84 & +0.0075 & +0.032 & +1.73 & +0.28 & +0.0051 & +0.032 & \underline{+13.39} & \textbf{+1.15} & -0.0090 & -0.040 & -15.49 & -0.61 & -0.0086 & -0.038 & -15.57 & -0.60 \\
 \addlinespace
-set2 & 2022 & \textbf{+0.0103} & \textbf{+0.043} & \textbf{+35.22} & \textbf{+1.88} & +0.0037 & +0.017 & +5.66 & +0.55 & +0.0056 & +0.026 & -1.85 & +0.17 & +0.0082 & \underline{+0.040} & \underline{+13.72} & \underline{+1.12} & +0.0008 & +0.004 & -1.61 & +0.12 & +0.0059 & +0.026 & +4.12 & +0.38 & \underline{+0.0094} & +0.038 & -4.05 & +0.07 & +0.0091 & +0.037 & +0.45 & +0.29 \\
-set2 & 2023 & \textbf{+0.0127} & \textbf{+0.068} & \textbf{+16.92} & \textbf{+1.26} & \underline{+0.0021} & \underline{+0.011} & \underline{+3.29} & \underline{+0.50} & +0.0003 & +0.001 & -10.35 & -0.45 & +0.0003 & +0.001 & -10.34 & -0.43 & -0.0089 & -0.041 & -15.06 & -0.88 & -0.0059 & -0.028 & -9.59 & -0.69 & -0.0056 & -0.024 & -22.25 & -1.14 & -0.0056 & -0.024 & -16.90 & -0.79 \\
-set2 & 2024 & \textbf{+0.0181} & \textbf{+0.097} & \textbf{+13.80} & \textbf{+1.09} & -0.0017 & -0.009 & -12.99 & -0.69 & \underline{+0.0001} & \underline{+0.001} & -12.85 & -0.68 & -0.0082 & -0.045 & -17.71 & -1.05 & -0.0046 & -0.022 & -14.20 & -0.83 & -0.0050 & -0.027 & \underline{-2.88} & \underline{-0.29} & -0.0060 & -0.028 & -25.10 & -1.54 & -0.0057 & -0.027 & -25.39 & -1.59 \\
+set2 & 2022 & \textbf{+0.0103} & \textbf{+0.043} & \textbf{+35.22} & \textbf{+1.88} & +0.0037 & +0.017 & +5.66 & +0.55 & +0.0056 & +0.026 & -1.85 & +0.17 & +0.0082 & \underline{+0.040} & \underline{+13.72} & \underline{+1.12} & +0.0008 & +0.004 & -1.61 & +0.12 & -0.0040 & -0.022 & -25.23 & -1.51 & \underline{+0.0094} & +0.038 & -4.05 & +0.07 & +0.0091 & +0.037 & +0.45 & +0.29 \\
+set2 & 2023 & \underline{+0.0127} & \underline{+0.068} & \underline{+16.92} & \underline{+1.26} & +0.0021 & +0.011 & +3.29 & +0.50 & +0.0003 & +0.001 & -10.35 & -0.45 & +0.0003 & +0.001 & -10.34 & -0.43 & -0.0089 & -0.041 & -15.06 & -0.88 & \textbf{+0.0271} & \textbf{+0.163} & \textbf{+28.56} & \textbf{+2.39} & -0.0056 & -0.024 & -22.25 & -1.14 & -0.0056 & -0.024 & -16.90 & -0.79 \\
+set2 & 2024 & \textbf{+0.0181} & \textbf{+0.097} & \textbf{+13.80} & \textbf{+1.09} & -0.0017 & -0.009 & -12.99 & -0.69 & +0.0001 & +0.001 & -12.85 & -0.68 & -0.0082 & -0.045 & -17.71 & -1.05 & -0.0046 & -0.022 & -14.20 & -0.83 & \underline{+0.0089} & \underline{+0.056} & \underline{-2.76} & \underline{+0.17} & -0.0060 & -0.028 & -25.10 & -1.54 & -0.0057 & -0.027 & -25.39 & -1.59 \\
 \addlinespace
-set3 & 2022 & \underline{+0.0122} & +0.050 & \textbf{+36.68} & \textbf{+1.88} & +0.0111 & +0.046 & -1.43 & +0.14 & +0.0099 & +0.039 & +4.27 & +0.45 & \textbf{+0.0304} & \textbf{+0.133} & \underline{+19.65} & \underline{+1.19} & +0.0006 & +0.003 & +3.88 & +0.36 & +0.0104 & \underline{+0.055} & -2.19 & -0.06 & +0.0120 & +0.040 & +17.38 & +0.86 & +0.0109 & +0.037 & +17.99 & +0.89 \\
-set3 & 2023 & -0.0120 & -0.077 & -3.82 & \underline{-0.22} & -0.0060 & -0.030 & \textbf{+1.03} & \textbf{+0.34} & -0.0061 & -0.028 & -8.87 & -0.30 & \textbf{+0.0052} & \textbf{+0.027} & -18.84 & -1.11 & -0.0054 & -0.023 & -9.69 & -0.40 & \underline{+0.0013} & \underline{+0.006} & \underline{+0.00} & --- & +0.0005 & +0.002 & -10.61 & -0.27 & -0.0011 & -0.005 & -13.03 & -0.45 \\
-set3 & 2024 & -0.0115 & -0.057 & -2.88 & -0.05 & +0.0003 & +0.002 & \textbf{+24.88} & \textbf{+1.67} & \underline{+0.0088} & +0.038 & \underline{+11.46} & \underline{+0.86} & +0.0083 & \underline{+0.039} & +6.32 & +0.63 & +0.0037 & +0.016 & -4.84 & -0.07 & \textbf{+0.0100} & \textbf{+0.048} & +8.33 & +0.70 & +0.0086 & +0.036 & -1.82 & +0.22 & +0.0070 & +0.030 & -2.98 & +0.15 \\
+set3 & 2022 & +0.0122 & +0.050 & \textbf{+36.68} & \textbf{+1.88} & +0.0111 & +0.046 & -1.43 & +0.14 & +0.0099 & +0.039 & +4.27 & +0.45 & \textbf{+0.0304} & \textbf{+0.133} & +19.65 & +1.19 & +0.0006 & +0.003 & +3.88 & +0.36 & \underline{+0.0167} & \underline{+0.065} & \underline{+27.55} & \underline{+1.33} & +0.0120 & +0.040 & +17.38 & +0.86 & +0.0109 & +0.037 & +17.99 & +0.89 \\
+set3 & 2023 & -0.0120 & -0.077 & \underline{-3.82} & \underline{-0.22} & -0.0060 & -0.030 & \textbf{+1.03} & \textbf{+0.34} & -0.0061 & -0.028 & -8.87 & -0.30 & \textbf{+0.0052} & \textbf{+0.027} & -18.84 & -1.11 & -0.0054 & -0.023 & -9.69 & -0.40 & -0.0048 & -0.028 & -13.16 & -0.81 & \underline{+0.0005} & \underline{+0.002} & -10.61 & -0.27 & -0.0011 & -0.005 & -13.03 & -0.45 \\
+set3 & 2024 & -0.0115 & -0.057 & -2.88 & -0.05 & +0.0003 & +0.002 & \textbf{+24.88} & \textbf{+1.67} & \textbf{+0.0088} & \underline{+0.038} & \underline{+11.46} & \underline{+0.86} & +0.0083 & \textbf{+0.039} & +6.32 & +0.63 & +0.0037 & +0.016 & -4.84 & -0.07 & -0.0010 & -0.006 & +5.62 & +0.73 & \underline{+0.0086} & +0.036 & -1.82 & +0.22 & +0.0070 & +0.030 & -2.98 & +0.15 \\
 \addlinespace
-set4 & 2022 & \underline{+0.0277} & \textbf{+0.118} & -5.43 & -0.36 & +0.0027 & +0.013 & +8.14 & +0.72 & +0.0188 & +0.075 & \underline{+20.51} & \underline{+1.30} & +0.0187 & +0.085 & \textbf{+22.58} & \textbf{+1.48} & +0.0039 & +0.016 & -4.32 & -0.05 & +0.0107 & +0.053 & -9.08 & -0.78 & \textbf{+0.0280} & \underline{+0.099} & +11.12 & +0.81 & +0.0228 & +0.083 & +11.91 & +0.78 \\
-set4 & 2023 & +0.0022 & +0.010 & +1.84 & +0.24 & \textbf{+0.0245} & \textbf{+0.126} & \textbf{+24.33} & \textbf{+2.17} & +0.0165 & +0.075 & -7.40 & -0.27 & +0.0161 & +0.080 & \underline{+10.93} & \underline{+1.25} & +0.0021 & +0.009 & -11.13 & -0.54 & \underline{+0.0241} & \underline{+0.107} & -7.29 & -0.74 & -0.0040 & -0.016 & -20.26 & -1.19 & -0.0018 & -0.007 & -24.45 & -1.46 \\
-set4 & 2024 & +0.0065 & +0.033 & \underline{+5.96} & +0.58 & +0.0078 & \underline{+0.042} & -6.26 & -0.26 & +0.0055 & +0.026 & \textbf{+16.68} & \textbf{+1.50} & -0.0030 & -0.015 & -12.38 & -0.62 & +0.0013 & +0.006 & -9.88 & -0.48 & -0.0140 & -0.065 & -1.98 & -0.37 & \underline{+0.0079} & +0.033 & +1.69 & +0.53 & \textbf{+0.0104} & \textbf{+0.043} & +5.13 & \underline{+0.73} \\
+set4 & 2022 & \underline{+0.0277} & \textbf{+0.118} & -5.43 & -0.36 & +0.0027 & +0.013 & +8.14 & +0.72 & +0.0188 & +0.075 & \underline{+20.51} & \underline{+1.30} & +0.0187 & +0.085 & \textbf{+22.58} & \textbf{+1.48} & +0.0039 & +0.016 & -4.32 & -0.05 & -0.0027 & -0.016 & +4.82 & +0.66 & \textbf{+0.0280} & \underline{+0.099} & +11.12 & +0.81 & +0.0228 & +0.083 & +11.91 & +0.78 \\
+set4 & 2023 & +0.0022 & +0.010 & +1.84 & +0.24 & \textbf{+0.0245} & \textbf{+0.126} & \textbf{+24.33} & \textbf{+2.17} & \underline{+0.0165} & +0.075 & -7.40 & -0.27 & +0.0161 & \underline{+0.080} & \underline{+10.93} & \underline{+1.25} & +0.0021 & +0.009 & -11.13 & -0.54 & -0.0167 & -0.096 & -21.61 & -1.93 & -0.0040 & -0.016 & -20.26 & -1.19 & -0.0018 & -0.007 & -24.45 & -1.46 \\
+set4 & 2024 & +0.0065 & +0.033 & +5.96 & +0.58 & +0.0078 & \underline{+0.042} & -6.26 & -0.26 & +0.0055 & +0.026 & \textbf{+16.68} & \textbf{+1.50} & -0.0030 & -0.015 & -12.38 & -0.62 & +0.0013 & +0.006 & -9.88 & -0.48 & -0.0030 & -0.015 & \underline{+8.65} & \underline{+0.98} & \underline{+0.0079} & +0.033 & +1.69 & +0.53 & \textbf{+0.0104} & \textbf{+0.043} & +5.13 & +0.73 \\
 \bottomrule
 \end{tabular}%
 }
@@ -459,41 +461,9 @@ set4 & 2024 & +0.0065 & +0.033 & \underline{+5.96} & +0.58 & +0.0078 & \underlin
 % after this one, put ONE \clearpage at the START of that new file (matching
 % the single boundary-flush pattern used at the top of this file), not here.
 
+\subsection{EXAMM Scalability}
 
-\subsection{Respberry Pi Zero Results}
-\label{sec:ina-219}
-We evaluate each trained RNN on-device on a Raspberry Pi Zero to characterize inference accuracy, latency, and power consumption under realistic edge-deployment conditions. Each evaluation loads a serialized \texttt{RNN\_Genome} produced by EXAMM~\cite{examm} together with its saved normalization parameters (min--max or mean--standard-deviation), applies the same normalization to the held-out test series, and reports mean squared error (MSE) and mean absolute error (MAE) over the full test set. Wall-clock inference time is measured around the forward pass only (excluding I/O and prediction-writing overhead) using \texttt{std::chrono::high\_resolution\_clock}, from which we derive per-data-point latency and throughput (points/second). Concurrently with inference, an INA219 current/power sensor connected over I2C is polled from a dedicated sampling thread, recording bus voltage, shunt voltage, current, and power at fixed intervals; energy consumption is obtained by trapezoidal integration of power over the sampler's timestamped readings, and normalized by the number of test points to yield an energy-per-inference estimate. This setup allows us to directly relate model size and predictive accuracy to their on-device latency and energy cost.
-
-% CAPTION KEPT SHORT -- detail retained here:
-%   * The 32-rank row IS the paper's production configuration and reproduces that
-%     campaign's own fitness_log.csv (~16 min for 10,031 genomes).
-%   * EXAMM is master-worker, so N ranks give N-1 evaluators.
-%   * Reported as TIME, not speedup or efficiency: the arms did the same work (genomes and
-%     BP epochs within 1.2%) but not the same-sized networks (edges_mean spans 13.82-19.19,
-%     a 39% spread, because insertion order is wall-clock dependent). That moves an
-%     efficiency RATIO by several points; measured wall-clock and core-hours need no such
-%     correction.
-\begin{table*}[t]
-\centering
-% \footnotesize
-\begin{tabular}{lrr}
-\toprule
-Metric & 2020 & 2021 \\
-\midrule
-Params              & 55      & 77     \\
-Voltage (V)         & 4.72    & 4.71   \\
-Current (mA)        & 337.1   & 345.2  \\
-Power (mW)          & 1586.6  & 1622.4 \\
-Idle Pwr (mW)       & 1131.1  & 1124.5 \\
-Gross E/file (mJ)   & 7.61    & 4.86   \\
-Net E/file (mJ)     & 2.18    & 1.48   \\
-Latency ($\mu$s)    & 9.59    & 12.04  \\
-Throughput (k/s)    & 113.3   & 87.7   \\
-\bottomrule
-\end{tabular}
-\caption{Model size, INA219 power/energy, averaged across 10 runs per year on Raspberry PiZero.}
-\label{tab:ina219_results}
-\end{table*}
+EXAMM is an asynchronous parallel neural architecture search algorithm that scales across different numbers of cores. The table below shows EXAMM's training time as the number of cores varies.
 
 % ---------------------------------------------------------------------------
 % TRAINING COST (tab:examm-training-cost). The companion to tab:ina219_results:
@@ -545,4 +515,42 @@ $128$ & $127$ & $\mathbf{3.9 \pm 1.0}$ & $8.26$ \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+
+
+
+\subsection{Respberry Pi Zero Results}
+\label{sec:ina-219}
+We evaluate each trained RNN on-device on a Raspberry Pi Zero to characterize inference accuracy, latency, and power consumption under realistic edge-deployment conditions. Each evaluation loads a serialized \texttt{RNN\_Genome} produced by EXAMM~\cite{examm} together with its saved normalization parameters (min--max or mean--standard-deviation), applies the same normalization to the held-out test series, and reports mean squared error (MSE) and mean absolute error (MAE) over the full test set. Wall-clock inference time is measured around the forward pass only (excluding I/O and prediction-writing overhead) using \texttt{std::chrono::high\_resolution\_clock}, from which we derive per-data-point latency and throughput (points/second). Concurrently with inference, an INA219 current/power sensor connected over I2C is polled from a dedicated sampling thread, recording bus voltage, shunt voltage, current, and power at fixed intervals; energy consumption is obtained by trapezoidal integration of power over the sampler's timestamped readings, and normalized by the number of test points to yield an energy-per-inference estimate. This setup allows us to directly relate model size and predictive accuracy to their on-device latency and energy cost.
+
+% CAPTION KEPT SHORT -- detail retained here:
+%   * The 32-rank row IS the paper's production configuration and reproduces that
+%     campaign's own fitness_log.csv (~16 min for 10,031 genomes).
+%   * EXAMM is master-worker, so N ranks give N-1 evaluators.
+%   * Reported as TIME, not speedup or efficiency: the arms did the same work (genomes and
+%     BP epochs within 1.2%) but not the same-sized networks (edges_mean spans 13.82-19.19,
+%     a 39% spread, because insertion order is wall-clock dependent). That moves an
+%     efficiency RATIO by several points; measured wall-clock and core-hours need no such
+%     correction.
+\begin{table*}[t]
+\centering
+% \footnotesize
+\begin{tabular}{lrr}
+\toprule
+Metric & 2020 & 2021 \\
+\midrule
+Params              & 55      & 77     \\
+Voltage (V)         & 4.72    & 4.71   \\
+Current (mA)        & 337.1   & 345.2  \\
+Power (mW)          & 1586.6  & 1622.4 \\
+Idle Pwr (mW)       & 1131.1  & 1124.5 \\
+Gross E/file (mJ)   & 7.61    & 4.86   \\
+Net E/file (mJ)     & 2.18    & 1.48   \\
+Latency ($\mu$s)    & 9.59    & 12.04  \\
+Throughput (k/s)    & 113.3   & 87.7   \\
+\bottomrule
+\end{tabular}
+\caption{Model size, INA219 power/energy, averaged across 10 runs per year on Raspberry PiZero.}
+\label{tab:ina219_results}
+\end{table*}
 
