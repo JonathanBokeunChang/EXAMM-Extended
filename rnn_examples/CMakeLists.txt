@@ -25,3 +25,6 @@ target_link_libraries(rnn_statistics examm_strategy exact_common exact_time_seri
 add_executable(make_seed_genome make_seed_genome.cxx)
 target_link_libraries(make_seed_genome examm_strategy exact_common exact_time_series exact_weights examm_nn  ${MPI_LIBRARIES} ${MPI_EXTRA} ${MYSQL_LIBRARIES} pthread)
 
+
+add_executable(benchmark_inference benchmark_inference.cxx)
+target_link_libraries(benchmark_inference examm_strategy exact_common exact_time_series exact_weights examm_nn  ${MPI_LIBRARIES} ${MPI_EXTRA} ${MYSQL_LIBRARIES} pthread)

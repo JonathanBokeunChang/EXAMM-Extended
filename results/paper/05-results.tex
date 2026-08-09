@@ -331,13 +331,27 @@ We also compared EXAMM against state-of-the-art time series forecasting models, 
 % EXAMM's figure is wall-clock at 32 MPI ranks from tab:examm-training-cost and is
 % CPU time, not GPU -- the two are not comparable and the caption says so.
 %
-% INFERENCE is single-sample, single-thread CPU (torch.set_num_threads(1)), 300
-% iterations after 20 warmup. Measured on CPU rather than the training GPU on
-% purpose: every model here runs a single sample in microseconds on a 4090, so that
-% column would show eight equivalent models and erase the size story this table
-% exists to tell. EXAMM's 9.59 us is C++ on a Raspberry Pi Zero
-% (tab:ina219_results) -- different hardware AND framework, so it is footnoted
-% rather than placed in the same column.
+% INFERENCE is single-sample, single-thread CPU (torch.set_num_threads(1) for the
+% PyTorch rows; rnn_examples/benchmark_inference.cxx for EXAMM), 300 iterations
+% after 20 warmup, all on one laptop. Measured on CPU rather than the training GPU
+% on purpose: every model here answers in microseconds on a 4090, so that column
+% would show eight equivalent models and erase the size story this table exists to
+% tell.
+%
+% EXAMM's 0.71 us is the mean over five genomes spanning 54-107 weights (range
+% 0.46-0.97), timing rnn->forward_pass() alone -- genome load, CSV parsing and
+% prediction writing are outside the timed region, matching what model(x) times for
+% the PyTorch rows.
+%
+% TWO CONFOUNDS, both in the footnote because the ratio is doing more work than the
+% parameter counts alone. (1) FRAMEWORK: EXAMM is C++, the rest PyTorch, whose
+% per-call overhead is ~50-100 us regardless of size -- that is most of DLinear's
+% 77 us, since 194 parameters of arithmetic cannot cost that. (2) AMORTISATION:
+% EXAMM emits a prediction at every recurrent step, so a 250-step pass yields 250
+% predictions, while a transformer consumes a 96-step window per prediction. The
+% second is a real architectural property for streaming inference, not an
+% accounting artefact; the first is not. Producing 250 predictions costs EXAMM
+% 156 us in total against DLinear's 19 ms and DeformTime's 1.4 s.
 %
 % LATENCY DOES NOT TRACK PARAMETERS, which is the interesting part: iTransformer at
 % 817k is 6.5x FASTER than DeformTime at 67k, because depth and sequential structure
@@ -345,17 +359,18 @@ We also compared EXAMM against state-of-the-art time series forecasting models, 
 % ---------------------------------------------------------------------------
 \begin{table}[t]
 \centering
-\caption{Model size, training time, and single-sample inference latency. Training is the
+\caption{Model size, training time, and inference latency per prediction. Training is the
 mean over ${\sim}120$ portfolio runs per model on an RTX~4090 at nine-way concurrency;
 EXAMM's is CPU wall-clock at $32$ MPI ranks and is not comparable to the GPU figures.
-Inference is single-thread CPU; EXAMM's $9.59\,\mu$s is C++ on a Raspberry Pi Zero
-(Table~\ref{tab:ina219_results}), measured on different hardware.}
+Inference is single-sample, single-thread CPU on one machine. EXAMM emits a prediction at
+every recurrent step, so one pass over a $250$-step series yields $250$ predictions; the
+attention and linear models consume a $96$-step window per prediction.}
 \label{tab:param-counts}
 \begin{tabular}{lrrr}
 \toprule
 Model & Parameters & Training & Inference ($\mu$s) \\
 \midrule
-EXAMM         & $55$--$77$       & $16.2$ min$^{\dagger}$ & $9.59^{\ddagger}$ \\
+EXAMM         & $55$--$77$       & $16.2$ min$^{\dagger}$ & $\mathbf{0.71}^{\ddagger}$ \\
 DLinear       & $194$            & $9.2$ min  & $77$ \\
 GRU-i         & $511$            & $9.5$ min  & $2{,}201$ \\
 LSTM-i        & $679$            & $14.7$ min & $2{,}060$ \\
@@ -368,8 +383,10 @@ iTransformer  & $817{,}153$      & $8.2$ min  & $870$ \\
 \end{tabular}
 
 \vspace{2pt}
-{\footnotesize $^{\dagger}$CPU, $32$ MPI ranks. \quad $^{\ddagger}$C++ on a Pi Zero, not
-single-thread CPU PyTorch like the rows below it.}
+{\footnotesize $^{\dagger}$CPU, $32$ MPI ranks, not comparable to the GPU rows. \quad
+$^{\ddagger}$C++; the other rows are PyTorch, which adds ${\sim}50$--$100\,\mu$s of per-call
+overhead irrespective of model size. On a Raspberry Pi Zero the same genomes take
+$9.59$--$12.04\,\mu$s (Table~\ref{tab:ina219_results}).}
 \end{table}
 
 \TODO{Fill DLinear's rows when its GPU re-run lands; the paragraphs above cover
