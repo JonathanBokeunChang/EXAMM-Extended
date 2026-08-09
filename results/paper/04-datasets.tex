@@ -1,0 +1,308 @@
+% ---------------------------------------------------------------------------
+% Dataset section (\input as 04-datasets from sigconf.tex).
+%
+% CITATIONS -- \cite keys below are PLACEHOLDERS. Add these to 99-references.bib
+% (or point the keys at existing entries) before compiling for submission --
+% see 99-references.bib in this same directory, already populated with all
+% three entries below.
+%
+%   \cite{lyu2025evostar}       -- PRIMARY reference. Same 50-stock universe,
+%     same 6 predictors, source of the individual/combined constructions
+%     Table~\ref{tab:constructions} compares against.
+%   \cite{lyu2024neuroevolution} -- DIFFERENT universe (30 DJI, not our 50
+%     mid-caps). Cited here only for the train/validate/trade walk-forward
+%     split convention, which both papers share. Do not conflate its stock
+%     universe with lyu2025evostar's.
+%   \cite{amihud2002illiquidity} -- standard illiquidity measure our
+%     (signed) Illiquidity predictor is contrasted against.
+% ---------------------------------------------------------------------------
+
+\section{CRSP Dataset}
+\label{sec:dataset}
+
+Center for Research in Security Prices (CRSP) dataset is the standard academic source for U.S. equity prices, returns, and trading volumes, and it is considered an accurate dataset for empirical asset pricing and financial forecasting research, given its comprehensive daily coverage of NYSE, AMEX, and NASDAQ common stocks. The datasets used in this paper are derived from the CRSP dataset, using daily frequency data. 
+
+We further processed the CRSP dataset by incorporating economic predictors known to be strongly correlated with stock returns, and used these to construct multiple portfolios. We adopted the set of economic predictors used in Lyu~\etal~\cite{lyu2025evostar}, which were generated from the CRSP dataset. In total, we used six predictors: \textit{Return}, \textit{Volume Change}, \textit{Bid-Ask Spread}, \textit{Illiquidity}, \textit{Turnover}, and \textit{S\&P 500 Return}. We construct two families of portfolios from these predictors: a \emph{baseline portfolio} that replicates the stock selection of prior work, and four \emph{validation portfolios} used to test generalization beyond that fixed selection.
+
+\subsection{Baseline Portfolio}
+\label{subsec:baseline-portfolio}
+We adopt the stock selection of Lyu et al.~\cite{lyu2025evostar}: 50 mid-cap companies drawn from the S\&P 500, chosen because mid-cap stocks receive less analyst and institutional scrutiny than large-caps and so are less efficiently priced. Retaining the same 50 tickers lets our results sit directly alongside that paper's, since no difference in performance can be attributed to a different forecasting universe. This dataset contains the same six predictors described above, obtained directly from CRSP or computed from CRSP variables.
+
+\subsection{Validation Portfolios}
+\label{subsec:validation-portfolios}
+To test the robustness of EXAMM beyond the fixed 50-stock selection above, we constructed four additional portfolios, denoted $V1$--$V4$, from the S\&P 500 mid-cap to high-mid-cap list. Each contains 50 stocks, with stocks shuffled and randomly assigned across the four sets such that no stock appears in more than one set.
+
+We define our target market capitalization range, expressed in USD billions, as $2 \le M_i < 50$ (covering mid-cap through high-mid/low-large-cap securities), where $M_i$ denotes the current market capitalization of security $i$. To construct the target universe $\mathcal{U}$, we first restrict the S\&P 500 CRSP panel to securities with at least 20 years of continuous trading history, of which 203 fall within the target market capitalization range. From these, 200 securities were randomly selected to form $\mathcal{U}$, which we then partition into four disjoint 50-stock validation portfolios $V1$--$V4$.
+
+
+% The first dataset we used comes directly from Lyu~\etal~\cite{lyu2025evostar}; it was used for EXAMM hyperparameter search and for comparing performance against transformer models. To test the robustness of our approach, we further constructed four additional portfolios from mid-to-high-cap stocks in the 2026 S\&P 500 list. The following section discusses the details of these datasets.
+
+% We further processed the CRSP datasets by adding economic predictors, and created multiple portfolios. The first dataset that we used comes from Lyu~\etal~\cite{lyu2025evostar}. It was used for EXAMM hyperparameter search, and comparing performance with transformer models. We further created 4 sets of portfolios from mid-high cap stocks in 2026 S\&P 500 list to test the robustness of the work. The following section discuss the detail of the datasets.
+
+
+
+
+
+
+% \subsection{Dataset 1}
+
+
+% We adopt the stock selection of Lyu et al.~\cite{lyu2025evostar}: 50 mid-cap\footnote{A mid-cap
+% company has a market capitalization between \$2 billion and \$10 billion.} companies drawn from the
+% S\&P 500, chosen because mid-cap stocks receive less analyst and institutional scrutiny than
+% large-caps and so are less efficiently priced. Retaining the same 50 tickers lets our results sit
+% directly alongside that paper's, since no difference in performance can be attributed to a different
+% forecasting universe. The dataset contain six predictors that are obtained directly from CRSP or computed from CRSP variables.
+
+
+% \begin{table}[t]
+% \centering
+% \caption{Economic predictors for stock return prediction.}
+% \label{tab:predictors}
+% \begin{tabular}{ll}
+% \toprule
+% Predictor & Description \\
+% \midrule
+% Return          & Percentage change in stock price \\
+% Volume Change   & Percentage change in trading volume \\
+% Bid-Ask Spread  & $(AskPrice - BidPrice) / Price$ \\
+% Illiquidity     & $Return / (Volume \times Price)$ \\
+% Turn Over       & $Volume / SharesOutstanding$ \\
+% S\&P 500 Return & S\&P 500 index return \\
+% \bottomrule
+% \end{tabular}
+% \end{table}
+
+% Return, shifted one day forward, is also the forecasting target. Because our files retain the
+% underlying CRSP columns each predictor is derived from, we confirmed all five identities directly
+% against the stored values rather than assuming them; Bid-Ask Spread and Illiquidity reproduce exactly
+% on every row tested. Illiquidity here is \emph{signed} (built from Return, not $|Return|$), departing
+% from the standard Amihud~\cite{amihud2002illiquidity} measure; we keep the original definition for
+% comparability with prior work.
+
+% \subsection{Dataset 2}
+% To test the robustness of EXAMM, we created 4 sets of portfolios from S\&P 500 lists, each containing 50 stocks, with stocks completely shuffled and randomly assigned across the 4 sets such that no stock appears in more than one set.
+
+% We define market capitalization tiers using standard practitioner thresholds, expressed in USD billions: Small-cap (\(M_i < 2\)), Mid-cap (\(2 \le M_i < 10\)), High-Mid/Low-Large-cap (\(10 \le M_i < 50\)), Large-cap (\(50 \le M_i < 200\)), and Mega-cap (\(M_i \ge 200\)), where \(M_i\) denotes the current market capitalization of security \(i\). To construct the target universe, we first restrict the S\&P 500 CRSP panel to securities with at least 20 years of continuous trading history, defined as \(H_i = (t_i^{\mathrm{end}} - t_i^{\mathrm{start}})/365.25 \ge 20\), yielding 372 securities; among these, the Mid and High-Mid/Low-Large tiers combined (\(2 \le M_i < 50\)) contain 203 securities, forming our target universe \(\mathcal{U}\). 
+
+
+% \subsection{Experimental Stock Datasets}
+% \label{sec:experimental-datasets}
+% Work by Gu~\etal~found that pooled ML models produce strong, economically significant results~\cite{gu2020empirical}. Work by Montero-Manso~\etal~showed that global models tend to beat local ones: pooling increases effective sample size and pushes the model toward shared, generalizable dynamics rather than overfitting to noisy, low-signal individual series~\cite{montero2021principles}.
+
+% The forecasting task is one-step-ahead: a model observes the six predictors at day $t$ and predicts
+% Return at day $t+1$. Prior work on this universe used two constructions, summarized in
+% Table~\ref{tab:constructions}: \emph{individual}, fitting one model per stock, and \emph{combined},
+% concatenating all 50 stocks' predictors into a single wide series (300 inputs, 50 outputs). We use a
+% third, the \textbf{pooled panel}: each stock keeps its own six-predictor file, as in \emph{individual},
+% but a single model is fit across all 50 stocks at once, with no stock identifier supplied, so it
+% cannot tell one ticker from another and must learn one rule that holds across the universe.
+
+\subsection{Pooled Panel Construction}
+\label{sec:pooled-panel-construction}
+Pooled machine learning models have been shown to produce strong, economically significant results~\cite{gu2020empirical}, and global models tend to outperform local ones by increasing effective sample size and encouraging the model to learn shared, generalizable dynamics rather than overfitting to noisy individual series~\cite{montero2021principles}.
+
+To build the pooled panel, each stock's six-predictor file is kept separate, as in the \emph{individual} construction, but all 50 stocks are combined into one training set with no stock identifier included. A single model is then trained on this combined set, so it learns one shared rule across all stocks rather than a separate rule for each.
+
+\subsection{Walk-Forward Evaluation Design}
+For evaluation, we construct two walk-forward folds from the Baseline Portfolio, summarized in Table~\ref{tab:folds}. Each fold trains on data through a given year-end, validates on the following year, and tests on the year after that: Test 2022 trains through 2020 and validates on 2021, while Test 2023 shifts this window forward by one year, training through 2021 and validating on 2022. This walk-forward design lets us check whether results hold across different train/test periods rather than relying on a single split. Notably, 2022 was a steep bear market, while 2023 was a strong bull recovery. This sharp regime shift makes it particularly challenging for a single model to generalize across both test periods, since patterns learned under one regime may not transfer to the other. As a result, strong performance across both folds is a meaningfully harder bar than strong performance on either one alone.
+
+We apply the same walk-forward evaluation design to the Validation Portfolios ($V1$--$V4$), constructing three folds per portfolio with test years 2022, 2023, and 2024, summarized in Table~\ref{tab:validation-folds}. This extends the evaluation window by one additional year relative to the Baseline Portfolio and lets us check whether results generalize both across different stock selections and across a longer, more varied set of market conditions.
+
+
+
+
+% Prior work on this universe used two constructions (Table~\ref{tab:constructions}): \emph{individual}, which fits one model per stock, and \emph{combined}, which concatenates all 50 stocks into a single wide series (300 inputs, 50 outputs). We instead use a \textbf{pooled panel}: each stock keeps its own six-predictor file, as in \emph{individual}, but one model is trained across all 50 stocks with no stock identifier, forcing it to learn a single rule that generalizes across the universe.
+
+% Individual/combined figures: \cite{lyu2025evostar}'s own (full history, not
+% independently re-derived -- see OPEN ITEM 4 below). Pooled: ours, cohort 2020.
+\begin{table}[t]
+\centering
+\caption{The three dataset constructions on the same 50-stock panel. Individual/combined
+figures are~\cite{lyu2025evostar}'s; pooled is ours.}
+\label{tab:constructions}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lccc}
+\toprule
+ & Individual & Combined & \textbf{Pooled (ours)} \\
+\midrule
+Models fitted            & 50                  & 1   & \textbf{1} \\
+Inputs, outputs          & 6, 1                & 300, 50 & 6, 1 \\
+Sees other stocks        & no                  & yes & no \\
+Training examples        & 7{,}333/stock avg.  & 4{,}063 & \textbf{164{,}450} \\
+Parameters, 50 stocks    & 6{,}227 (98--188 each) & grows with universe & \textbf{55 (23--90)} \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Baseline Portfolio Walk-Forward Folds}
+\label{tab:folds}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{l ccc ccc}
+\toprule
+& \multicolumn{2}{c}{Training} & \multicolumn{2}{c}{Validation} & \multicolumn{2}{c}{Test} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7}
+Fold & Rows & Period & Rows & Period & Rows & Period \\
+\midrule
+Test 2022 & 3{,}290 & 2007-12-07--2020-12-31 & 252 & 2021 & 251 & 2022 \\
+Test 2023 & 3{,}542 & 2007-12-07--2021-12-31 & 251 & 2022 & 250 & 2023 \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+% ---------------------------------------------------------------------------
+% MEASURED from datasets/walkforward/mid_highmid_price/<set>/<cohort>_aligned/,
+% counting rows in the per-ticker CSVs. Rows are TRADING DAYS PER STOCK, matching
+% tab:folds; the pooled panel each model sees is 50x these counts.
+%
+% TRAINING LENGTH VARIES BY PORTFOLIO, validation and test do not. Each portfolio
+% is aligned to the first date on which ALL FIFTY of its stocks trade, and that
+% date is set by the shortest-history name in the draw:
+%     V1 2004-08-16 (4,125 / 4,377 / 4,628 rows)
+%     V2 2004-12-17 (4,038 / 4,290 / 4,541)   <- latest start, shortest training
+%     V3 2004-10-27 (4,074 / 4,326 / 4,577)
+%     V4 2004-02-09 (4,252 / 4,504 / 4,755)   <- earliest start, longest training
+% The spread is 214 days, about 5% of the training window, and it is a property of
+% the draws rather than a design choice -- reporting a single number here would be
+% wrong for three of the four portfolios.
+%
+% Validation and test ARE identical across V1-V4 (verified, all four byte-match on
+% row count and both endpoints), because those windows are calendar-defined rather
+% than history-defined.
+%
+% THESE FOLDS ARE SINGLE-YEAR, unlike the Baseline Portfolio's cohort_2020, whose
+% test split spans 2022 AND 2023 (501 rows). That is why the results section has to
+% date-filter Dataset A's 2022 column and does not have to here.
+%
+% Training here starts in 2004 against the Baseline Portfolio's 2007-12-07: these
+% draws are mid/high-mid caps with longer continuous listings.
+% ---------------------------------------------------------------------------
+\begin{table}[t]
+\centering
+\caption{Validation Portfolio walk-forward folds. Rows are trading days per stock;
+the pooled panel is $50\times$ these counts. Training length varies across
+$V1$--$V4$ because each portfolio starts at the first date all fifty of its stocks
+trade; validation and test calendars are identical across portfolios.}
+\label{tab:validation-folds}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{l ccc ccc}
+\toprule
+& \multicolumn{2}{c}{Training} & \multicolumn{2}{c}{Validation} & \multicolumn{2}{c}{Test} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7}
+Fold & Rows & Period & Rows & Period & Rows & Period \\
+\midrule
+Test 2022 & $4{,}038$--$4{,}252$ & 2004--2020-12-31 & 252 & 2021 & 251 & 2022 \\
+Test 2023 & $4{,}290$--$4{,}504$ & 2004--2021-12-31 & 251 & 2022 & 250 & 2023 \\
+Test 2024 & $4{,}541$--$4{,}755$ & 2004--2022-12-30 & 250 & 2023 & 252 & 2024 \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+% Two properties follow from pooling. Parameter count is independent of universe size -- the same model
+% that forecasts 50 stocks would forecast 500 unchanged, because it is reused rather than widened,
+% unlike \emph{combined}. And because each stock contributes its own windows rather than requiring all
+% 50 to be observed on the same calendar day, pooling yields far more training examples than
+% \emph{combined} from the same 50 files.
+
+
+% Rather than a fixed proportional split, we divide by calendar year to mirror deployment: train on
+% history, validate on the following year, trade the year after~\cite{lyu2024neuroevolution}. Two
+% walk-forward cohorts are used, Table~\ref{tab:cohorts}. Row counts are per stock and identical across
+% all 50 within a cohort.
+
+% Worked example (why pooled train = 164,450, not 3,290*50 = 164,500): the
+% final row of a split has no next-day target, so cohort 2020 training
+% yields 3,289 labeled examples/stock, not 3,290. See OPEN ITEM 2 below.
+% \begin{table}[t]
+% \centering
+% \caption{Baseline Portfolio Walk-forward Folds}
+% \label{tab:folds}
+% \resizebox{\columnwidth}{!}{%
+% \begin{tabular}{lccc}
+% \toprule
+% Cohort & Training & Validation & Test \\
+% \midrule
+% 2020 & 3{,}290 rows, 2007-12-07--2020-12-31 & 252 rows, 2021 & 251 rows, 2022 \\
+% 2021 & 3{,}542 rows, 2007-12-07--2021-12-31 & 251 rows, 2022 & 250 rows, 2023 \\
+% \bottomrule
+% \end{tabular}%
+% }
+% \end{table}
+
+% Because the one-day shift is applied inside each split file and the three splits are stored
+% separately, no label crosses a split boundary -- the last training day's target would be the first
+% validation day's Return, which is not in the training file. At a one-day horizon, no purging or
+% embargo period is required.
+
+% Inputs are normalized by z-score, $(x - \mu)/\sigma$, then divided by a fixed per-column constant so values fall within $[-1, 1]$; $\mu$, $\sigma$, and the constant are computed once over the pooled training-and-validation data and re-applied unchanged at test time.
+
+% We use all available history per stock. Listing dates vary -- earliest 1990-01-04, latest 2007-12-07
+% -- with 44 of 50 stocks beginning before 2000 and all ending 2023-12-29 (the universe is therefore
+% survivor-biased; see Section~\ref{sec:results}). Aligning stocks to the common calendar the
+% cross-sectional evaluation requires truncates every series to the latest of these start
+% dates.\footnote{Nine of the 50 stocks contain duplicated, byte-identical date rows, a CRSP artifact;
+% these are deduplicated keep-first before alignment.}
+
+% \subsection{new 4 sets of portfolios}
+
+
+
+
+% Flush every float queued in this section before 05-results.tex begins --
+% without this, tables can drift across the \input boundary into the wrong
+% section. This is the fix for "tables out of order" reported after the
+% previous (single-file) version.
+% \clearpage
+
+% ---------------------------------------------------------------------------
+% OPEN ITEMS BEFORE THIS GOES IN THE PAPER:
+%
+% 1. \cite keys are placeholders -- 99-references.bib in this directory has
+%    real entries for all three; merge into your actual bib if different.
+% 2. Table~\ref{tab:constructions}'s "164,450" is the labeled-pair count
+%    (cohort 2020, non-windowed -- matches what the Linear/LightGBM
+%    baselines actually trained on this session). If a windowed model's
+%    count (e.g. DLinear's 163,500 at L=20) needs to appear in the same
+%    table for a like-for-like row, that is a DIFFERENT construction again
+%    and needs its own labeled row, not a silent substitution.
+% 3. Cut for the 8-page ICAIF budget, not because they were wrong (all still
+%    verified accurate, see git history of this file / results/dataset_section.md):
+%    the per-predictor prose paragraph (kept table + 1 verification sentence);
+%    the normalization-scope / index-membership / provenance limitations;
+%    the CRSP boilerplate paragraph (trimmed to 1 sentence); the standalone
+%    "Data Preparation and Validation" subsection (none of the 10 ICAIF
+%    comparison papers describe their cleaning pipeline in the main body --
+%    the one fact worth keeping, the 9 dup-date stocks, is now a footnote);
+%    and the "Limitations" subsection (only 2/10 comparison papers have one
+%    at all). Survivorship -- the one caveat that's actually load-bearing,
+%    since it qualifies the trading results specifically -- was moved to
+%    05-results.tex, next to the tables it qualifies, instead of sitting in
+%    Dataset section where a reader reaches it before the results it's about.
+% 4. NOT yet independently re-derived from raw data: the 7,333/stock and
+%    4,063 individual/combined figures in Table~\ref{tab:constructions} are
+%    taken from a direct read of the Evostar PDF's Section 4.3 text and
+%    Section 5.4's stated row count -- we do not have their raw CRSP
+%    extract to re-derive them from. The 6,227 and 98--188 EXAMM parameter
+%    figures ARE independently cross-checked against that paper's own
+%    Table 4.
+% ---------------------------------------------------------------------------
+
+\section{Experimental Setup}
+\label{sec:experimental-setup}
+EXAMM runs on CPU only, using MPI for parallelization. All EXAMM experiments were run on [removed for review]'s high-performance computing cluster, using AMD EPYC ``Milan'' compute nodes (two 64-core processors per node) connected via 100 Gbps Mellanox HDR InfiniBand and running Rocky Linux (CentOS 8-based). Each experiment used 32 CPU cores, allocated as shared resources potentially spanning multiple nodes rather than a single dedicated node. Each EXAMM experiment was repeated 10 times. 
+
+Transformer experiments were instead run on AWS cloud GPU instances, \TODO{Add GPU detials here}.
+
+% \subsection{EXAMM Hyperparameter Settings}
+
+% Each EXAMM run used $10$ islands, each with a maximum capacity of $10$ genomes. EXAMM was then allowed to evolve and train $10,000$ genomes (RNNs) through its neuroevolution process. New RNNs were generated via mutation at a rate of 70\%, intra-island crossover at a rate of 20\%, and inter-island crossover at a rate of 10\%. $10$ out of EXAMM's $11$ mutation operations were utilized (all except for \emph{split edge}), and each was chosen with a uniform 10\% chance. EXAMM generated new nodes by selecting from simple neurons, $\Delta$-RNN, GRU, LSTM, MGU, and UGRNN memory cells uniformly at random. Recurrent connections could span any time-skip generated randomly between $\mathcal{U}(1,10)$.
+
+% All RNNs were locally trained for $10$ epochs using back propagation through time (BPTT)~\cite{werbos1990backpropagation} to compute gradients, all using the same hyperparameters. RNN weights were initialized by EXAMM's Lamarckian strategy (described in~\cite{ororbia2019examm}), which allows child RNNs to reuse parental weights, significantly reducing the number of epochs required for the neuroevolution's local RNN training steps. Weights were updated with Adam ($\beta_1 = 0.9$, $\beta_2 = 0.99$, $\epsilon = 10^{-8}$) at a learning rate of $\eta = 0.001$. For the memory cells with forget gates, the forget gate bias had a value of $1.0$ added to it (motivated by \cite{jozefowicz2015empirical}).  To prevent exploding gradients, gradient scaling~\cite{pascanu2013difficulty} was used when the norm of the gradient exceeded a threshold of $1.0$. To combat vanishing gradients, gradient boosting (the opposite of scaling) was used when the gradient norm was below $0.05$. These parameters have been selected as they were recommended in previous papers about the EXAMM algorithm.
+
+
+
