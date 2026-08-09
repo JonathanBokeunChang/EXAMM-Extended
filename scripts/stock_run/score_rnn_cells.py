@@ -118,6 +118,14 @@ def main():
     for d in sorted(glob.glob(os.path.join(REPO, "test_output/rnn_*/ensemble_test"))):
         cell = os.path.basename(os.path.dirname(d))[len("rnn_"):]
         typ, rest = cell.split("_", 1)
+        # The instance-normalisation arm writes rnn_<type>_inst_<cell>. Without stripping the tag
+        # here, rest keeps a leading "inst_" and data_dir_for() reads it as the SET name -- pointing
+        # at mid_highmid_price/inst/..., which does not exist, so every instance cell would be
+        # skipped or mis-paired rather than failing outright.
+        norm = "avg_std_dev"
+        if rest.startswith("inst_"):
+            rest = rest[len("inst_"):]
+            norm = "instance"
         data_dir, _ = data_dir_for(rest)
         yr = year_for(rest)
         try:
@@ -129,7 +137,7 @@ def main():
             gross, e1 = trade(d, data_dir, window, tc=False)
             net, e2 = trade(d, data_dir, window, tc=True)
             sh = curve_sharpe(d, data_dir, window=window)
-            out.append({"model": typ.upper(), "cell": rest, "yr": yr,
+            out.append({"model": typ.upper(), "norm": norm, "cell": rest, "yr": yr,
                         "days": ndays, "days_full": full_days,
                         "ic": round(ic, 5), "icir": round(icir, 3),
                         "gross": None if not np.isfinite(gross) else round(gross, 2),
@@ -137,16 +145,15 @@ def main():
                         "sharpe": None if not np.isfinite(sh) else round(sh, 3),
                         "gate": gate_days(sub), "err": (e1 + " " + e2).strip()})
         except Exception as exc:                                   # noqa: BLE001
-            out.append({"model": typ.upper(), "cell": rest, "yr": yr,
+            out.append({"model": typ.upper(), "norm": norm, "cell": rest, "yr": yr,
                         "ic": None, "icir": None, "gross": None, "net": None, "sharpe": None,
                         "err": f"{type(exc).__name__}: {exc}"[:120]})
 
-    print(f"  {'model':5s} {'cell':26s} {'yr':>4s} {'days':>9s} {'IC':>9s} {'ICIR':>7s} "
+    print(f"  {'model':5s} {'norm':11s} {'cell':26s} {'yr':>4s} {'IC':>9s} {'ICIR':>7s} "
           f"{'net%':>8s} {'gross%':>8s} {'Sharpe':>7s} {'gate':>5s}", file=sys.stderr)
     for r in out:
         f = lambda v, p=4: ("---" if v is None else f"{v:+.{p}f}")                 # noqa: E731
-        print(f"  {r['model']:5s} {r['cell']:26s} {r['yr']:4d} "
-              f"{str(r.get('days','?'))+'/'+str(r.get('days_full','?')):>9s} "
+        print(f"  {r['model']:5s} {r.get('norm','?'):11s} {r['cell']:26s} {r['yr']:4d} "
               f"{f(r['ic']):>9s} {f(r.get('icir'),3):>7s} {f(r.get('net'),2):>8s} "
               f"{f(r.get('gross'),2):>8s} {f(r.get('sharpe'),2):>7s} {str(r.get('gate','')):>5s}"
               + (f"  {r['err']}" if r.get("err") else ""), file=sys.stderr)
