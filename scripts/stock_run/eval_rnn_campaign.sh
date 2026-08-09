@@ -97,7 +97,13 @@ echo "ensembled $ok cell(s); $miss missing, $fail failed"
 # tar that looks fine and is missing the timings.
 echo "==> packaging -> $OUT_TAR"
 LIST=$(mktemp)
-for d in test_output/rnn_*${NORM_TAG}_*/; do
+# EXACT arm membership, not a glob. With NORM_TAG empty the pattern rnn_*${NORM_TAG}_*/ degrades
+# to rnn_*_*/, which also matches every rnn_<type>_inst_<cell> directory -- so the avg_std_dev
+# tarball silently carried BOTH arms (1,174 entries where 28 cells give ~589). Rebuild the list
+# from the cells this run actually scored instead.
+for d in $(for T in $TYPES; do for C in "${CELLS[@]}"; do
+             printf 'test_output/rnn_%s%s_%s/\n' "$T" "$NORM_TAG" "$C"; done; done); do
+  [ -d "$d" ] || continue
   [ -d "$d/ensemble_${SPLIT}" ] && printf '%s\n' "${d}ensemble_${SPLIT}"
   for f in "$d"run_*/timing.json "$d"run_*/.config; do [ -f "$f" ] && printf '%s\n' "$f"; done
 done > "$LIST"
