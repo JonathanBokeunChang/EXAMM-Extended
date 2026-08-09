@@ -1,33 +1,53 @@
  % ---------------------------------------------------------------------------
 % Results section (\input as 05-results from sigconf.tex).
 %
-% STATUS (2026-08-06): eight result tables. Prose is written for
-% tab:pooling-ablation and sec:examm-vs-transformers; the remaining tables are
-% still carried by their comment blocks rather than body text. In table order:
+% STATUS (2026-08-09): SEVEN live tables, in the order they appear. Prose is
+% written for tab:pooling-ablation, sec:examm-hparams, sec:examm-vs-transformers
+% and the tab:forecasting/tab:portfolio pair; tab:param-counts,
+% tab:examm-training-cost and tab:ina219_results are still carried by their
+% comment blocks rather than body text.
 %   tab:pooling-ablation  -- does pooling (Table~\ref{tab:constructions}) beat
 %                            individual training? Read this FIRST -- it
 %                            justifies the pooled construction every other
 %                            table in this section then assumes. PROSE WRITTEN.
-%   tab:results-2022-2023 -- the main model comparison (EXAMM/DLinear/
-%                            transformers), using the strategy defined right
-%                            below. DLinear alone still dashed.
-%   tab:sharpe            -- risk-adjusted view of the same cells. Kept as a
-%                            SEPARATE table: packing "return (Sharpe)" into
-%                            each book-size cell was tried and reverted --
-%                            two different-unit numbers per cell inside a
-%                            \resizebox'd 10-column table shrinks the type to
-%                            the point of illegibility.
-%   tab:transformer-hparams -- every transformer hyperparameter with its source
-%                            script and pinned commit. Machine-readable copy,
-%                            including resolved argv, in
-%                            results/transformer_hyperparameters.md.
+%                            Its Concatenated row is still empty; the wide-panel
+%                            runs are on Anvil (scripts/stock_run/anvil_mse_combined.sb).
 %   tab:hp-grid           -- EXAMM island x repopulation grid, trading returns.
-%   tab:hp-grid-sharpe    -- same grid, Sharpe.
-%   tab:net-of-cost       -- same cells, after transaction costs.
-%   tab:midhighmid        -- replication on four independent 50-stock draws.
+%                            PROSE WRITTEN (sec:examm-hparams).
+%   tab:param-counts      -- parameters, training time, single-thread CPU
+%                            inference. Comment block only.
+%   tab:forecasting       -- THE FORECASTING CLAIM. Rank IC at h=1/3/5 plus MSE,
+%                            fourteen panel-year cells x eight models.
+%   tab:portfolio         -- THE PORTFOLIO CLAIM. Net return, Sharpe, MDD and
+%                            TURNOVER on the same cells, plus the two ungated
+%                            benchmarks. PROSE WRITTEN for both, jointly: they
+%                            are one argument and the bridge between them (gate
+%                            frequency IS the holding period, so the horizon a
+%                            model is scored at must match the horizon it holds)
+%                            is stated in the prose above tab:forecasting.
+%   tab:examm-training-cost -- EXAMM search cost at 32 MPI ranks.
 %   tab:ina219_results    -- on-device (Raspberry Pi Zero) deployment cost,
-%                            connects back to the parameter-count columns in
-%                            tab:results-2022-2023.
+%                            connects back to tab:param-counts.
+%
+% BOTH HEADLINE TABLES ARE GENERATED. Do not hand-edit them; edit the scorer and
+% re-emit, or the next regeneration silently reverts the change:
+%   python3 scripts/stock_run/score_forecasting.py     # -> results/forecasting_cells.json
+%   python3 scripts/stock_run/score_portfolio.py       # -> results/portfolio_cells.json
+%   python3 scripts/stock_run/emit_paper_tables.py --which {forecasting,portfolio}
+% Panel names are mapped to the paper's own ($V1$--$V4$, Baseline) in the emitter;
+% the directories on disk keep their set1..set4 names, which every submit script
+% depends on.
+%
+% REPLACED 2026-08-09 (recoverable from git e73352c9):
+%   - tab:all-datasets -- the single 36-column grid carrying IC, net return,
+%     Sharpe and MDD together. Split into tab:forecasting + tab:portfolio so the
+%     two orderings can be seen to disagree; no published value changed, and the
+%     regenerated figures reproduce it exactly (see the block above those tables).
+%   - tab:results-2022-2023, tab:sharpe, tab:net-of-cost, tab:midhighmid --
+%     all superseded by that pair, which covers the same cells.
+%   - tab:transformer-hparams -- still in the file, commented out, immediately
+%     before sec:examm-vs-transformers. Machine-readable copy including resolved
+%     argv in results/transformer_hyperparameters.md.
 %
 
 %
@@ -444,7 +464,7 @@ EXAMM, Crossformer, PatchTST and DeformTime only.
 % git e73352c9; they use no predictions, so no rescoring could have moved them.
 %
 % PROVENANCE, WHICH WAS NOT WRITTEN DOWN ANYWHERE UNTIL 2026-08-09. The tables
-% these replace mixed EXAMM trees: the twelve replication cells came from _rep3
+% these replace mixed EXAMM trees: the twelve validation cells came from _rep3
 % and Dataset A's two from the untagged run. That was established by scoring all
 % four trees and diffing against the committed values (12 of 12 exact). The
 % scorers now name this explicitly as --replicates=published, which is the
@@ -460,7 +480,7 @@ EXAMM, Crossformer, PatchTST and DeformTime only.
 %   set4/2022   untagged  +8.48 | rep2 +31.15 | rep3  -5.43 | rep4   0.00
 %   set2/2022   untagged +47.07 | rep2 +58.87 | rep3 +35.22 | rep4 +22.37
 %   dsA 2023    untagged +30.24 | rep3  -4.04 | rep4 +12.81 | rep5 -22.14 | rep6 +7.07
-% Individual cells swing 26-36 points. The replication-block mean moves only
+% Individual cells swing 26-36 points. The validation-block mean moves only
 % +11.02 (published) / +11.30 (untagged) / +10.27 (four-tree average), and the
 % all-panel mean +12.51 / +12.75 / +10.22. The ORDERING of the models is
 % unchanged under all three. So the mean is the number to argue from and the
@@ -473,7 +493,7 @@ EXAMM, Crossformer, PatchTST and DeformTime only.
 % loses there, because showing where the arc closes is what distinguishes a
 % mechanism from a selected horizon.
 %
-% WHAT THE HORIZON RESULT SUPPORTS, NARROWLY. On the replication block EXAMM is
+% WHAT THE HORIZON RESULT SUPPORTS, NARROWLY. On the validation block EXAMM is
 % 5th of 8 at h=1 and leads 7 of 7 baselines at h=2, h=5 and h=10, then 1 of 7 at
 % h=20. Bootstrapped over cells (n=12/14, the only independent unit -- forward
 % windows overlap, so a day-level bootstrap would understate variance badly at
@@ -547,26 +567,26 @@ Panel & Trade yr & \multicolumn{4}{c}{EXAMM $55$--$77$} & \multicolumn{4}{c}{DLi
 \cmidrule(lr){3-6} \cmidrule(lr){7-10} \cmidrule(lr){11-14} \cmidrule(lr){15-18} \cmidrule(lr){19-22} \cmidrule(lr){23-26} \cmidrule(lr){27-30} \cmidrule(lr){31-34}
  & & $h1$ & $h3$ & $h5$ & MSE & $h1$ & $h3$ & $h5$ & MSE & $h1$ & $h3$ & $h5$ & MSE & $h1$ & $h3$ & $h5$ & MSE & $h1$ & $h3$ & $h5$ & MSE & $h1$ & $h3$ & $h5$ & MSE & $h1$ & $h3$ & $h5$ & MSE & $h1$ & $h3$ & $h5$ & MSE \\
 \midrule
-Dataset A & 2022 & +0.0030 & +0.0132 & +0.0143 & 4.63 & -0.0019 & +0.0106 & +0.0022 & 4.63 & +0.0041 & +0.0089 & +0.0096 & 4.62 & \textbf{+0.0257} & \textbf{+0.0238} & +0.0163 & 4.71 & +0.0010 & -0.0014 & +0.0012 & \textbf{4.58} & +0.0065 & \underline{+0.0236} & \textbf{+0.0424} & 5.07 & \underline{+0.0166} & +0.0138 & \underline{+0.0206} & \underline{4.61} & +0.0143 & +0.0138 & +0.0206 & 4.63 \\
-Dataset A & 2023 & \textbf{+0.0195} & \textbf{+0.0239} & \textbf{+0.0290} & \textbf{2.93} & \underline{+0.0051} & \underline{+0.0183} & \underline{+0.0163} & 3.02 & -0.0089 & -0.0181 & -0.0274 & 3.03 & -0.0093 & -0.0116 & -0.0140 & 3.05 & -0.0227 & -0.0351 & -0.0465 & \underline{3.01} & -0.0013 & -0.0090 & -0.0061 & 4.29 & -0.0209 & -0.0510 & -0.0603 & 5.36 & -0.0247 & -0.0537 & -0.0631 & 3.06 \\
+Baseline & 2022 & +0.0030 & +0.0132 & +0.0143 & 4.63 & -0.0019 & +0.0106 & +0.0022 & 4.63 & +0.0041 & +0.0089 & +0.0096 & 4.62 & \textbf{+0.0257} & \textbf{+0.0238} & +0.0163 & 4.71 & +0.0010 & -0.0014 & +0.0012 & \textbf{4.58} & +0.0065 & \underline{+0.0236} & \textbf{+0.0424} & 5.07 & \underline{+0.0166} & +0.0138 & \underline{+0.0206} & \underline{4.61} & +0.0143 & +0.0138 & +0.0206 & 4.63 \\
+Baseline & 2023 & \textbf{+0.0195} & \textbf{+0.0239} & \textbf{+0.0290} & \textbf{2.93} & \underline{+0.0051} & \underline{+0.0183} & \underline{+0.0163} & 3.02 & -0.0089 & -0.0181 & -0.0274 & 3.03 & -0.0093 & -0.0116 & -0.0140 & 3.05 & -0.0227 & -0.0351 & -0.0465 & \underline{3.01} & -0.0013 & -0.0090 & -0.0061 & 4.29 & -0.0209 & -0.0510 & -0.0603 & 5.36 & -0.0247 & -0.0537 & -0.0631 & 3.06 \\
 \midrule
-set1 & 2022 & -0.0035 & +0.0145 & +0.0090 & 5.42 & +0.0003 & +0.0022 & -0.0022 & \textbf{5.40} & +0.0103 & +0.0145 & +0.0125 & \underline{5.41} & +0.0159 & +0.0045 & -0.0030 & 5.53 & +0.0114 & +0.0149 & +0.0170 & 5.48 & -0.0131 & -0.0010 & -0.0036 & 7.01 & \textbf{+0.0238} & \textbf{+0.0282} & \textbf{+0.0349} & 5.72 & \underline{+0.0236} & \underline{+0.0273} & \underline{+0.0321} & 5.84 \\
-set1 & 2023 & \underline{+0.0112} & +0.0066 & \underline{+0.0095} & \textbf{3.23} & +0.0069 & \textbf{+0.0171} & \textbf{+0.0199} & \underline{3.29} & +0.0087 & +0.0026 & +0.0012 & 3.31 & -0.0010 & -0.0034 & -0.0083 & 3.33 & +0.0025 & -0.0076 & -0.0141 & 3.32 & \textbf{+0.0158} & \underline{+0.0106} & +0.0046 & 19.34 & +0.0079 & +0.0020 & +0.0058 & 3.35 & +0.0064 & -0.0011 & -0.0008 & 3.51 \\
-set1 & 2024 & +0.0082 & -0.0014 & -0.0013 & \textbf{3.57} & \underline{+0.0123} & +0.0091 & +0.0052 & \underline{3.57} & \textbf{+0.0140} & +0.0077 & +0.0068 & 3.58 & -0.0025 & +0.0085 & \underline{+0.0138} & 3.64 & +0.0075 & \textbf{+0.0198} & \textbf{+0.0166} & 3.62 & +0.0051 & \underline{+0.0122} & +0.0068 & 33.12 & -0.0090 & -0.0133 & -0.0172 & 4.27 & -0.0086 & -0.0153 & -0.0171 & 3.64 \\
+$V1$ & 2022 & -0.0035 & +0.0145 & +0.0090 & 5.42 & +0.0003 & +0.0022 & -0.0022 & \textbf{5.40} & +0.0103 & +0.0145 & +0.0125 & \underline{5.41} & +0.0159 & +0.0045 & -0.0030 & 5.53 & +0.0114 & +0.0149 & +0.0170 & 5.48 & -0.0131 & -0.0010 & -0.0036 & 7.01 & \textbf{+0.0238} & \textbf{+0.0282} & \textbf{+0.0349} & 5.72 & \underline{+0.0236} & \underline{+0.0273} & \underline{+0.0321} & 5.84 \\
+$V1$ & 2023 & \underline{+0.0112} & +0.0066 & \underline{+0.0095} & \textbf{3.23} & +0.0069 & \textbf{+0.0171} & \textbf{+0.0199} & \underline{3.29} & +0.0087 & +0.0026 & +0.0012 & 3.31 & -0.0010 & -0.0034 & -0.0083 & 3.33 & +0.0025 & -0.0076 & -0.0141 & 3.32 & \textbf{+0.0158} & \underline{+0.0106} & +0.0046 & 19.34 & +0.0079 & +0.0020 & +0.0058 & 3.35 & +0.0064 & -0.0011 & -0.0008 & 3.51 \\
+$V1$ & 2024 & +0.0082 & -0.0014 & -0.0013 & \textbf{3.57} & \underline{+0.0123} & +0.0091 & +0.0052 & \underline{3.57} & \textbf{+0.0140} & +0.0077 & +0.0068 & 3.58 & -0.0025 & +0.0085 & \underline{+0.0138} & 3.64 & +0.0075 & \textbf{+0.0198} & \textbf{+0.0166} & 3.62 & +0.0051 & \underline{+0.0122} & +0.0068 & 33.12 & -0.0090 & -0.0133 & -0.0172 & 4.27 & -0.0086 & -0.0153 & -0.0171 & 3.64 \\
 \addlinespace
-set2 & 2022 & \textbf{+0.0103} & \textbf{+0.0226} & +0.0229 & 5.59 & +0.0037 & +0.0116 & +0.0104 & \textbf{5.56} & +0.0056 & +0.0165 & +0.0208 & \underline{5.57} & +0.0082 & +0.0105 & +0.0102 & 5.70 & +0.0008 & +0.0031 & +0.0129 & 5.64 & -0.0040 & -0.0189 & -0.0138 & 46.03 & \underline{+0.0094} & \underline{+0.0192} & \textbf{+0.0264} & 5.75 & +0.0091 & +0.0170 & \underline{+0.0237} & 5.63 \\
-set2 & 2023 & \underline{+0.0127} & \underline{+0.0299} & \textbf{+0.0494} & \textbf{3.46} & +0.0021 & +0.0083 & -0.0019 & \underline{3.53} & +0.0003 & -0.0111 & -0.0198 & 3.55 & +0.0003 & -0.0084 & -0.0268 & 3.58 & -0.0089 & -0.0195 & -0.0248 & 3.57 & \textbf{+0.0271} & \textbf{+0.0331} & \underline{+0.0460} & 7.38 & -0.0056 & -0.0204 & -0.0188 & 3.62 & -0.0056 & -0.0194 & -0.0181 & 4.98 \\
-set2 & 2024 & \textbf{+0.0181} & \textbf{+0.0161} & \textbf{+0.0216} & \textbf{3.04} & -0.0017 & -0.0128 & -0.0094 & \underline{3.07} & +0.0001 & -0.0067 & -0.0090 & 3.08 & -0.0082 & -0.0026 & \underline{+0.0007} & 3.16 & -0.0046 & -0.0036 & -0.0059 & 3.09 & \underline{+0.0089} & \underline{+0.0062} & -0.0006 & 3.43 & -0.0060 & -0.0074 & -0.0122 & 3.78 & -0.0057 & -0.0088 & -0.0155 & 3.15 \\
+$V2$ & 2022 & \textbf{+0.0103} & \textbf{+0.0226} & +0.0229 & 5.59 & +0.0037 & +0.0116 & +0.0104 & \textbf{5.56} & +0.0056 & +0.0165 & +0.0208 & \underline{5.57} & +0.0082 & +0.0105 & +0.0102 & 5.70 & +0.0008 & +0.0031 & +0.0129 & 5.64 & -0.0040 & -0.0189 & -0.0138 & 46.03 & \underline{+0.0094} & \underline{+0.0192} & \textbf{+0.0264} & 5.75 & +0.0091 & +0.0170 & \underline{+0.0237} & 5.63 \\
+$V2$ & 2023 & \underline{+0.0127} & \underline{+0.0299} & \textbf{+0.0494} & \textbf{3.46} & +0.0021 & +0.0083 & -0.0019 & \underline{3.53} & +0.0003 & -0.0111 & -0.0198 & 3.55 & +0.0003 & -0.0084 & -0.0268 & 3.58 & -0.0089 & -0.0195 & -0.0248 & 3.57 & \textbf{+0.0271} & \textbf{+0.0331} & \underline{+0.0460} & 7.38 & -0.0056 & -0.0204 & -0.0188 & 3.62 & -0.0056 & -0.0194 & -0.0181 & 4.98 \\
+$V2$ & 2024 & \textbf{+0.0181} & \textbf{+0.0161} & \textbf{+0.0216} & \textbf{3.04} & -0.0017 & -0.0128 & -0.0094 & \underline{3.07} & +0.0001 & -0.0067 & -0.0090 & 3.08 & -0.0082 & -0.0026 & \underline{+0.0007} & 3.16 & -0.0046 & -0.0036 & -0.0059 & 3.09 & \underline{+0.0089} & \underline{+0.0062} & -0.0006 & 3.43 & -0.0060 & -0.0074 & -0.0122 & 3.78 & -0.0057 & -0.0088 & -0.0155 & 3.15 \\
 \addlinespace
-set3 & 2022 & +0.0122 & \textbf{+0.0211} & \textbf{+0.0196} & \textbf{5.64} & +0.0111 & +0.0061 & +0.0164 & 5.67 & +0.0099 & +0.0042 & +0.0121 & \underline{5.66} & \textbf{+0.0304} & +0.0143 & +0.0127 & 5.72 & +0.0006 & +0.0007 & +0.0032 & 5.68 & \underline{+0.0167} & +0.0106 & +0.0140 & 5.66 & +0.0120 & \underline{+0.0151} & \underline{+0.0182} & 6.50 & +0.0109 & +0.0111 & +0.0123 & 5.74 \\
-set3 & 2023 & -0.0120 & -0.0140 & -0.0091 & \textbf{3.30} & -0.0060 & \underline{-0.0041} & \underline{-0.0050} & \underline{3.38} & -0.0061 & -0.0176 & -0.0309 & 3.40 & \textbf{+0.0052} & \textbf{-0.0024} & \textbf{-0.0036} & 3.38 & -0.0054 & -0.0199 & -0.0263 & 3.42 & -0.0048 & -0.0203 & -0.0102 & 10.42 & \underline{+0.0005} & -0.0133 & -0.0194 & 3.66 & -0.0011 & -0.0195 & -0.0275 & 4.19 \\
-set3 & 2024 & -0.0115 & -0.0057 & -0.0103 & \underline{3.28} & +0.0003 & \underline{+0.0207} & +0.0129 & \textbf{3.28} & \textbf{+0.0088} & \textbf{+0.0217} & \underline{+0.0144} & 3.29 & +0.0083 & +0.0199 & \textbf{+0.0268} & 3.35 & +0.0037 & +0.0148 & +0.0060 & 3.31 & -0.0010 & -0.0108 & -0.0093 & 4.75 & \underline{+0.0086} & +0.0021 & +0.0003 & 3.97 & +0.0070 & +0.0022 & +0.0019 & 3.33 \\
+$V3$ & 2022 & +0.0122 & \textbf{+0.0211} & \textbf{+0.0196} & \textbf{5.64} & +0.0111 & +0.0061 & +0.0164 & 5.67 & +0.0099 & +0.0042 & +0.0121 & \underline{5.66} & \textbf{+0.0304} & +0.0143 & +0.0127 & 5.72 & +0.0006 & +0.0007 & +0.0032 & 5.68 & \underline{+0.0167} & +0.0106 & +0.0140 & 5.66 & +0.0120 & \underline{+0.0151} & \underline{+0.0182} & 6.50 & +0.0109 & +0.0111 & +0.0123 & 5.74 \\
+$V3$ & 2023 & -0.0120 & -0.0140 & -0.0091 & \textbf{3.30} & -0.0060 & \underline{-0.0041} & \underline{-0.0050} & \underline{3.38} & -0.0061 & -0.0176 & -0.0309 & 3.40 & \textbf{+0.0052} & \textbf{-0.0024} & \textbf{-0.0036} & 3.38 & -0.0054 & -0.0199 & -0.0263 & 3.42 & -0.0048 & -0.0203 & -0.0102 & 10.42 & \underline{+0.0005} & -0.0133 & -0.0194 & 3.66 & -0.0011 & -0.0195 & -0.0275 & 4.19 \\
+$V3$ & 2024 & -0.0115 & -0.0057 & -0.0103 & \underline{3.28} & +0.0003 & \underline{+0.0207} & +0.0129 & \textbf{3.28} & \textbf{+0.0088} & \textbf{+0.0217} & \underline{+0.0144} & 3.29 & +0.0083 & +0.0199 & \textbf{+0.0268} & 3.35 & +0.0037 & +0.0148 & +0.0060 & 3.31 & -0.0010 & -0.0108 & -0.0093 & 4.75 & \underline{+0.0086} & +0.0021 & +0.0003 & 3.97 & +0.0070 & +0.0022 & +0.0019 & 3.33 \\
 \addlinespace
-set4 & 2022 & \underline{+0.0277} & +0.0263 & +0.0155 & 4.38 & +0.0027 & +0.0240 & +0.0045 & \underline{4.36} & +0.0188 & \underline{+0.0386} & +0.0351 & \textbf{4.34} & +0.0187 & +0.0304 & +0.0196 & 4.42 & +0.0039 & +0.0231 & +0.0261 & 4.40 & -0.0027 & +0.0055 & -0.0063 & 12.11 & \textbf{+0.0280} & \textbf{+0.0422} & \textbf{+0.0578} & 4.38 & +0.0228 & +0.0294 & \underline{+0.0382} & 4.46 \\
-set4 & 2023 & +0.0022 & \underline{+0.0129} & \underline{+0.0089} & \textbf{2.44} & \textbf{+0.0245} & \textbf{+0.0335} & \textbf{+0.0319} & 2.48 & \underline{+0.0165} & +0.0056 & -0.0007 & 2.50 & +0.0161 & +0.0050 & -0.0018 & \underline{2.48} & +0.0021 & -0.0149 & -0.0278 & 2.50 & -0.0167 & -0.0198 & -0.0342 & 27.83 & -0.0040 & -0.0266 & -0.0337 & 2.89 & -0.0018 & -0.0248 & -0.0306 & 2.98 \\
-set4 & 2024 & +0.0065 & +0.0021 & +0.0045 & \underline{2.34} & +0.0078 & +0.0156 & \textbf{+0.0202} & \textbf{2.33} & +0.0055 & +0.0136 & +0.0137 & 2.34 & -0.0030 & +0.0030 & +0.0042 & 2.37 & +0.0013 & +0.0159 & +0.0119 & 2.38 & -0.0030 & +0.0037 & +0.0041 & 2.36 & \underline{+0.0079} & \textbf{+0.0174} & \underline{+0.0190} & 3.06 & \textbf{+0.0104} & \underline{+0.0172} & +0.0175 & 2.58 \\
+$V4$ & 2022 & \underline{+0.0277} & +0.0263 & +0.0155 & 4.38 & +0.0027 & +0.0240 & +0.0045 & \underline{4.36} & +0.0188 & \underline{+0.0386} & +0.0351 & \textbf{4.34} & +0.0187 & +0.0304 & +0.0196 & 4.42 & +0.0039 & +0.0231 & +0.0261 & 4.40 & -0.0027 & +0.0055 & -0.0063 & 12.11 & \textbf{+0.0280} & \textbf{+0.0422} & \textbf{+0.0578} & 4.38 & +0.0228 & +0.0294 & \underline{+0.0382} & 4.46 \\
+$V4$ & 2023 & +0.0022 & \underline{+0.0129} & \underline{+0.0089} & \textbf{2.44} & \textbf{+0.0245} & \textbf{+0.0335} & \textbf{+0.0319} & 2.48 & \underline{+0.0165} & +0.0056 & -0.0007 & 2.50 & +0.0161 & +0.0050 & -0.0018 & \underline{2.48} & +0.0021 & -0.0149 & -0.0278 & 2.50 & -0.0167 & -0.0198 & -0.0342 & 27.83 & -0.0040 & -0.0266 & -0.0337 & 2.89 & -0.0018 & -0.0248 & -0.0306 & 2.98 \\
+$V4$ & 2024 & +0.0065 & +0.0021 & +0.0045 & \underline{2.34} & +0.0078 & +0.0156 & \textbf{+0.0202} & \textbf{2.33} & +0.0055 & +0.0136 & +0.0137 & 2.34 & -0.0030 & +0.0030 & +0.0042 & 2.37 & +0.0013 & +0.0159 & +0.0119 & 2.38 & -0.0030 & +0.0037 & +0.0041 & 2.36 & \underline{+0.0079} & \textbf{+0.0174} & \underline{+0.0190} & 3.06 & \textbf{+0.0104} & \underline{+0.0172} & +0.0175 & 2.58 \\
 \midrule
-\textit{Mean, replication} &  & +0.0068 & \underline{+0.0109} & \textbf{+0.0117} & \textbf{3.81} & +0.0053 & \textbf{+0.0110} & \underline{+0.0086} & \underline{3.83} & \textbf{+0.0077} & +0.0075 & +0.0047 & 3.84 & \underline{+0.0074} & +0.0066 & +0.0037 & 3.89 & +0.0012 & +0.0022 & -0.0004 & 3.87 & +0.0024 & +0.0009 & -0.0002 & 14.95 & +0.0061 & +0.0038 & +0.0051 & 4.25 & +0.0056 & +0.0013 & +0.0013 & 4.17 \\
+\textit{Mean, validation} &  & +0.0068 & \underline{+0.0109} & \textbf{+0.0117} & \textbf{3.81} & +0.0053 & \textbf{+0.0110} & \underline{+0.0086} & \underline{3.83} & \textbf{+0.0077} & +0.0075 & +0.0047 & 3.84 & \underline{+0.0074} & +0.0066 & +0.0037 & 3.89 & +0.0012 & +0.0022 & -0.0004 & 3.87 & +0.0024 & +0.0009 & -0.0002 & 14.95 & +0.0061 & +0.0038 & +0.0051 & 4.25 & +0.0056 & +0.0013 & +0.0013 & 4.17 \\
 \textit{Mean, all panels} &  & \underline{+0.0075} & \textbf{+0.0120} & \textbf{+0.0131} & \textbf{3.80} & +0.0048 & \underline{+0.0115} & \underline{+0.0087} & \underline{3.83} & +0.0062 & +0.0057 & +0.0027 & 3.83 & \textbf{+0.0075} & +0.0065 & +0.0033 & 3.89 & -0.0005 & -0.0007 & -0.0036 & 3.86 & +0.0024 & +0.0018 & +0.0024 & 13.49 & +0.0049 & +0.0006 & +0.0015 & 4.35 & +0.0041 & -0.0018 & -0.0019 & 4.12 \\
 \bottomrule
 \end{tabular}%
@@ -583,26 +603,26 @@ Panel & Trade yr & \multicolumn{4}{c}{EXAMM $55$--$77$} & \multicolumn{4}{c}{DLi
 \cmidrule(lr){3-6} \cmidrule(lr){7-10} \cmidrule(lr){11-14} \cmidrule(lr){15-18} \cmidrule(lr){19-22} \cmidrule(lr){23-26} \cmidrule(lr){27-30} \cmidrule(lr){31-34} \cmidrule(lr){35-36}
  & & Net & Sh. & MDD & Turn. & Net & Sh. & MDD & Turn. & Net & Sh. & MDD & Turn. & Net & Sh. & MDD & Turn. & Net & Sh. & MDD & Turn. & Net & Sh. & MDD & Turn. & Net & Sh. & MDD & Turn. & Net & Sh. & MDD & Turn. & B\&H & EW \\
 \midrule
-Dataset A & 2022 & \textbf{+12.73} & \textbf{+0.98} & \underline{-13.3} & \textbf{26} & -17.75 & -0.87 & -23.2 & 61 & -1.91 & +0.17 & -14.1 & 77 & -1.94 & +0.17 & -21.1 & 79 & +4.84 & +0.45 & -14.2 & \underline{50} & +2.93 & +0.43 & \textbf{-10.4} & 72 & +1.60 & +0.34 & -20.8 & 91 & \underline{+8.23} & \underline{+0.62} & -18.8 & 90 & -14.03 & -22.28 \\
-Dataset A & 2023 & \textbf{+30.24} & \textbf{+2.32} & -10.0 & \textbf{30} & \underline{+22.29} & \underline{+1.83} & \textbf{-4.9} & 72 & +9.18 & +0.93 & -9.6 & 80 & -22.52 & -1.75 & -21.0 & 86 & -24.73 & -1.69 & -24.1 & \underline{50} & -4.91 & -0.09 & \underline{-8.9} & 89 & -33.04 & -2.24 & -30.8 & 97 & -31.02 & -2.01 & -30.9 & 93 & +7.87 & +0.97 \\
+Baseline & 2022 & \textbf{+12.73} & \textbf{+0.98} & \underline{-13.3} & \textbf{26} & -17.75 & -0.87 & -23.2 & 61 & -1.91 & +0.17 & -14.1 & 77 & -1.94 & +0.17 & -21.1 & 79 & +4.84 & +0.45 & -14.2 & \underline{50} & +2.93 & +0.43 & \textbf{-10.4} & 72 & +1.60 & +0.34 & -20.8 & 91 & \underline{+8.23} & \underline{+0.62} & -18.8 & 90 & -14.03 & -22.28 \\
+Baseline & 2023 & \textbf{+30.24} & \textbf{+2.32} & -10.0 & \textbf{30} & \underline{+22.29} & \underline{+1.83} & \textbf{-4.9} & 72 & +9.18 & +0.93 & -9.6 & 80 & -22.52 & -1.75 & -21.0 & 86 & -24.73 & -1.69 & -24.1 & \underline{50} & -4.91 & -0.09 & \underline{-8.9} & 89 & -33.04 & -2.24 & -30.8 & 97 & -31.02 & -2.01 & -30.9 & 93 & +7.87 & +0.97 \\
 \midrule
-set1 & 2022 & -4.63 & -0.13 & \underline{-15.6} & \textbf{12} & +6.15 & \textbf{+0.52} & \textbf{-13.8} & 63 & +3.54 & +0.35 & -20.0 & 82 & +0.80 & +0.25 & -23.9 & 78 & +2.48 & +0.27 & -24.1 & 47 & -0.18 & +0.18 & -17.8 & \underline{46} & \textbf{+7.13} & \underline{+0.50} & -20.6 & 97 & \underline{+6.65} & +0.48 & -20.7 & 99 & -7.16 & -14.26 \\
-set1 & 2023 & \underline{+21.34} & \underline{+1.59} & \textbf{-9.5} & \textbf{39} & -4.27 & -0.06 & -10.1 & 73 & -10.61 & -0.44 & -14.6 & 92 & -0.94 & +0.21 & -13.6 & 85 & -4.64 & -0.11 & -10.6 & \underline{62} & \textbf{+23.46} & \textbf{+1.79} & \underline{-9.6} & 73 & -5.20 & -0.02 & -17.3 & 98 & +1.48 & +0.35 & -13.7 & 93 & +5.18 & -1.67 \\
-set1 & 2024 & \textbf{+17.19} & \underline{+1.11} & \textbf{-8.0} & \textbf{22} & -15.48 & -0.60 & -26.0 & 82 & -23.11 & -1.04 & -31.8 & 77 & -17.28 & -0.84 & -27.1 & 84 & +1.73 & +0.28 & -17.7 & \underline{49} & \underline{+13.39} & \textbf{+1.15} & \underline{-8.8} & 76 & -15.49 & -0.61 & -23.8 & 99 & -15.57 & -0.60 & -25.0 & 99 & -4.73 & -9.92 \\
+$V1$ & 2022 & -4.63 & -0.13 & \underline{-15.6} & \textbf{12} & +6.15 & \textbf{+0.52} & \textbf{-13.8} & 63 & +3.54 & +0.35 & -20.0 & 82 & +0.80 & +0.25 & -23.9 & 78 & +2.48 & +0.27 & -24.1 & 47 & -0.18 & +0.18 & -17.8 & \underline{46} & \textbf{+7.13} & \underline{+0.50} & -20.6 & 97 & \underline{+6.65} & +0.48 & -20.7 & 99 & -7.16 & -14.26 \\
+$V1$ & 2023 & \underline{+21.34} & \underline{+1.59} & \textbf{-9.5} & \textbf{39} & -4.27 & -0.06 & -10.1 & 73 & -10.61 & -0.44 & -14.6 & 92 & -0.94 & +0.21 & -13.6 & 85 & -4.64 & -0.11 & -10.6 & \underline{62} & \textbf{+23.46} & \textbf{+1.79} & \underline{-9.6} & 73 & -5.20 & -0.02 & -17.3 & 98 & +1.48 & +0.35 & -13.7 & 93 & +5.18 & -1.67 \\
+$V1$ & 2024 & \textbf{+17.19} & \underline{+1.11} & \textbf{-8.0} & \textbf{22} & -15.48 & -0.60 & -26.0 & 82 & -23.11 & -1.04 & -31.8 & 77 & -17.28 & -0.84 & -27.1 & 84 & +1.73 & +0.28 & -17.7 & \underline{49} & \underline{+13.39} & \textbf{+1.15} & \underline{-8.8} & 76 & -15.49 & -0.61 & -23.8 & 99 & -15.57 & -0.60 & -25.0 & 99 & -4.73 & -9.92 \\
 \addlinespace
-set2 & 2022 & \textbf{+35.22} & \textbf{+1.88} & \textbf{-8.3} & \textbf{21} & +5.66 & +0.55 & \underline{-10.4} & 54 & -1.85 & +0.17 & -11.2 & 75 & \underline{+13.72} & \underline{+1.12} & -13.2 & 72 & -1.61 & +0.12 & -15.1 & \underline{46} & -25.23 & -1.51 & -24.6 & 69 & -4.05 & +0.07 & -21.1 & 85 & +0.45 & +0.29 & -23.2 & 86 & -11.42 & -18.91 \\
-set2 & 2023 & \underline{+16.92} & \underline{+1.26} & \underline{-7.5} & \textbf{16} & +3.29 & +0.50 & -11.0 & 73 & -10.35 & -0.45 & -16.2 & 80 & -10.34 & -0.43 & -18.8 & 82 & -15.06 & -0.88 & -21.4 & \underline{51} & \textbf{+28.56} & \textbf{+2.39} & \textbf{-5.0} & 67 & -22.25 & -1.14 & -23.2 & 95 & -16.90 & -0.79 & -19.7 & 88 & +15.37 & +7.40 \\
-set2 & 2024 & \textbf{+13.80} & \textbf{+1.09} & \textbf{-8.4} & \textbf{13} & -12.99 & -0.69 & -13.7 & 79 & -12.85 & -0.68 & -22.0 & 59 & -17.71 & -1.05 & -18.7 & 68 & -14.20 & -0.83 & -23.0 & \underline{44} & \underline{-2.76} & \underline{+0.17} & \underline{-9.7} & 71 & -25.10 & -1.54 & -25.9 & 88 & -25.39 & -1.59 & -26.7 & 92 & +12.13 & +3.46 \\
+$V2$ & 2022 & \textbf{+35.22} & \textbf{+1.88} & \textbf{-8.3} & \textbf{21} & +5.66 & +0.55 & \underline{-10.4} & 54 & -1.85 & +0.17 & -11.2 & 75 & \underline{+13.72} & \underline{+1.12} & -13.2 & 72 & -1.61 & +0.12 & -15.1 & \underline{46} & -25.23 & -1.51 & -24.6 & 69 & -4.05 & +0.07 & -21.1 & 85 & +0.45 & +0.29 & -23.2 & 86 & -11.42 & -18.91 \\
+$V2$ & 2023 & \underline{+16.92} & \underline{+1.26} & \underline{-7.5} & \textbf{16} & +3.29 & +0.50 & -11.0 & 73 & -10.35 & -0.45 & -16.2 & 80 & -10.34 & -0.43 & -18.8 & 82 & -15.06 & -0.88 & -21.4 & \underline{51} & \textbf{+28.56} & \textbf{+2.39} & \textbf{-5.0} & 67 & -22.25 & -1.14 & -23.2 & 95 & -16.90 & -0.79 & -19.7 & 88 & +15.37 & +7.40 \\
+$V2$ & 2024 & \textbf{+13.80} & \textbf{+1.09} & \textbf{-8.4} & \textbf{13} & -12.99 & -0.69 & -13.7 & 79 & -12.85 & -0.68 & -22.0 & 59 & -17.71 & -1.05 & -18.7 & 68 & -14.20 & -0.83 & -23.0 & \underline{44} & \underline{-2.76} & \underline{+0.17} & \underline{-9.7} & 71 & -25.10 & -1.54 & -25.9 & 88 & -25.39 & -1.59 & -26.7 & 92 & +12.13 & +3.46 \\
 \addlinespace
-set3 & 2022 & \textbf{+36.68} & \textbf{+1.88} & \textbf{-7.7} & \textbf{10} & -1.43 & +0.14 & -12.6 & \underline{51} & +4.27 & +0.45 & -14.6 & 80 & +19.65 & +1.19 & \underline{-8.8} & 77 & +3.88 & +0.36 & -17.7 & 58 & \underline{+27.55} & \underline{+1.33} & -12.9 & 78 & +17.38 & +0.86 & -17.1 & 89 & +17.99 & +0.89 & -15.7 & 90 & -11.39 & -19.08 \\
-set3 & 2023 & \underline{-3.82} & \underline{-0.22} & -16.1 & \textbf{7} & \textbf{+1.03} & \textbf{+0.34} & \underline{-11.3} & 78 & -8.87 & -0.30 & \textbf{-9.1} & 82 & -18.84 & -1.11 & -17.7 & 83 & -9.69 & -0.40 & -13.3 & \underline{57} & -13.16 & -0.81 & -17.1 & 63 & -10.61 & -0.27 & -14.1 & 94 & -13.03 & -0.45 & -16.3 & 95 & +14.77 & +7.05 \\
-set3 & 2024 & -2.88 & -0.05 & -14.0 & \textbf{18} & \textbf{+24.88} & \textbf{+1.67} & \textbf{-8.7} & 74 & \underline{+11.46} & \underline{+0.86} & -13.0 & 64 & +6.32 & +0.63 & \underline{-10.5} & 67 & -4.84 & -0.07 & -14.6 & \underline{46} & +5.62 & +0.73 & -13.3 & 92 & -1.82 & +0.22 & -13.0 & 98 & -2.98 & +0.15 & -16.3 & 86 & +13.11 & +3.89 \\
+$V3$ & 2022 & \textbf{+36.68} & \textbf{+1.88} & \textbf{-7.7} & \textbf{10} & -1.43 & +0.14 & -12.6 & \underline{51} & +4.27 & +0.45 & -14.6 & 80 & +19.65 & +1.19 & \underline{-8.8} & 77 & +3.88 & +0.36 & -17.7 & 58 & \underline{+27.55} & \underline{+1.33} & -12.9 & 78 & +17.38 & +0.86 & -17.1 & 89 & +17.99 & +0.89 & -15.7 & 90 & -11.39 & -19.08 \\
+$V3$ & 2023 & \underline{-3.82} & \underline{-0.22} & -16.1 & \textbf{7} & \textbf{+1.03} & \textbf{+0.34} & \underline{-11.3} & 78 & -8.87 & -0.30 & \textbf{-9.1} & 82 & -18.84 & -1.11 & -17.7 & 83 & -9.69 & -0.40 & -13.3 & \underline{57} & -13.16 & -0.81 & -17.1 & 63 & -10.61 & -0.27 & -14.1 & 94 & -13.03 & -0.45 & -16.3 & 95 & +14.77 & +7.05 \\
+$V3$ & 2024 & -2.88 & -0.05 & -14.0 & \textbf{18} & \textbf{+24.88} & \textbf{+1.67} & \textbf{-8.7} & 74 & \underline{+11.46} & \underline{+0.86} & -13.0 & 64 & +6.32 & +0.63 & \underline{-10.5} & 67 & -4.84 & -0.07 & -14.6 & \underline{46} & +5.62 & +0.73 & -13.3 & 92 & -1.82 & +0.22 & -13.0 & 98 & -2.98 & +0.15 & -16.3 & 86 & +13.11 & +3.89 \\
 \addlinespace
-set4 & 2022 & -5.43 & -0.36 & -14.3 & \textbf{4} & +8.14 & +0.72 & -12.1 & 54 & \underline{+20.51} & \underline{+1.30} & -12.4 & 74 & \textbf{+22.58} & \textbf{+1.48} & \underline{-11.8} & 70 & -4.32 & -0.05 & -22.2 & \underline{53} & +4.82 & +0.66 & \textbf{-10.3} & 77 & +11.12 & +0.81 & -17.5 & 97 & +11.91 & +0.78 & -18.5 & 88 & -10.25 & -17.33 \\
-set4 & 2023 & +1.84 & +0.24 & -11.2 & \textbf{9} & \textbf{+24.33} & \textbf{+2.17} & \underline{-7.4} & 79 & -7.40 & -0.27 & -15.7 & 78 & \underline{+10.93} & \underline{+1.25} & \textbf{-6.0} & 80 & -11.13 & -0.54 & -15.5 & \underline{58} & -21.61 & -1.93 & -19.7 & 76 & -20.26 & -1.19 & -24.3 & 93 & -24.45 & -1.46 & -27.9 & 94 & +9.41 & +3.16 \\
-set4 & 2024 & +5.96 & +0.58 & \underline{-8.5} & \textbf{2} & -6.26 & -0.26 & -12.7 & 82 & \textbf{+16.68} & \textbf{+1.50} & \textbf{-5.3} & 73 & -12.38 & -0.62 & -11.8 & 81 & -9.88 & -0.48 & -13.4 & 51 & \underline{+8.65} & \underline{+0.98} & -8.6 & \underline{49} & +1.69 & +0.53 & -9.3 & 100 & +5.13 & +0.73 & -9.0 & 86 & +6.69 & -1.14 \\
+$V4$ & 2022 & -5.43 & -0.36 & -14.3 & \textbf{4} & +8.14 & +0.72 & -12.1 & 54 & \underline{+20.51} & \underline{+1.30} & -12.4 & 74 & \textbf{+22.58} & \textbf{+1.48} & \underline{-11.8} & 70 & -4.32 & -0.05 & -22.2 & \underline{53} & +4.82 & +0.66 & \textbf{-10.3} & 77 & +11.12 & +0.81 & -17.5 & 97 & +11.91 & +0.78 & -18.5 & 88 & -10.25 & -17.33 \\
+$V4$ & 2023 & +1.84 & +0.24 & -11.2 & \textbf{9} & \textbf{+24.33} & \textbf{+2.17} & \underline{-7.4} & 79 & -7.40 & -0.27 & -15.7 & 78 & \underline{+10.93} & \underline{+1.25} & \textbf{-6.0} & 80 & -11.13 & -0.54 & -15.5 & \underline{58} & -21.61 & -1.93 & -19.7 & 76 & -20.26 & -1.19 & -24.3 & 93 & -24.45 & -1.46 & -27.9 & 94 & +9.41 & +3.16 \\
+$V4$ & 2024 & +5.96 & +0.58 & \underline{-8.5} & \textbf{2} & -6.26 & -0.26 & -12.7 & 82 & \textbf{+16.68} & \textbf{+1.50} & \textbf{-5.3} & 73 & -12.38 & -0.62 & -11.8 & 81 & -9.88 & -0.48 & -13.4 & 51 & \underline{+8.65} & \underline{+0.98} & -8.6 & \underline{49} & +1.69 & +0.53 & -9.3 & 100 & +5.13 & +0.73 & -9.0 & 86 & +6.69 & -1.14 \\
 \midrule
-\textit{Mean, replication} &  & \textbf{+11.02} & \textbf{+0.74} & \textbf{-10.8} & \textbf{15} & +2.75 & +0.42 & \underline{-12.5} & 70 & -1.55 & +0.12 & -15.5 & 76 & -0.29 & +0.17 & -15.1 & 77 & -5.61 & -0.19 & -17.4 & \underline{52} & \underline{+4.09} & \underline{+0.43} & -13.1 & 70 & -5.62 & -0.15 & -18.9 & 94 & -4.56 & -0.10 & -19.4 & 91 & +2.64 & -4.78 \\
+\textit{Mean, validation} &  & \textbf{+11.02} & \textbf{+0.74} & \textbf{-10.8} & \textbf{15} & +2.75 & +0.42 & \underline{-12.5} & 70 & -1.55 & +0.12 & -15.5 & 76 & -0.29 & +0.17 & -15.1 & 77 & -5.61 & -0.19 & -17.4 & \underline{52} & \underline{+4.09} & \underline{+0.43} & -13.1 & 70 & -5.62 & -0.15 & -18.9 & 94 & -4.56 & -0.10 & -19.4 & 91 & +2.64 & -4.78 \\
 \textit{Mean, all panels} &  & \textbf{+12.51} & \textbf{+0.87} & \textbf{-10.9} & \textbf{16} & +2.68 & \underline{+0.43} & -12.7 & 70 & -0.81 & +0.18 & -15.0 & 77 & -2.00 & +0.03 & -16.0 & 78 & -6.23 & -0.26 & -17.6 & \underline{52} & \underline{+3.37} & +0.39 & \underline{-12.6} & 71 & -7.06 & -0.26 & -19.9 & 94 & -5.54 & -0.19 & -20.2 & 91 & +1.82 & -5.62 \\
 \bottomrule
 \end{tabular}%

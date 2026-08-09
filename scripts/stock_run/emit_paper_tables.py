@@ -48,6 +48,13 @@ MODELS = ["EXAMM", "DLinear", "PatchTST", "iTransf.", "DeformT.", "TimeMixer", "
 PARAMS = {"EXAMM": "$55$--$77$", "DLinear": "$194$", "PatchTST": "$16{,}836$",
           "iTransf.": "$817{,}153$", "DeformT.": "$67{,}449$", "TimeMixer": "$72{,}997$",
           "LSTM-i": "$295$", "GRU-i": "$295$"}
+# Panel display names. The scorers key on directory names (set1..set4, "Dataset A"); the paper
+# calls these the Validation Portfolios $V1$--$V4$ and the Baseline Portfolio (04-datasets.tex:33,
+# :110). The mapping lives here so the tables speak the paper's language without renaming any
+# directory on disk -- a rename would break every path in every scorer and submit script.
+PANEL_NAME = {"Dataset A": "Baseline", "set1": "$V1$", "set2": "$V2$",
+              "set3": "$V3$", "set4": "$V4$"}
+
 # (panel, trade year) -> (buy-and-hold, equal-weight), net %. See module docstring.
 BENCH = {("Dataset A", 2022): (-14.03, -22.28), ("Dataset A", 2023): (+7.87, +0.97),
          ("set1", 2022): (-7.16, -14.26), ("set1", 2023): (+5.18, -1.67),
@@ -121,7 +128,7 @@ def build(recs, metrics, caption, label, benchmarks):
     for n, (panel, yr) in enumerate(rows):
         if n and rows[n - 1][0] != panel:
             L.append(r"\midrule" if panel != rows[n - 1][0] and n == 2 else r"\addlinespace")
-        cells = [panel, str(yr)]
+        cells = [PANEL_NAME.get(panel, panel), str(yr)]
         for k, _, dec, scale, low in metrics:
             vals = [idx.get((panel, yr, m), {}).get(k, float("nan")) for m in MODELS]
             for i in range(len(MODELS)):
@@ -138,7 +145,7 @@ def build(recs, metrics, caption, label, benchmarks):
         L.append(" & ".join(body) + r" \\")
 
     L.append(r"\midrule")
-    for lbl, flt in (("Mean, replication", lambda p: p != "Dataset A"),
+    for lbl, flt in (("Mean, validation", lambda p: p != "Dataset A"),
                      ("Mean, all panels", lambda _p: True)):
         cells = {}
         for k, _, dec, scale, low in metrics:
