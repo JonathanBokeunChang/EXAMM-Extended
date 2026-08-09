@@ -13,7 +13,8 @@
 # Fixed-topology LSTM/GRU baselines via EXAMM's OWN train_rnn, pooled construction.
 #
 #   sbatch --array=0 scripts/stock_run/anvil_train_rnn.sb          # canary (lstm, set1/2020, run 0)
-#   sbatch --array=0-279 scripts/stock_run/anvil_train_rnn.sb      # full campaign
+#   sbatch --array=0-279 scripts/stock_run/anvil_train_rnn.sb                       # full campaign
+#   sbatch --export=ALL,NORM=instance --array=0-279 scripts/stock_run/anvil_train_rnn.sb  # instance arm
 #
 # WHY train_rnn AND NOT THE PYTORCH BASELINE. The PyTorch LSTM/GRU differ from EXAMM in framework,
 # windowing, normalisation and early stopping, so a gap between them would be unattributable -- it
@@ -46,6 +47,17 @@ TYPE_I=$(( IDX / 140 ))
 [ "$TYPE_I" -le 1 ] || { echo "ERROR: task $IDX out of range (max 279)"; exit 2; }
 RNN_TYPE=$( [ "$TYPE_I" -eq 0 ] && echo lstm || echo gru )
 
+# NORMALISATION ARM. avg_std_dev is the completed campaign; `instance` is the causal trailing-window
+# scheme added in 2b4a2e6a. The mode is part of the OUTPUT PATH, not just the config, because the
+# two arms must never land in the same directory -- a resumed run would otherwise see .done markers
+# from the other normalisation and skip work it has not done.
+NORM=${NORM:-avg_std_dev}
+case "$NORM" in
+  avg_std_dev) NORM_TAG="" ;;
+  instance)    NORM_TAG="_inst" ;;
+  *) echo "ERROR: NORM must be avg_std_dev or instance (got '$NORM')" >&2; exit 2 ;;
+esac
+
 # ---- cell -> data directory. Portfolios first so --array=0-119 is a portfolio-only campaign.
 if [ "$CELL" -lt 12 ]; then
   SET="set$(( CELL / 3 + 1 ))"
@@ -58,7 +70,7 @@ else
   TAG="dsA_${COHORT}"
 fi
 
-OUT="test_output/rnn_${RNN_TYPE}_${TAG}/run_${RUN}"
+OUT="test_output/rnn_${RNN_TYPE}${NORM_TAG}_${TAG}/run_${RUN}"
 
 # ---- inputs. Bash word-splitting on $(...) is intended here and is safe: these paths have no
 # spaces. (zsh would NOT split these -- that difference has bitten this project before; Anvil is
@@ -97,7 +109,7 @@ done
   echo "data=$DATA"
   echo "git_head=$(git rev-parse HEAD 2>/dev/null)"
   echo "bin_sha256=$(sha256sum "$BIN_T" 2>/dev/null | cut -d' ' -f1)"
-  echo "config=2layer hidden=inputs bp=$BP lr=1e-4 adam xavier (Lyu et al.)"
+  echo "config=2layer hidden=inputs bp=$BP lr=1e-4 adam xavier (Lyu et al.) normalize=$NORM"
 } > "$OUT/.config"
 
 START=$(date +%s)
@@ -112,7 +124,7 @@ START=$(date +%s)
   --max_recurrent_depth 1 \
   --bp_iterations "$BP" \
   --learning_rate 0.0001 \
-  --normalize avg_std_dev \
+  --normalize "$NORM" \
   --output_directory "$OUT" \
   --std_message_level INFO --file_message_level NONE
 RC=$?
