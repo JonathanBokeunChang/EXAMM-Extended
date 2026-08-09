@@ -17,13 +17,17 @@ resolution is that Algorithm 2 re-enters the book on only ~15% of test days and 
 a 6.9-day mean holding period against 1.1-1.9 days for every baseline. It is graded at h=1 and
 paid at h~7.
 
-PANEL B IS THE PART THAT GENERALISES. The horizon lift is not an EXAMM property, it is a CAPACITY
-property: the h5/h1 ratio falls monotonically enough with parameter count to give Spearman
-rho = -0.79 across the eight models, and only the two smallest exceed 1.0. Daily cross-sectional
-returns are nearly all noise, so the component that survives to day five is the slow one, and a
-model with 66 parameters cannot fit anything else. This is why the figure is drawn with colour
-mapped to log parameter count rather than to model identity -- the ordering IS the finding, and a
-categorical palette would hide it.
+COLOUR CARRIES THE SECOND FINDING SO NO SECOND PANEL IS NEEDED. Lines are coloured by log
+parameter count rather than model identity, because the horizon lift is a CAPACITY property and
+not an EXAMM one: the h=5/h=1 ratio falls with size across the eight models (Spearman rho = -0.79)
+and exceeds 1.0 only for the two smallest. Drawn this way the gradient is legible in the curves
+themselves -- dark lines above, bright ones below. The correlation is printed on stdout for prose.
+
+NO SHADING, BY DECISION. An earlier version carried a bootstrap band on EXAMM and a grey span
+marking the holding period; both were removed for legibility. The uncertainty they showed is real
+and still belongs in the text: bootstrapped over the twelve cells, EXAMM's interval spans roughly
++0.003 to +0.021 and contains most of the baseline curves, so the separation here is a
+point-estimate ordering and not a resolved one. Do not let the clean lines imply otherwise.
 
 WHAT IT DOES NOT CLAIM, and the CI band is here to keep that visible: bootstrapped over the twelve
 validation cells, EXAMM's advantage clears zero only against the weakest arms, and DLinear (194
@@ -88,13 +92,12 @@ def main():
         "savefig.bbox": "tight", "savefig.pad_inches": 0.02,
     })
 
-    fig, (axA, axB) = plt.subplots(1, 2, figsize=(7.16, 3.15),
-                                   gridspec_kw={"width_ratios": [1.5, 1.0], "wspace": 0.30})
-    fig.subplots_adjust(bottom=0.30)
+    # SINGLE COLUMN. Generating at 3.4in means the 8pt type here is 8pt on the page; generating
+    # wide and letting \includegraphics shrink it to \columnwidth would land the labels near 4pt,
+    # which is the usual way a good figure becomes unreadable in print.
+    fig, ax = plt.subplots(figsize=(3.4, 3.05))
+    fig.subplots_adjust(bottom=0.34, left=0.20, right=0.985, top=0.90)
 
-    # Colour encodes log parameter count -- see module docstring: the size ordering is the finding,
-    # so a categorical palette would hide it. Markers disambiguate the two ~70k models, whose
-    # counts are close enough that their colours necessarily are too.
     counts = np.array([p for _, p in MODELS], float)
     norm = matplotlib.colors.LogNorm(vmin=counts.min() * 0.75, vmax=counts.max() * 1.3)
     cmap = plt.get_cmap("viridis")
@@ -102,80 +105,42 @@ def main():
     mk = {"EXAMM": "o", "DLinear": "s", "LSTM-i": "^", "GRU-i": "v",
           "PatchTST": "D", "DeformT.": "P", "TimeMixer": "X", "iTransf.": "*"}
 
-    # ---- Panel A: IC vs horizon -----------------------------------------------------------
     means = {m: np.nanmean(data[m], axis=0) for m, _ in MODELS}
-    lo, hi = boot_ci(data["EXAMM"], rng)
 
-    # The band marks where the gated book is actually held, so a reader can see EXAMM's rise
-    # coincides with it rather than reading a maximum off the curve after the fact.
-    axA.axvspan(5, 8, color="0.945", zorder=0, lw=0)
-    axA.axhline(0, color="0.6", lw=0.7, zorder=1)
-    axA.fill_between(HS, lo, hi, color=col["EXAMM"], alpha=0.10, lw=0, zorder=2)
+    # Zero kept as the one reference line: several models cross it, and "is this skill or is this
+    # nothing" is not readable without it.
+    ax.axhline(0, color="0.65", lw=0.7, zorder=1)
 
     for m, p in MODELS:
         exam = (m == "EXAMM")
-        axA.plot(HS, means[m], color=col[m], lw=2.3 if exam else 1.0,
-                 marker=mk[m], ms=4.2 if exam else 2.9, mew=0,
-                 markevery=1 if exam else 2,
-                 zorder=7 if exam else 3, alpha=1.0 if exam else 0.8,
-                 solid_capstyle="round")
+        ax.plot(HS, means[m], color=col[m], lw=2.1 if exam else 0.95,
+                marker=mk[m], ms=3.6 if exam else 2.5, mew=0,
+                markevery=1 if exam else 3,
+                zorder=7 if exam else 3, alpha=1.0 if exam else 0.85,
+                solid_capstyle="round")
 
-    axA.set_xlabel("Scoring horizon $h$ (trading days)")
-    axA.set_ylabel("Rank IC")
-    axA.set_xlim(0.6, 10.4)
-    axA.set_xticks(HS)
-    axA.set_title("Ranking skill by horizon", loc="left", pad=5, fontweight="semibold")
-    ylo, yhi = axA.get_ylim()
-    axA.annotate("book held $\\approx$7 days", xy=(6.5, ylo + 0.035 * (yhi - ylo)),
-                 ha="center", va="bottom", fontsize=6.5, color="0.45")
+    ax.set_xlabel("Scoring horizon $h$ (trading days)")
+    ax.set_ylabel("Rank IC")
+    ax.set_xlim(0.6, 10.4)
+    ax.set_xticks(HS)
+    ax.set_title("Ranking skill by horizon", loc="left", pad=4, fontweight="semibold")
     for side in ("top", "right"):
-        axA.spines[side].set_visible(False)
-    axA.grid(axis="y", color="0.9", lw=0.6, zorder=0)
-    axA.set_axisbelow(True)
+        ax.spines[side].set_visible(False)
+    ax.grid(axis="y", color="0.92", lw=0.6, zorder=0)
+    ax.set_axisbelow(True)
 
-    # ---- Panel B: horizon lift vs capacity ------------------------------------------------
-    ratio = np.array([means[m][4] / means[m][0] for m, _ in MODELS])   # h=5 over h=1
-    axB.axhline(1.0, color="0.6", lw=0.7, ls=(0, (4, 2)), zorder=1)
-    for (m, p), r in zip(MODELS, ratio):
-        axB.scatter(p, r, s=64 if m == "EXAMM" else 34, color=col[m], marker=mk[m],
-                    zorder=5, linewidths=0, alpha=0.95)
-    # Spearman is REPORTED, not fitted through: n=8, and a regression line would imply more
-    # precision than eight points carry.
+    # Legend ordered by size, which is the figure's organising variable.
+    handles = [Line2D([], [], color=col[m], lw=2.1 if m == "EXAMM" else 1.1, marker=mk[m],
+                      ms=3.6 if m == "EXAMM" else 2.8, mew=0, label=f"{m} {p:,}")
+               for m, p in MODELS]
+    fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.56, -0.012),
+               frameon=False, ncol=2, handlelength=1.7, columnspacing=1.2,
+               labelspacing=0.32, handletextpad=0.45, fontsize=6.4)
+
+    # Reported on stdout, not plotted: the capacity correlation the colouring encodes.
+    ratio = np.array([means[m][4] / means[m][0] for m, _ in MODELS])
     rk = lambda v: np.argsort(np.argsort(v))                                  # noqa: E731
     rho = np.corrcoef(rk(counts), rk(ratio))[0, 1]
-    axB.set_xscale("log")
-    axB.set_xlim(25, 6e6)
-    # Explicit headroom: the labels are placed beside their markers, so the default margins clip
-    # the lowest one (DeformTime, the only negative lift).
-    axB.set_ylim(float(ratio.min()) - 0.30, float(ratio.max()) + 0.26)
-    axB.set_xlabel("Parameters")
-    axB.set_ylabel("Horizon lift  IC$_{h=5}$ / IC$_{h=1}$")
-    axB.set_title("Lift falls with capacity", loc="left", pad=5, fontweight="semibold")
-    axB.text(0.97, 0.96, f"Spearman $\\rho$ = {rho:+.2f}", transform=axB.transAxes,
-             ha="right", va="top", fontsize=7.5, color="0.25")
-    axB.text(0.97, 0.575, "no lift", transform=axB.transAxes, ha="right", va="bottom",
-             fontsize=6.4, color="0.6")
-    # Hand-placed so the two ~70k models (whose x positions nearly coincide) do not collide.
-    LAB = {"EXAMM": (2.3, 0.00, "left"), "DLinear": (2.3, 0.00, "left"),
-           "LSTM-i": (2.3, 0.00, "left"), "GRU-i": (2.3, 0.00, "left"),
-           "PatchTST": (2.3, 0.00, "left"), "DeformT.": (0.34, -0.03, "right"),
-           "TimeMixer": (2.6, 0.10, "left"), "iTransf.": (0.34, 0.00, "right")}
-    for (m, p), r in zip(MODELS, ratio):
-        fx, dy, ha = LAB[m]
-        axB.annotate(m, (p, r), xytext=(p * fx, r + dy), fontsize=6.4, color="0.3",
-                     ha=ha, va="center")
-    for side in ("top", "right"):
-        axB.spines[side].set_visible(False)
-    axB.grid(axis="y", color="0.9", lw=0.6, zorder=0)
-    axB.set_axisbelow(True)
-
-    # ---- shared legend below both panels, ordered by size (the figure's organising variable)
-    handles = [Line2D([], [], color=col[m], lw=2.3 if m == "EXAMM" else 1.2, marker=mk[m],
-                      ms=4.2 if m == "EXAMM" else 3.2, mew=0, label=f"{m}  {p:,}")
-               for m, p in MODELS]
-    fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, -0.015),
-               frameon=False, ncol=4, handlelength=1.9, columnspacing=1.6,
-               labelspacing=0.4, handletextpad=0.5)
 
     for f in ("horizon.pdf", "horizon.png"):
         fig.savefig(os.path.join(OUT, f), dpi=400)
