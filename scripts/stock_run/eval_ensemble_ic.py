@@ -241,6 +241,18 @@ def main():
     print(f"IC info ratio : {ir:+.3f}")
     print(f"hit rate      : {sum(1 for x in ics if x > 0) / len(ics):.1%}")
 
+    # ALGORITHM 2 GATE. The book opens only when every one of the top L predictions is positive and
+    # every one of the bottom S is negative, so a model whose predictions barely differentiate
+    # across stocks never trades even with a healthy IC. That failure is invisible in IC -- it cost
+    # this project nine dead cells before anyone looked -- so it is reported alongside it.
+    L = S = 10
+    gate = 0
+    for j in range(n_dates):
+        day = sorted(ens[s_][j] for s_ in stocks)
+        if len(day) >= L + S and day[-L] > 0 and day[S - 1] < 0:
+            gate += 1
+    print(f"gate days     : {gate}/{n_dates} ({gate / n_dates:.1%} of the test window)")
+
     if args.emit_dir:
         os.makedirs(args.emit_dir, exist_ok=True)
         for s in stocks:

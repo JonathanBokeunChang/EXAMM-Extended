@@ -22,6 +22,14 @@ set -uo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO" || exit 1
 TYPES=${1:-"lstm gru"}
+# Which normalisation arm to score. avg_std_dev writes rnn_<type>_<cell>, instance writes
+# rnn_<type>_inst_<cell>; the two must be scored separately or the ensembles mix schemes.
+NORM=${NORM:-avg_std_dev}
+case "$NORM" in
+  avg_std_dev) NORM_TAG="" ;;
+  instance)    NORM_TAG="_inst" ;;
+  *) echo "ERROR: NORM must be avg_std_dev or instance (got '$NORM')" >&2; exit 2 ;;
+esac
 SPLIT=${SPLIT:-test}
 # Drop runs whose average prediction exceeds K standard deviations of the target. One diverged run
 # shifts a prediction-MEAN ensemble by level/N, and because Algorithm 2 gates on signs that closes
@@ -29,7 +37,7 @@ SPLIT=${SPLIT:-test}
 # against nine runs in -0.003..+0.007 and took the cell from 251 tradeable days to 0.
 # Set MAX_LEVEL_SD= (empty) to reproduce the unscreened numbers.
 MAX_LEVEL_SD=${MAX_LEVEL_SD-10}
-OUT_TAR=${OUT_TAR:-$REPO/rnn_ensembles.tar.gz}
+OUT_TAR=${OUT_TAR:-$REPO/rnn_ensembles${NORM_TAG}.tar.gz}
 
 CELLS=()
 for S in set1 set2 set3 set4; do
@@ -37,13 +45,13 @@ for S in set1 set2 set3 set4; do
 done
 CELLS+=( "dsA_cohort_2020_aligned" "dsA_cohort_2021_aligned" )
 
-SUMMARY="$REPO/rnn_campaign_ic.csv"
-echo "type,cell,runs,dropped,stocks,dates,mean_ic,ic_ir,hit_rate" > "$SUMMARY"
+SUMMARY="$REPO/rnn_campaign_ic${NORM_TAG}.csv"
+echo "type,cell,runs,dropped,stocks,dates,mean_ic,ic_ir,hit_rate,gate,gate_pct" > "$SUMMARY"
 
 ok=0; miss=0; fail=0
 for T in $TYPES; do
   for CELL in "${CELLS[@]}"; do
-    ROOT="test_output/rnn_${T}_${CELL}"
+    ROOT="test_output/rnn_${T}${NORM_TAG}_${CELL}"
     if [ ! -d "$ROOT" ]; then
       echo "SKIP  $T $CELL: no $ROOT" >&2; miss=$((miss+1)); continue
     fi
@@ -70,8 +78,10 @@ for T in $TYPES; do
     # `|| echo 0` that used to be here appended a SECOND zero, making DR the two-line string
     # "0\n0" and breaking the [ -gt ] test below on every clean cell.
     DR=$(grep -c '^  DROPPED ' "$LOG" 2>/dev/null); DR=${DR:-0}
-    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s\n' "$T" "$CELL" "${RN:-$n}" "$DR" "$ST" "$DT" "$IC" "$IR" "$HR" >> "$SUMMARY"
-    printf '  %-4s %-26s %2s runs (%s dropped)  IC %-10s IR %-8s hit %s\n' "$T" "$CELL" "${RN:-$n}" "$DR" "$IC" "$IR" "$HR"
+    GA=$(grep -oE 'gate days     : [0-9]+/[0-9]+' "$LOG" | awk '{print $NF}')
+    GP=$(grep -oE 'gate days     :.*\(([0-9.]+)%' "$LOG" | grep -oE '[0-9.]+%' | tail -1)
+    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' "$T" "$CELL" "${RN:-$n}" "$DR" "$ST" "$DT" "$IC" "$IR" "$HR" "${GA:-}" "${GP:-}" >> "$SUMMARY"
+    printf '  %-4s %-26s %2s runs (%s drop)  IC %-10s IR %-7s gate %-9s hit %s\n' "$T" "$CELL" "${RN:-$n}" "$DR" "$IC" "$IR" "${GA:-?}" "$HR"
     [ "$DR" -gt 0 ] && grep '^  DROPPED ' "$LOG" | sed 's/^/     /' 
     ok=$((ok+1)); rm -f "$LOG"
   done
@@ -87,7 +97,7 @@ echo "ensembled $ok cell(s); $miss missing, $fail failed"
 # tar that looks fine and is missing the timings.
 echo "==> packaging -> $OUT_TAR"
 LIST=$(mktemp)
-for d in test_output/rnn_*/; do
+for d in test_output/rnn_*${NORM_TAG}_*/; do
   [ -d "$d/ensemble_${SPLIT}" ] && printf '%s\n' "${d}ensemble_${SPLIT}"
   for f in "$d"run_*/timing.json "$d"run_*/.config; do [ -f "$f" ] && printf '%s\n' "$f"; done
 done > "$LIST"
