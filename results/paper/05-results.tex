@@ -420,7 +420,7 @@ EXAMM, Crossformer, PatchTST and DeformTime only.
 \centering
 \caption{All panels and models. Rank IC, ICIR, return net of transaction costs, and gross
 Sharpe ($r_f{=}0$), at the pre-committed L/S~10 book. Bold/underline is best/second per
-metric; parameter counts are in the header. Every cell is a 10-run ensemble. LSTM-i and GRU-i are fixed-topology recurrent baselines trained through EXAMM's own pipeline under causal instance normalisation.}
+metric; parameter counts are in the header. Every cell is a 10-run ensemble. LSTM-i and GRU-i are fixed-topology recurrent baselines trained through EXAMM's own pipeline under causal instance normalisation. The summary rows average the twelve replication cells and all fourteen; Dataset A is two cells and moves the all-panel mean noticeably for several models.}
 \label{tab:all-datasets}
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{llrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr}
@@ -448,6 +448,9 @@ set3 & 2024 & -0.0115 & -0.057 & -2.88 & -0.05 & +0.0003 & +0.002 & \textbf{+24.
 set4 & 2022 & \underline{+0.0277} & \textbf{+0.118} & -5.43 & -0.36 & +0.0027 & +0.013 & +8.14 & +0.72 & +0.0188 & +0.075 & \underline{+20.51} & \underline{+1.30} & +0.0187 & +0.085 & \textbf{+22.58} & \textbf{+1.48} & +0.0039 & +0.016 & -4.32 & -0.05 & -0.0027 & -0.016 & +4.82 & +0.66 & \textbf{+0.0280} & \underline{+0.099} & +11.12 & +0.81 & +0.0228 & +0.083 & +11.91 & +0.78 \\
 set4 & 2023 & +0.0022 & +0.010 & +1.84 & +0.24 & \textbf{+0.0245} & \textbf{+0.126} & \textbf{+24.33} & \textbf{+2.17} & \underline{+0.0165} & +0.075 & -7.40 & -0.27 & +0.0161 & \underline{+0.080} & \underline{+10.93} & \underline{+1.25} & +0.0021 & +0.009 & -11.13 & -0.54 & -0.0167 & -0.096 & -21.61 & -1.93 & -0.0040 & -0.016 & -20.26 & -1.19 & -0.0018 & -0.007 & -24.45 & -1.46 \\
 set4 & 2024 & +0.0065 & +0.033 & +5.96 & +0.58 & +0.0078 & \underline{+0.042} & -6.26 & -0.26 & +0.0055 & +0.026 & \textbf{+16.68} & \textbf{+1.50} & -0.0030 & -0.015 & -12.38 & -0.62 & +0.0013 & +0.006 & -9.88 & -0.48 & -0.0030 & -0.015 & \underline{+8.65} & \underline{+0.98} & \underline{+0.0079} & +0.033 & +1.69 & +0.53 & \textbf{+0.0104} & \textbf{+0.043} & +5.13 & +0.73 \\
+\midrule
+\textit{Mean, replication} & & +0.0068 & +0.031 & \textbf{+11.02} & \textbf{+0.74} & +0.0053 & +0.026 & +2.75 & +0.42 & \textbf{+0.0077} & \textbf{+0.033} & -1.55 & +0.12 & \underline{+0.0074} & \underline{+0.033} & -0.29 & +0.17 & +0.0012 & +0.004 & -5.61 & -0.19 & +0.0024 & +0.014 & \underline{+4.09} & \underline{+0.43} & +0.0061 & +0.021 & -5.62 & -0.15 & +0.0056 & +0.019 & -4.56 & -0.10 \\
+\textit{Mean, all panels} & & \underline{+0.0075} & \textbf{+0.035} & \textbf{+12.51} & \textbf{+0.87} & +0.0048 & +0.023 & +2.68 & \underline{+0.43} & +0.0063 & +0.026 & -0.81 & +0.18 & \textbf{+0.0075} & \underline{+0.033} & -2.00 & +0.04 & -0.0005 & -0.004 & -6.23 & -0.26 & +0.0024 & +0.013 & \underline{+3.37} & +0.39 & +0.0049 & +0.016 & -7.06 & -0.26 & +0.0041 & +0.013 & -5.54 & -0.19 \\
 \bottomrule
 \end{tabular}%
 }
