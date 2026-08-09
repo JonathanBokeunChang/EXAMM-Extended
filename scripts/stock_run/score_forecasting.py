@@ -150,21 +150,36 @@ def load(model, panel, cohort, rep=""):
     return ensemble(fs, dd)
 
 
-def row_spearman(A, B):
-    """Per-row cross-sectional Spearman (== Pearson on ranks), NaN-aware."""
-    ra = pd.DataFrame(A).rank(axis=1).to_numpy()
-    rb = pd.DataFrame(B).rank(axis=1).to_numpy()
+def row_corr(A, B, rank=True):
+    """Per-row cross-sectional correlation, NaN-aware. rank=True gives Spearman, False Pearson.
+
+    BOTH ARE REPORTED BECAUSE THEY DISAGREE HERE, and the disagreement is informative rather than
+    a rounding difference. Spearman sees only ORDERING; Pearson also sees prediction MAGNITUDE.
+    EXAMM's Pearson IC is roughly 1.5x its rank IC while every other model's is 0.7-0.9x, which
+    reads as EXAMM being magnitude-calibrated -- but the gap is outlier-driven: winsorising the
+    daily correlations at 10% takes the EXAMM-minus-iTransformer difference from +0.0058 to
+    +0.0009, and under that treatment LSTM-i and GRU-i overtake EXAMM. Report both, argue from
+    neither alone.
+    """
+    if rank:
+        A = pd.DataFrame(A).rank(axis=1).to_numpy()
+        B = pd.DataFrame(B).rank(axis=1).to_numpy()
     ok = np.isfinite(A) & np.isfinite(B)
     out = np.full(len(A), np.nan)
     for i in range(len(A)):
         k = ok[i]
         if k.sum() < 5:
             continue
-        x, y = ra[i, k] - ra[i, k].mean(), rb[i, k] - rb[i, k].mean()
+        x, y = A[i, k] - A[i, k].mean(), B[i, k] - B[i, k].mean()
         den = np.sqrt((x * x).sum() * (y * y).sum())
         if den > 0:
             out[i] = (x * y).sum() / den
     return out
+
+
+def row_spearman(A, B):
+    """Back-compat shim: horizon_ic.py and horizon_compare.py import this by name."""
+    return row_corr(A, B, rank=True)
 
 
 def metrics(df, year=None):
@@ -182,9 +197,10 @@ def metrics(df, year=None):
             continue
         fwd = np.full_like(Rv, np.nan)
         fwd[: n - h + 1] = g[h - 1:] / base[: n - h + 1] - 1
-        ic = row_spearman(Pv, fwd)[keep]
-        if np.isfinite(ic).any():
-            out[f"ic{h}"] = float(np.nanmean(ic))
+        for tag, rank in (("ic", True), ("icp", False)):
+            ic = row_corr(Pv, fwd, rank=rank)[keep]
+            if np.isfinite(ic).any():
+                out[f"{tag}{h}"] = float(np.nanmean(ic))
     err = (Pv - Rv)[keep]
     err = err[np.isfinite(err)]
     out["mse"] = float(np.mean(err ** 2))

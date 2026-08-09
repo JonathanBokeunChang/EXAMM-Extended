@@ -48,6 +48,13 @@ MODELS = ["EXAMM", "DLinear", "PatchTST", "iTransf.", "DeformT.", "TimeMixer", "
 PARAMS = {"EXAMM": "$55$--$77$", "DLinear": "$194$", "PatchTST": "$16{,}836$",
           "iTransf.": "$817{,}153$", "DeformT.": "$67{,}449$", "TimeMixer": "$72{,}997$",
           "LSTM-i": "$295$", "GRU-i": "$295$"}
+# Forecast horizons carried by tab:horizon, and numeric parameter counts used ONLY to order its
+# rows by capacity -- that ordering is the finding there (h5/h1 falls with size, rho = -0.786), so
+# it must not depend on parsing PARAMS' LaTeX back into integers.
+HS = [1, 2, 3, 5, 10, 20]
+PARAM_N = {"EXAMM": 66, "DLinear": 194, "LSTM-i": 295, "GRU-i": 295,
+           "PatchTST": 16836, "DeformT.": 67449, "TimeMixer": 72997, "iTransf.": 817153}
+
 # Panel display names. The scorers key on directory names (set1..set4, "Dataset A"); the paper
 # calls these the Validation Portfolios $V1$--$V4$ and the Baseline Portfolio (04-datasets.tex:33,
 # :110). The mapping lives here so the tables speak the paper's language without renaming any
@@ -284,8 +291,16 @@ def net_returns_by_year(port):
     return "\n".join(L)
 
 
-TRANSPOSED_METRICS = [("Rank IC", "f", "ic1", 4), (r"Net (\%)", "p", "net", 2),
-                      (r"Sharpe", "p", "sharpe", 2), (r"MDD (\%)", "p", "mdd", 2)]
+# Pearson first because it is the draft's primary IC; rank IC alongside because the two disagree
+# and the disagreement is outlier-driven (see score_forecasting.row_corr). Turnover last because it
+# is what reconciles the IC rows with the Net row: EXAMM re-enters on ~15% of days against 46-99%
+# for every baseline, so its book is held ~5 days and its money is not made at the 1-day horizon
+# the IC rows score. Without this row a reader attributes the Net column to forecasting accuracy,
+# which the IC rows directly contradict.
+TRANSPOSED_METRICS = [("Pearson IC", "f", "icp1", 4, False), ("Rank IC", "f", "ic1", 4, False),
+                      (r"Net (\%)", "p", "net", 2, False), (r"Sharpe", "p", "sharpe", 2, False),
+                      (r"MDD (\%)", "p", "mdd", 2, False),
+                      (r"Turnover (\%)", "p", "turnover", 0, True)]
 
 
 def transposed(fore, port):
@@ -318,9 +333,10 @@ def transposed(fore, port):
         if mi:
             L.append(r"\addlinespace")
         L.append(rf"\multirow{{{len(TRANSPOSED_METRICS)}}}{{*}}{{{m} {PARAMS[m]}}}")
-        for lbl, which, key, dec in TRANSPOSED_METRICS:
+        for lbl, which, key, dec, low in TRANSPOSED_METRICS:
             cols = series(F if which == "f" else P, key, mi)
-            L.append(f" & {lbl:10s}& " + " & ".join(_pick(v, mi, dec) for v in cols) + r" \\")
+            L.append(f" & {lbl:13s}& "
+                     + " & ".join(_pick(v, mi, dec, low) for v in cols) + r" \\")
     # Ungated benchmarks: net return only, and deliberately NOT ranked against the model rows --
     # they trade every day while every model row is gated by Algorithm 2.
     for name, j in ((r"B\&H", 0), ("EW", 1)):
@@ -348,7 +364,7 @@ NET_YEAR_CAP = (
 
 TRANSPOSED_CAP = (
     r"All panels and models, transposed: models as rows, panel--year cells as columns. "
-    r"\textbf{Rank IC} (daily cross-sectional Spearman correlation between the one-day-ahead "
+    r"\textbf{Both ICs} are daily cross-sectional correlations between the one-day-ahead "
     r"prediction and the next day's return), return net of transaction costs, gross Sharpe "
     r"($r_f{=}0$) and maximum drawdown, at the pre-committed L/S~10 book. Bold/underline is "
     r"best/second per metric within each panel--year column, among the model rows. Parameter "
@@ -359,10 +375,56 @@ TRANSPOSED_CAP = (
     r"are not gated by Algorithm~\ref{alg:long-short}, so they trade every day and are not ranked.")
 
 
+def horizon(fore):
+    """IC by forecast horizon -- the table that reconciles the IC rows with the Net column.
+
+    Rows are ordered BY PARAMETER COUNT, ascending, because that ordering is the finding: the
+    h5/h1 ratio falls with capacity across the eight models (Spearman rho = -0.786). Sorting
+    alphabetically or by score would hide the one structural result here.
+
+    h=20 IS INCLUDED PRECISELY BECAUSE EXAMM LOSES THERE. The claim is that its ranking
+    information is LOCATED at 2-10 days, not that it is uniformly better; showing where the arc
+    closes is what separates a mechanism from a horizon picked after the fact. Which horizons are
+    called primary (h=3, h=5) is fixed by the measured holding period, not by these numbers.
+
+    Rank IC only. Pearson is reported in tab:all-datasets-transposed at h=1; carrying both across
+    six horizons would double the width to restate a difference that table already shows.
+    """
+    F = {(r["panel"], r["yr"], r["model"]): r for r in fore}
+    order = sorted(NET_ORDER, key=lambda m: PARAM_N[m])
+    cols = {h: [float(np.mean([F[(p, y, m)][f"ic{h}"] for p, y in VAL_CELLS
+                               if (p, y, m) in F and f"ic{h}" in F[(p, y, m)]]))
+                for m in order] for h in HS}
+    ratio = [cols[5][i] / cols[1][i] if cols[1][i] else float("nan") for i in range(len(order))]
+    L = [r"\begin{table*}[t]", r"\centering", r"\caption{" + HORIZON_CAP + "}",
+         r"\label{tab:horizon}", r"\begin{tabular}{lr" + "r" * (len(HS) + 1) + "}", r"\toprule",
+         r"Model & Params & " + " & ".join(rf"$h{{=}}{h}$" for h in HS) + r" & $h5/h1$ \\",
+         r"\midrule"]
+    for i, m in enumerate(order):
+        row = [m, PARAMS[m]] + [_pick(cols[h], i, 4) for h in HS]
+        row.append(f"{ratio[i]:+.2f}$\\times$")
+        L.append(" & ".join(row) + r" \\")
+    L += [r"\bottomrule", r"\end{tabular}", r"\end{table*}"]
+    return "\n".join(L)
+
+
+HORIZON_CAP = (
+    r"Rank IC by forecast horizon, on the twelve validation panel--year cells. No model is "
+    r"retrained: every prediction is the same one-day-ahead value, and only the realised return "
+    r"it is scored against changes, to the forward $h$-day compounded return. Rows are ordered by "
+    r"parameter count. $h{=}3$ and $h{=}5$ are the horizons at which the gated book is actually "
+    r"held (Table~\ref{tab:all-datasets-transposed}, turnover row); $h{=}1$ is the horizon the "
+    r"forecasting literature reports, and $h{=}20$ is included to show where the effect closes. "
+    r"The final column is the ratio of $h{=}5$ to $h{=}1$ accuracy: it exceeds one only for the "
+    r"two smallest models and falls with capacity across the eight (Spearman "
+    r"$\rho = -0.786$). Bold/underline is best/second per column.")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--which", choices=["forecasting", "portfolio", "transposed",
-                             "net-returns", "net-returns-by-year"],
+                             "net-returns", "net-returns-by-year",
+                             "horizon"],
                     required=True)
     a = ap.parse_args()
     fore = [r for r in json.load(open(os.path.join(REPO, "results/forecasting_cells.json")))
@@ -375,6 +437,8 @@ def main():
         print(net_returns(port))
     elif a.which == "net-returns-by-year":
         print(net_returns_by_year(port))
+    elif a.which == "horizon":
+        print(horizon(fore))
     elif a.which == "forecasting":
         print(build(fore, FORECAST_METRICS, FORECAST_CAP, "tab:forecasting", benchmarks=False))
     else:
