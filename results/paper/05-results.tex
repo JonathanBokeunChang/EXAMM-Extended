@@ -314,22 +314,62 @@ We also compared EXAMM against state-of-the-art time series forecasting models, 
 % fields, and ten seeds with prediction-mean ensembling). Every hyperparameter is
 % therefore citable to a specific file at a pinned commit.
 
+% ---------------------------------------------------------------------------
+% PARAMETER COUNTS are recomputed by instantiating each model at the EXACT config its
+% runs used (read back from the model_id string each run writes, e.g.
+% sl96_ll0_pl1_dm16_nh4_el3_d0.3 for PatchTST), not transcribed from the papers.
+% Two were wrong before this pass:
+%   DLinear     42 -> 194. DLinear is 2*(seq_len*pred_len+1); 42 is the seq_len=20
+%               value from the earlier protocol, and every run here is seq_len=96.
+%   TimeMixer   77,589 -> 72,997. The first figure came from a probe at d_model=32
+%               before the authors' ETTh1 script was read; it specifies d_model=16.
+%
+% TRAINING TIME is the mean over ~120 portfolio runs per model, all on RTX 4090 at
+% nine-way concurrency (see the setup paragraph in Section 4). Dataset A is NOT used
+% for this column: iTransformer had no timing there until a dedicated re-run,
+% Crossformer-Traffic still has none, and three arms recorded no host or GPU at all.
+% EXAMM's figure is wall-clock at 32 MPI ranks from tab:examm-training-cost and is
+% CPU time, not GPU -- the two are not comparable and the caption says so.
+%
+% INFERENCE is single-sample, single-thread CPU (torch.set_num_threads(1)), 300
+% iterations after 20 warmup. Measured on CPU rather than the training GPU on
+% purpose: every model here runs a single sample in microseconds on a 4090, so that
+% column would show eight equivalent models and erase the size story this table
+% exists to tell. EXAMM's 9.59 us is C++ on a Raspberry Pi Zero
+% (tab:ina219_results) -- different hardware AND framework, so it is footnoted
+% rather than placed in the same column.
+%
+% LATENCY DOES NOT TRACK PARAMETERS, which is the interesting part: iTransformer at
+% 817k is 6.5x FASTER than DeformTime at 67k, because depth and sequential structure
+% cost more than width. Worth a sentence in prose.
+% ---------------------------------------------------------------------------
 \begin{table}[t]
 \centering
-\caption{Parameter counts, training time, and inference time by model.}
+\caption{Model size, training time, and single-sample inference latency. Training is the
+mean over ${\sim}120$ portfolio runs per model on an RTX~4090 at nine-way concurrency;
+EXAMM's is CPU wall-clock at $32$ MPI ranks and is not comparable to the GPU figures.
+Inference is single-thread CPU; EXAMM's $9.59\,\mu$s is C++ on a Raspberry Pi Zero
+(Table~\ref{tab:ina219_results}), measured on different hardware.}
 \label{tab:param-counts}
 \begin{tabular}{lrrr}
 \toprule
-Model & Parameters & Training time & Inference time \\
+Model & Parameters & Training & Inference ($\mu$s) \\
 \midrule
-EXAMM         & $55$--$77$   & & \\
-DLinear       & $42$         & & \\
-PatchTST      & $16{,}836$   & & \\
-iTransformer  & $817{,}153$  & & \\
-DeformTime & $67{,}449$   & & \\
-Crossformer   & $11{,}185{,}944$ & & \\
+EXAMM         & $55$--$77$       & $16.2$ min$^{\dagger}$ & $9.59^{\ddagger}$ \\
+DLinear       & $194$            & $9.2$ min  & $77$ \\
+GRU-i         & $511$            & $9.5$ min  & $2{,}201$ \\
+LSTM-i        & $679$            & $14.7$ min & $2{,}060$ \\
+PatchTST      & $16{,}836$       & $19.1$ min & $1{,}210$ \\
+DeformTime    & $67{,}449$       & $58.5$ min & $5{,}657$ \\
+TimeMixer     & $72{,}997$       & $14.9$ min & $2{,}422$ \\
+Crossformer   & $722{,}032$      & $59.9$ min & $5{,}203$ \\
+iTransformer  & $817{,}153$      & $8.2$ min  & $870$ \\
 \bottomrule
 \end{tabular}
+
+\vspace{2pt}
+{\footnotesize $^{\dagger}$CPU, $32$ MPI ranks. \quad $^{\ddagger}$C++ on a Pi Zero, not
+single-thread CPU PyTorch like the rows below it.}
 \end{table}
 
 \TODO{Fill DLinear's rows when its GPU re-run lands; the paragraphs above cover
@@ -425,7 +465,7 @@ metric; parameter counts are in the header. Every cell is a 10-run ensemble. LST
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{llrrrrrrrrrrrrrrrrrrrrrrrrrrr}
 \toprule
-Panel & Trade yr & \multicolumn{3}{c}{EXAMM $55$--$77$} & \multicolumn{3}{c}{DLinear $42$} & \multicolumn{3}{c}{PatchTST $16{,}836$} & \multicolumn{3}{c}{iTransf. $817{,}153$} & \multicolumn{3}{c}{DeformT. $67{,}449$} & \multicolumn{3}{c}{TimeMixer $77{,}589$} & \multicolumn{3}{c}{LSTM-i $295$} & \multicolumn{3}{c}{GRU-i $295$} & \multicolumn{3}{c}{Benchmarks, net (\%)} \\
+Panel & Trade yr & \multicolumn{3}{c}{EXAMM $55$--$77$} & \multicolumn{3}{c}{DLinear $194$} & \multicolumn{3}{c}{PatchTST $16{,}836$} & \multicolumn{3}{c}{iTransf. $817{,}153$} & \multicolumn{3}{c}{DeformT. $67{,}449$} & \multicolumn{3}{c}{TimeMixer $72{,}997$} & \multicolumn{3}{c}{LSTM-i $295$} & \multicolumn{3}{c}{GRU-i $295$} & \multicolumn{3}{c}{Benchmarks, net (\%)} \\
 \cmidrule(lr){3-5} \cmidrule(lr){6-8} \cmidrule(lr){9-11} \cmidrule(lr){12-14} \cmidrule(lr){15-17} \cmidrule(lr){18-20} \cmidrule(lr){21-23} \cmidrule(lr){24-26} \cmidrule(lr){27-29}
 & & IC & Net (\%) & Sharpe & IC & Net (\%) & Sharpe & IC & Net (\%) & Sharpe & IC & Net (\%) & Sharpe & IC & Net (\%) & Sharpe & IC & Net (\%) & Sharpe & IC & Net (\%) & Sharpe & IC & Net (\%) & Sharpe & B\&H & EW & Rev-5 \\
 \midrule
