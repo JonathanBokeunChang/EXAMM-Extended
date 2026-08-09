@@ -53,7 +53,9 @@ from score_cells import ensemble  # noqa: E402
 
 MID = os.path.join(REPO, "datasets/walkforward/mid_highmid_price")
 DSA = os.path.join(REPO, "datasets/walkforward")
-HORIZONS = [1, 2, 3, 5, 10, 20]
+# 1..10 CONTIGUOUS so the horizon figure draws a real curve rather than interpolating
+# between sampled points. h=20 was dropped by decision.
+HORIZONS = list(range(1, 11))
 PRIMARY = [1, 3, 5]
 
 # (display name, parameter count) in the order the tables use.

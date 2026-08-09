@@ -51,7 +51,7 @@ PARAMS = {"EXAMM": "$55$--$77$", "DLinear": "$194$", "PatchTST": "$16{,}836$",
 # Forecast horizons carried by tab:horizon, and numeric parameter counts used ONLY to order its
 # rows by capacity -- that ordering is the finding there (h5/h1 falls with size, rho = -0.786), so
 # it must not depend on parsing PARAMS' LaTeX back into integers.
-HS = [1, 2, 3, 5, 10, 20]
+HS = [1, 2, 3, 5, 10]
 PARAM_N = {"EXAMM": 66, "DLinear": 194, "LSTM-i": 295, "GRU-i": 295,
            "PatchTST": 16836, "DeformT.": 67449, "TimeMixer": 72997, "iTransf.": 817153}
 
