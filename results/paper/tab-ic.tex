@@ -1,0 +1,31 @@
+\begin{table*}[t]
+\centering
+\caption{Pearson information coefficient (IC) of the raw forecasts, all panels and models. IC is measured on the predictions themselves, before the entry gate of Algorithm~\ref{alg:long-short} and before transaction costs, so it is the one metric reported here that is independent of the trading rule. Bold/underline is best/second per row. The benchmarks use no predictions and so have no IC.}
+\label{tab:ic}
+\footnotesize
+\begin{tabular}{llrrrrrrrr}
+\toprule
+ & &  & \multicolumn{1}{c}{Other} & \multicolumn{2}{c}{Fixed RNNs} & \multicolumn{4}{c}{Transformer-based} \\
+\cmidrule(lr){4-4} \cmidrule(lr){5-6} \cmidrule(lr){7-10}
+Panel & Test yr & EXAMM & DLinear & LSTM-i & GRU-i & PatchTST & iTransf. & DeformT. & TimeMixer \\
+\midrule
+$V1$ & 2022 & +0.0000 & +0.0015 & \textbf{+0.0230} & \underline{+0.0229} & +0.0149 & +0.0138 & +0.0029 & -0.0079 \\
+$V1$ & 2023 & \underline{+0.0145} & +0.0079 & +0.0050 & +0.0026 & +0.0076 & -0.0017 & -0.0022 & \textbf{+0.0164} \\
+$V1$ & 2024 & \textbf{+0.0257} & +0.0117 & -0.0093 & -0.0138 & \underline{+0.0118} & -0.0093 & +0.0025 & +0.0041 \\
+\addlinespace
+$V2$ & 2022 & +0.0041 & -0.0010 & \underline{+0.0150} & \textbf{+0.0159} & +0.0047 & +0.0096 & +0.0005 & -0.0041 \\
+$V2$ & 2023 & \underline{+0.0213} & +0.0083 & -0.0047 & -0.0032 & +0.0063 & -0.0042 & -0.0061 & \textbf{+0.0285} \\
+$V2$ & 2024 & \textbf{+0.0181} & -0.0013 & -0.0083 & -0.0066 & -0.0077 & -0.0148 & -0.0118 & \underline{+0.0134} \\
+\addlinespace
+$V3$ & 2022 & +0.0115 & +0.0035 & +0.0100 & +0.0089 & +0.0043 & \textbf{+0.0270} & -0.0064 & \underline{+0.0142} \\
+$V3$ & 2023 & -0.0171 & -0.0077 & -0.0088 & -0.0130 & -0.0121 & \textbf{+0.0080} & -0.0148 & \underline{-0.0063} \\
+$V3$ & 2024 & \underline{+0.0128} & \textbf{+0.0141} & +0.0002 & -0.0002 & +0.0098 & +0.0038 & +0.0011 & -0.0003 \\
+\addlinespace
+$V4$ & 2022 & \textbf{+0.0272} & +0.0087 & \underline{+0.0257} & +0.0175 & +0.0220 & +0.0174 & +0.0044 & -0.0001 \\
+$V4$ & 2023 & -0.0011 & \textbf{+0.0245} & -0.0150 & -0.0124 & \underline{+0.0129} & +0.0110 & -0.0007 & -0.0199 \\
+$V4$ & 2024 & \textbf{+0.0107} & +0.0103 & +0.0092 & \underline{+0.0106} & +0.0078 & -0.0052 & +0.0080 & +0.0006 \\
+\midrule
+\multicolumn{2}{l}{\textit{Mean}} & \textbf{+0.0106} & +0.0067 & +0.0035 & +0.0024 & \underline{+0.0068} & +0.0046 & -0.0019 & +0.0032 \\
+\bottomrule
+\end{tabular}
+\end{table*}

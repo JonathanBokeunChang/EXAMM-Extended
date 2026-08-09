@@ -523,11 +523,54 @@ SUMMARY_CAP = (
     r"every day and are neither scored on forecast accuracy nor ranked.")
 
 
+def ic_table(fore):
+    """Per-cell Pearson IC in the Overleaf draft's layout, generated rather than transcribed.
+
+    EXISTS TO FIX A ONE-DIGIT DISAGREEMENT that two hand-maintained tables cannot avoid. The
+    draft's Mean row reads PatchTST +0.0069 and this reads +0.0068; the exact mean is 0.006844.
+    The draft averaged the per-cell values AFTER rounding each to four decimals (0.006858), while
+    tab:model-summary averages the raw values. Neither is wrong in isolation, but two tables
+    printing different digits for the same quantity is the kind of thing a reader notices and a
+    co-author cannot explain. Generating both from one function settles it: average, then round.
+    The model ordering is identical under either convention.
+
+    IC IS PEARSON here, matching the draft. Rank IC is in the same JSON under ic1.
+    """
+    F = {(r["panel"], r["yr"], r["model"]): r["icp1"] for r in fore if "icp1" in r}
+    L = [r"\begin{table*}[t]", r"\centering", r"\caption{" + IC_CAP + "}", r"\label{tab:ic}",
+         r"\footnotesize", r"\begin{tabular}{ll" + "r" * len(NET_ORDER) + "}", r"\toprule",
+         r" & &  & \multicolumn{1}{c}{Other} & \multicolumn{2}{c}{Fixed RNNs} & "
+         r"\multicolumn{4}{c}{Transformer-based} \\",
+         r"\cmidrule(lr){4-4} \cmidrule(lr){5-6} \cmidrule(lr){7-10}",
+         r"Panel & Test yr & " + " & ".join(NET_ORDER) + r" \\", r"\midrule"]
+    for n, (p, y) in enumerate(VAL_CELLS):
+        if n and n % 3 == 0:
+            L.append(r"\addlinespace")
+        vals = [F.get((p, y, m), float("nan")) for m in NET_ORDER]
+        L.append(f"{PANEL_NAME[p]} & {y} & "
+                 + " & ".join(_pick(vals, i, 4) for i in range(len(NET_ORDER))) + r" \\")
+    L.append(r"\midrule")
+    vals = [float(np.mean([F[(p, y, m)] for p, y in VAL_CELLS if (p, y, m) in F]))
+            for m in NET_ORDER]
+    L.append(r"\multicolumn{2}{l}{\textit{Mean}} & "
+             + " & ".join(_pick(vals, i, 4) for i in range(len(NET_ORDER))) + r" \\")
+    L += [r"\bottomrule", r"\end{tabular}", r"\end{table*}"]
+    return "\n".join(L)
+
+
+IC_CAP = (
+    r"Pearson information coefficient (IC) of the raw forecasts, all panels and models. IC is "
+    r"measured on the predictions themselves, before the entry gate of "
+    r"Algorithm~\ref{alg:long-short} and before transaction costs, so it is the one metric "
+    r"reported here that is independent of the trading rule. Bold/underline is best/second per "
+    r"row. The benchmarks use no predictions and so have no IC.")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--which", choices=["forecasting", "portfolio", "transposed",
                              "net-returns", "net-returns-by-year",
-                             "horizon", "model-summary"],
+                             "horizon", "model-summary", "ic"],
                     required=True)
     a = ap.parse_args()
     fore = [r for r in json.load(open(os.path.join(REPO, "results/forecasting_cells.json")))
@@ -544,6 +587,8 @@ def main():
         print(horizon(fore))
     elif a.which == "model-summary":
         print(model_summary(fore, port))
+    elif a.which == "ic":
+        print(ic_table(fore))
     elif a.which == "forecasting":
         print(build(fore, FORECAST_METRICS, FORECAST_CAP, "tab:forecasting", benchmarks=False))
     else:
