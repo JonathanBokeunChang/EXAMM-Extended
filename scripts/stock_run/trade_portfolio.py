@@ -58,6 +58,12 @@ REPO = Path(__file__).resolve().parents[2]   # EXAMM-Extended root
 # hold -- it exists in the toolbox but trade() never dispatches it, so
 # run_strategy() calls it directly.
 STRATEGIES = [
+    # Zimeng's zero-prediction baselines (Financial_toolbox 51e5450). They ignore predicted_RET
+    # entirely and key off realised past returns, so they measure what the universe pays without a
+    # model -- the control every learned row in this study has to clear.
+    "buy_and_hold_return",
+    "daily_equal_weight_return",
+    "short_term_reversal_return",
     "daily_long_short_return",
     "daily_hybrid_long_short_return",
     "daily_long_return",
@@ -78,13 +84,24 @@ def fail(msg):
     sys.exit(f"ERROR: {msg}")
 
 
-def run_strategy(portfolio, strategy, long_n, short_n):
+def run_strategy(portfolio, strategy, long_n, short_n, lookback=1):
     """Portfolio.trade() never dispatches the hybrid method, and the method's
     own self.reset() reads portfolio.strategy -- so set the attribute and call
     it directly. Everything else goes through trade() unchanged."""
     if strategy == "daily_hybrid_long_short_return":
         portfolio.strategy = strategy
         return portfolio.daily_hybrid_long_short_return(long_n, short_n)
+    # The baseline strategies are not dispatched by trade() either, and two of the three take no
+    # long/short counts at all -- buy-and-hold and equal-weight hold the whole universe.
+    if strategy == "buy_and_hold_return":
+        portfolio.strategy = strategy
+        return portfolio.buy_and_hold_return()
+    if strategy == "daily_equal_weight_return":
+        portfolio.strategy = strategy
+        return portfolio.daily_equal_weight_return()
+    if strategy == "short_term_reversal_return":
+        portfolio.strategy = strategy
+        return portfolio.short_term_reversal_return(long_n, short_n, lookback)
     return portfolio.trade(strategy, long_n, short_n)
 
 
@@ -374,6 +391,8 @@ def main():
     ap.add_argument("--long", type=int, default=10, dest="long_n")
     ap.add_argument("--short", type=int, default=10, dest="short_n")
     ap.add_argument("--strategy", choices=STRATEGIES, default="daily_long_short_return")
+    ap.add_argument("--lookback", type=int, default=1,
+                    help="formation window for short_term_reversal_return (days)")
     ap.add_argument("--align", choices=["none", "suffix"], default="none")
     ap.add_argument("--use-tc", action="store_true")
     ap.add_argument("--bid-ask", action="store_true")

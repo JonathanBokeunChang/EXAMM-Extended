@@ -17,15 +17,12 @@ HORIZON MEANS THE TARGET, NOT THE MODEL. No model is retrained. The prediction i
 one-day-ahead value throughout; only the realised return it is scored against changes, to the
 forward h-day compounded return prod(1+RET[d..d+h-1])-1.
 
-EXAMM IS REPLICATE-AVERAGED, THE BASELINES ARE NOT, AND THAT IS DELIBERATE. The EXAMM-minus-
-baseline return difference on this study swings t=+2.26 to +0.85 depending purely on which
-reproduction is scored, so a single tree is not a measurement. Every EXAMM number below is the
-mean of the per-cell metric over the independent reproductions on disk (base/rep2/rep3/rep4 for
-the replication cells, base/rep3-6 for Dataset A). The METRIC is averaged, not the predictions:
-pooling predictions into a 40-run ensemble would compare a 40-run object against the baselines'
-10-run ones. Each replicate stays a valid 10-run ensemble and the average estimates what the
-protocol produces, which is the quantity a reader cares about. The `n_rep` column records how
-many went into each row so a thin cell is visible rather than silent.
+WHICH EXAMM TREE, AND WHY IT MATTERS. --replicates defaults to `original`: the untagged run only,
+so all eight models are a single 10-run ensemble and the comparison is symmetric. `average` uses
+every reproduction on disk instead. This is a real fork, not a formality -- see reps_for() for the
+per-tree numbers. Dataset A 2023's original is the highest of five draws (+30.24 against a +4.79
+mean, sd 19.5), while 2022's is the second lowest, so the two cells pull opposite ways. Any table
+built here must say in its caption which mode produced it.
 
 DATASET A's 2022 ROW IS DATE-SLICED. cohort_2020's test split spans 2022 AND 2023 (501 rows);
 scoring it whole returns a two-year blend, which results/hp_grid_orig records as +0.0157 against
@@ -33,10 +30,11 @@ a true +0.0030. IC can be sliced because it is a per-day statistic. (Returns can
 compound -- which is why the portfolio scorer uses the trader's --window-start/--window-end
 instead. That asymmetry is real and is why the two panels are computed by two scripts.)
 
-MSE/MAE ARE REPORTED AS A NEGATIVE RESULT, not as a metric anyone wins. Across these models they
-span ~15% while returns span 17 percentage points, and the best MSE in the study belongs to the
-model ranked last on IC and second-worst on return. The column exists so a reader does not have
-to wonder whether it was hidden.
+MSE/MAE ARE REPORTED BECAUSE THEY DO NOT SEPARATE, which is itself the finding: the models span
+roughly 15% on MSE while their returns span 17 percentage points, and the ordering of one tells you
+nothing about the other. Coverage is asserted rather than assumed -- an earlier read of a stale
+cache had DeformTime winning MSE, which turned out to be that model being scored on 11 cells and
+the rest on 12.
 """
 from __future__ import annotations
 
@@ -69,6 +67,32 @@ RNN_NAME = {"LSTM-i": "lstm", "GRU-i": "gru"}
 # Independent reproductions of the identical config. '' is the untagged original.
 REPS_MID = ["", "_rep2", "_rep3", "_rep4"]
 REPS_DSA = ["", "_rep3", "_rep4", "_rep5", "_rep6"]
+
+
+def reps_for(panel, mode):
+    """Which EXAMM tree(s) enter a cell. Modes: published (default), original, average.
+
+    THE PAPER'S OWN TABLES MIX TREES, which was discovered on 2026-08-09 by scoring all four and
+    diffing against the committed values. The twelve replication cells came from _rep3 (12 of 12
+    exact); Dataset A's two came from the untagged run. Nothing in the repo recorded this, and
+    'the original run' therefore does not name a single object. `published` reproduces what is in
+    the paper; it is the default so a rebuild cannot silently move a published number.
+
+    SEED VARIANCE IS THE REASON THIS MATTERS AT ALL. Same config, same data, four trees, net %:
+        set1/2024   untagged  -9.24 | rep2 -15.81 | rep3 +17.19 | rep4  +4.43
+        set4/2022   untagged  +8.48 | rep2 +31.15 | rep3  -5.43 | rep4   0.00
+        set2/2022   untagged +47.07 | rep2 +58.87 | rep3 +35.22 | rep4 +22.37
+        dsA 2023    untagged +30.24 | rep3  -4.04 | rep4 +12.81 | rep5 -22.14 | rep6 +7.07
+    Per-CELL values swing 26-36 points. The MEAN barely moves -- replication-block net is +11.02
+    (published) / +11.30 (untagged) / +10.27 (4-tree average), all-panel +12.51 / +12.75 / +10.22 --
+    so the headline is robust to the choice and only the cell-level detail is a seed lottery. Say
+    that in the paper rather than letting a reader assume the cells are stable.
+    """
+    if mode == "published":
+        return [""] if panel == "dsA" else ["_rep3"]
+    if mode == "original":
+        return [""]
+    return REPS_DSA if panel == "dsA" else REPS_MID
 
 
 def cells():
@@ -171,7 +195,11 @@ def metrics(df, year=None):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--latex", action="store_true")
+    ap.add_argument("--replicates", choices=["published", "original", "average"],
+                    default="published",
+                    help="published: the trees the paper reports (rep3 for the twelve "
+                         "replication cells, untagged for Dataset A). original: untagged "
+                         "everywhere. average: mean over every reproduction on disk.")
     ap.add_argument("--out", default=os.path.join(REPO, "results/forecasting_cells.json"))
     args = ap.parse_args()
 
@@ -180,7 +208,7 @@ def main():
         # Dataset A's cohort_2020 test split spans two calendar years; slice IC to the trade year.
         year = yr if pk == "dsA" else None
         for model, _ in MODELS:
-            reps = (REPS_DSA if pk == "dsA" else REPS_MID) if model == "EXAMM" else [""]
+            reps = reps_for(pk, args.replicates) if model == "EXAMM" else [""]
             got = []
             for rep in reps:
                 try:

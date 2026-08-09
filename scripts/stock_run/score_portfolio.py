@@ -15,10 +15,9 @@ holding period, and it varies enormously by model (EXAMM ~18% of days, the trans
 Reporting net return without it lets a turnover advantage read as a forecasting advantage, which
 is the single most likely misreading of this paper.
 
-EXAMM IS REPLICATE-AVERAGED FOR THE SAME REASON AS IN score_forecasting.py: the EXAMM-minus-
-baseline return difference swings t=+2.26 to +0.85 purely by which reproduction is scored, so one
-tree is not a measurement. Metrics are averaged across trees, not predictions -- pooling
-predictions would build a 40-run ensemble and compare it against the baselines' 10-run ones.
+WHICH EXAMM TREE: --replicates, defaulting to `published`, exactly as in score_forecasting.py.
+Keep the two scripts in the same mode or the forecasting and portfolio tables will describe
+different objects.
 
 SHARPE AND MDD ARE GROSS WHILE THE RETURN COLUMN IS NET. Forced, not chosen:
 trade_portfolio_daily_curve.py refuses to emit a curve under --use-tc because its self-check
@@ -45,7 +44,7 @@ import numpy as np
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(REPO, "scripts/transformer_bench"))
 sys.path.insert(0, os.path.join(REPO, "scripts/stock_run"))
-from score_forecasting import MODELS, REPS_DSA, REPS_MID, cells, data_dir, load  # noqa: E402
+from score_forecasting import MODELS, cells, data_dir, load, reps_for  # noqa: E402
 from trade_portfolio_runs import split_pooled  # noqa: E402
 
 TRADER = os.path.join(REPO, "scripts/stock_run/trade_portfolio.py")
@@ -120,6 +119,8 @@ def score_one(df, dd, window):
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--replicates", choices=["published", "original", "average"],
+                    default="published")
     ap.add_argument("--out", default=os.path.join(REPO, "results/portfolio_cells.json"))
     args = ap.parse_args()
 
@@ -127,7 +128,7 @@ def main():
     for panel, yr, pk, cohort in cells():
         dd = data_dir(pk, cohort)
         for model, _ in MODELS:
-            reps = (REPS_DSA if pk == "dsA" else REPS_MID) if model == "EXAMM" else [""]
+            reps = reps_for(pk, args.replicates) if model == "EXAMM" else [""]
             got, err = [], ""
             for rep in reps:
                 try:
