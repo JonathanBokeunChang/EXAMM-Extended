@@ -195,13 +195,91 @@ PORTFOLIO_CAP = (
     r"best/second per metric per row.")
 
 
+
+# --- transposed layout ------------------------------------------------------------------------
+# Models as ROWS, panel-year cells as COLUMNS. This is the layout the Overleaf draft uses, and it
+# is kept generatable for one reason: the version that was hand-built there reported PEARSON IC,
+# because it was transcribed from tab:all-datasets before the Rank IC decision landed
+# (git f66a0b09 -> e73352c9). A hand-copied table cannot track a metric change; a generated one
+# does. Net, Sharpe and MDD here reproduce that draft exactly -- only the IC row moves, and
+# Turnover is new.
+VAL_CELLS = [(s, y) for s in ["set1", "set2", "set3", "set4"] for y in [2022, 2023, 2024]]
+ALL_CELLS = [("Dataset A", 2022), ("Dataset A", 2023)] + VAL_CELLS
+TRANSPOSED_METRICS = [("Rank IC", "f", "ic1", 4, False), (r"Net (\%)", "p", "net", 2, False),
+                      (r"Sharpe", "p", "sharpe", 2, False), (r"MDD (\%)", "p", "mdd", 2, False),
+                      (r"Turnover (\%)", "p", "turnover", 0, True)]
+
+
+def transposed(fore, port):
+    F = {(r["panel"], r["yr"], r["model"]): r for r in fore}
+    P = {(r["panel"], r["yr"], r["model"]): r for r in port}
+
+    def cell(src, key, cells, mi, dec, low):
+        """Model mi over `cells` (one cell -> its value, many -> the mean), best/second marked."""
+        vals = []
+        for m in MODELS:
+            v = [src[(p, y, m)][key] for p, y in cells
+                 if (p, y, m) in src and key in src[(p, y, m)]]
+            vals.append(float(np.mean(v)) if v else float("nan"))
+        v = vals[mi]
+        s = "---" if not np.isfinite(v) else (f"{v:.{dec}f}" if low else f"{v:+.{dec}f}")
+        fin = [(x, j) for j, x in enumerate(vals) if np.isfinite(x)]
+        if len(fin) >= 2:
+            o = sorted(fin, key=lambda t: (t[0] if low else -t[0]))
+            if mi == o[0][1]:
+                return rf"\textbf{{{s}}}"
+            if mi == o[1][1]:
+                return rf"\underline{{{s}}}"
+        return s
+
+    L = [r"\begin{table*}[t]", r"\centering", r"\scriptsize",
+         r"\caption{" + TRANSPOSED_CAP + "}",
+         r"\label{tab:all-datasets-transposed}", r"\resizebox{\textwidth}{!}{%",
+         r"\begin{tabular}{ll" + "r" * 14 + "}", r"\toprule",
+         r"Model & Metric & " + " & ".join(
+             rf"\multicolumn{{3}}{{c}}{{{PANEL_NAME[s]}}}"
+             for s in ["set1", "set2", "set3", "set4"]) + r" & Mean & Mean \\",
+         " ".join(rf"\cmidrule(lr){{{3 + 3 * i}-{5 + 3 * i}}}" for i in range(4)),
+         " & & " + " & ".join(str(y) for _ in range(4) for y in [2022, 2023, 2024])
+         + r" & valid. & all \\", r"\midrule"]
+    for mi, m in enumerate(MODELS):
+        if mi:
+            L.append(r"\addlinespace")
+        L.append(rf"\multirow{{{len(TRANSPOSED_METRICS)}}}{{*}}{{{m} {PARAMS[m]}}}")
+        for lbl, which, key, dec, low in TRANSPOSED_METRICS:
+            src = F if which == "f" else P
+            row = [cell(src, key, [c], mi, dec, low) for c in VAL_CELLS]
+            row.append(cell(src, key, VAL_CELLS, mi, dec, low))
+            row.append(cell(src, key, ALL_CELLS, mi, dec, low))
+            L.append(f" & {lbl:15s}& " + " & ".join(row) + r" \\")
+    L += [r"\bottomrule", r"\end{tabular}%", r"}", r"\end{table*}"]
+    return "\n".join(L)
+
+
+TRANSPOSED_CAP = (
+    r"All models on the four validation portfolios. Rank IC is the daily cross-sectional "
+    r"Spearman correlation between the one-day-ahead prediction and the next day's return. "
+    r"Return is net of transaction costs; Sharpe ($r_f{=}0$) and maximum drawdown are gross. "
+    r"Turnover is the percentage of test days on which Algorithm~\ref{alg:long-short} re-enters "
+    r"the book; on the remaining days positions are held rather than flattened, so its reciprocal "
+    r"is the mean holding period. The two mean columns average the twelve validation cells and "
+    r"all fourteen, the latter adding the Baseline Portfolio's 2022 and 2023 folds. "
+    r"Bold/underline is best/second per metric per column.")
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--which", choices=["forecasting", "portfolio"], required=True)
+    ap.add_argument("--which", choices=["forecasting", "portfolio", "transposed"],
+                    required=True)
     a = ap.parse_args()
-    recs = [r for r in json.load(open(os.path.join(REPO, f"results/{a.which}_cells.json")))
+    src = "forecasting" if a.which == "transposed" else a.which
+    recs = [r for r in json.load(open(os.path.join(REPO, f"results/{src}_cells.json")))
             if r.get("n_rep")]
-    if a.which == "forecasting":
+    if a.which == "transposed":
+        port = [r for r in json.load(open(os.path.join(REPO, "results/portfolio_cells.json")))
+                if r.get("n_rep")]
+        print(transposed(recs, port))
+    elif a.which == "forecasting":
         print(build(recs, FORECAST_METRICS, FORECAST_CAP, "tab:forecasting", benchmarks=False))
     else:
         print(build(recs, PORTFOLIO_METRICS, PORTFOLIO_CAP, "tab:portfolio", benchmarks=True))
