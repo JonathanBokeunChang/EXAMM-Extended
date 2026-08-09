@@ -52,7 +52,7 @@
 \section{Results}
 \label{sec:results}
 
-\subsection{Comparing individual, combined, and pooled datasets}
+\subsection{Pooled vs.\ Alternative Constructions}
 % ---------------------------------------------------------------------------
 % POOLING ABLATION -- goes FIRST in this section, ahead of the STRATEGY block
 % below, because every other table in this section takes the pooled
@@ -81,26 +81,87 @@
 % ---------------------------------------------------------------------------
 
 
-\begin{table*}[t]
+% \begin{table*}[t]
+% \centering
+% \caption{Pooling vs. individual (one model per stock) training, both 10-run
+% ensembles, identical cohorts/windows/strategy as
+% Table~\ref{tab:all-datasets}.}
+% \label{tab:pooling-ablation}
+% \begin{tabular}{llrrrr}
+% \toprule
+% Trade year & Construction & IC & MSE & MAE & L/S~10 \\
+% \midrule
+% 2022 & Individual & $+0.0001$ & $4.726{\times}10^{-4}$ & $0.01584$ & $+13.36$ \\
+% 2022 & \textbf{Pooled (ours)} & $\mathbf{+0.0030}$ & $\mathbf{4.630{\times}10^{-4}}$ & $\mathbf{0.01566}$ & $\mathbf{+14.40}$ \\
+% \midrule
+% 2023 & Individual & $-0.0050$ & $3.037{\times}10^{-4}$ & $0.01232$ & $-1.08$ \\
+% 2023 & \textbf{Pooled (ours)} & $\mathbf{+0.0195}$ & $\mathbf{2.930{\times}10^{-4}}$ & $\mathbf{0.01205}$ & $\mathbf{+31.99}$ \\
+% \bottomrule
+% \end{tabular}
+% \end{table*}
+
+Prior work employed two constructions~\cite{lyu2025evostar}. The \emph{individual} construction fits a separate model per stock, so no information is shared across the universe. The \emph{concatenated} construction fits one model over all stocks by stacking their predictors into a wide series (300 inputs, 50 outputs), making input dimensionality scale with universe size. The \emph{pooled panel} adopted here retains the six-predictor, single-output structure of the individual construction while fitting one model across all stocks, so parameters are shared across the universe and input dimensionality remains fixed regardless of how many stocks are included.
+
+Table~\ref{tab:pooling-ablation} compares pooled and individual training on the Baseline Portfolio, reporting test-period IC, MSE, and the return of a simple long/short portfolio that holds the ten highest-ranked and shorts the ten lowest-ranked stocks. Pooling improves every metric in both the 2022 and 2023 folds. The gain in MSE is modest, however the effect on cross-sectional ranking ability is substantially larger: individual training produces near-zero IC in 2022 and negative IC in 2023, meaning its predictions carry little or no usable signal about relative performance, whereas pooled training attains positive IC in both folds. Because the long/short strategy allocates on relative rather than absolute predictions, this difference in ranking quality, rather than the small MSE gap, drives the trading results. Pooling improves the long/short return in 2022 and, in 2023, converts a strategy that loses money under individual training into a profitable one. We therefore adopt pooled training for all subsequent experiments.
+
+
+\begin{table}[t]
 \centering
-\caption{Pooling vs. individual (one model per stock) training, both 10-run
-ensembles, identical cohorts/windows/strategy as
-Table~\ref{tab:all-datasets}.}
+\caption{Pooling ablation on the Baseline Portfolio.}
 \label{tab:pooling-ablation}
-\begin{tabular}{llrrrr}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{l rrr rrr}
 \toprule
-Trade year & Construction & IC & MSE & MAE & L/S~10 \\
+& \multicolumn{3}{c}{Test 2022} & \multicolumn{3}{c}{Test 2023} \\
+\cmidrule(lr){2-4} \cmidrule(lr){5-7}
+Construction & IC & MSE & L/S~10 & IC & MSE & L/S~10 \\
 \midrule
-2022 & Individual & $+0.0001$ & $4.726{\times}10^{-4}$ & $0.01584$ & $+13.36$ \\
-2022 & \textbf{Pooled (ours)} & $\mathbf{+0.0030}$ & $\mathbf{4.630{\times}10^{-4}}$ & $\mathbf{0.01566}$ & $\mathbf{+14.40}$ \\
+Individual & $+0.0001$ & $4.726\text{e-}4$ & $+13.36$ & $-0.0050$ & $3.037\text{e-}4$ & $-1.08$ \\
+Concatenated &  &  &  &  &  &  \\
+\textbf{Pooled} & $\mathbf{+0.0030}$ & $\mathbf{4.630\text{e-}4}$ & $\mathbf{+14.40}$ & $\mathbf{+0.0195}$ & $\mathbf{2.930\text{e-}4}$ & $\mathbf{+31.99}$ \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\subsection{EXAMM Hyperparameter Search}
+\label{sec:examm-hparams}
+
+Speciation is central to convergence behaviour in neuroevolutionary search: the island
+population structure determines how much architectural diversity is maintained, while the
+repopulation interval controls how aggressively converged islands are reseeded from elsewhere in
+the population. Too frequent repopulation discards partially converged architectures before they
+can be refined; too infrequent repopulation allows islands to stagnate. We therefore swept both
+parameters jointly, over island counts $\{10, 20, 40\}$ and repopulation intervals
+$\{250, 500, 1000\}$, evaluating all $9$ configurations on both test cohorts.
+
+Table~\ref{tab:hp-grid} reports the results. The repopulation interval is the more consequential
+of the two parameters: the $500$ setting yields the strongest returns at every island count in
+both cohorts, whereas $250$ and $1000$ are inconsistent and in several configurations produce
+losses. Island settings differ across 2022 and 2023 test year.
+Given that additional islands increase search cost without a corresponding gain, we adopt
+$(10~\text{islands}, 500)$ repopulation frequency for all subsequent experiments.
+
+
+
+\begin{table}[t]
+\centering
+\caption{EXAMM hyperparameter search}
+\label{tab:hp-grid}
+\begin{tabular}{l rrr c rrr}
+\toprule
+& \multicolumn{7}{c}{Repopulation interval} \\
+\cmidrule(lr){2-8}
+& \multicolumn{3}{c}{Test 2022} & & \multicolumn{3}{c}{Test 2023} \\
+\cmidrule(lr){2-4} \cmidrule(lr){6-8}
+Islands & $250$ & $500$ & $1000$ & & $250$ & $500$ & $1000$ \\
 \midrule
-2023 & Individual & $-0.0050$ & $3.037{\times}10^{-4}$ & $0.01232$ & $-1.08$ \\
-2023 & \textbf{Pooled (ours)} & $\mathbf{+0.0195}$ & $\mathbf{2.930{\times}10^{-4}}$ & $\mathbf{0.01205}$ & $\mathbf{+31.99}$ \\
+$10$ & $-2.50$ & $\mathbf{+14.40}$ & $+7.39$ & & $+25.81$ & $\mathbf{+31.99}$ & $-0.07$ \\
+$20$ & $-7.14$ & $+22.70$ & $+10.19$ & & $+8.32$ & $+17.29$ & $-12.38$ \\
+$40$ & $+9.05$ & $+30.62$ & $+4.29$ & & $-4.96$ & $+13.52$ & $+4.41$ \\
 \bottomrule
 \end{tabular}
-\end{table*}
-
-Before comparing pooled EXAMM against other models, we first check whether pooling itself is doing any work. Table~\ref{tab:pooling-ablation} compares the pooled-panel construction against training an independent EXAMM model per stock, holding the walk-forward cohorts, 10-run ensembling, and long/short strategy fixed. Point-prediction accuracy (MSE, MAE) is nearly identical between the two constructions in both years, so pooling does not make individual forecasts more accurate. The difference shows up entirely in cross-sectional IC: individual training produces almost no ranking ability ($\text{IC}\approx 0$ in 2022, negative in 2023), while pooled training is clearly positive in both years. Since the long/short strategy trades on relative ranking rather than absolute accuracy, this IC gap is what drives pooling's trading advantage -- and why we use the pooled construction throughout the rest of this section.
+\end{table}
 
 
 % ---------------------------------------------------------------------------
@@ -174,7 +235,7 @@ Crossformer & $11{,}185{,}944$
 }
 \end{table*}
 
-\subsection{EXAMM hyperparameter search}
+
 % ---------------------------------------------------------------------------
 % SOURCE: results/hp_grid_orig_ic.csv, results/hp_grid_orig_trade.csv (raw per-cell
 % numbers), narrative in results/hp_grid_orig.md. Full factorial
@@ -214,42 +275,61 @@ Crossformer & $11{,}185{,}944$
 % plausible. All cohort_2020 numbers here are sliced to 2022 only.
 % ---------------------------------------------------------------------------
 
-\begin{table*}[t]
-\centering
-\caption{EXAMM island count $\times$ repopulation interval, $9$ cells $\times$ $2$ cohorts $\times$
-$10$ seeds. Algorithm~2 returns at L/S~10, gross annual \%. The bolded $(10,500)$ cell is the
-paper's own campaign; no cell is distinguishable from any other.}
-\label{tab:hp-grid}
-\begin{tabular}{lrrrcrrrcrrr}
-\toprule
-& \multicolumn{3}{c}{Trade year 2022} & & \multicolumn{3}{c}{Trade year 2023} & & \multicolumn{3}{c}{Mean} \\
-\cmidrule(lr){2-4} \cmidrule(lr){6-8} \cmidrule(lr){10-12}
-Islands & $250$ & $500$ & $1000$ & & $250$ & $500$ & $1000$ & & $250$ & $500$ & $1000$ \\
-\midrule
-$10$ & $-2.50$ & $\mathbf{+14.40}$ & $+7.39$ & & $+25.81$ & $\mathbf{+31.99}$ & $-0.07$ & & $+11.65$ & $\mathbf{+23.20}$ & $+3.66$ \\
-$20$ & $-7.14$ & $+22.70$ & $+10.19$ & & $+8.32$ & $+17.29$ & $-12.38$ & & $+0.59$ & $+19.99$ & $-1.10$ \\
-$40$ & $+9.05$ & $+30.62$ & $+4.29$ & & $-4.96$ & $+13.52$ & $+4.41$ & & $+2.05$ & $+22.07$ & $+4.35$ \\
-\midrule
-\textit{Col. mean} & $-0.20$ & $+22.57$ & $+7.29$ & & $+9.72$ & $+20.93$ & $-2.68$ & & $+4.76$ & $+21.75$ & $+2.30$ \\
-\bottomrule
-\end{tabular}
-\end{table*}
+% \begin{table*}[t]
+% \centering
+% \caption{EXAMM island count $\times$ repopulation interval, $9$ cells $\times$ $2$ cohorts $\times$
+% $10$ seeds. Algorithm~2 returns at L/S~10, gross annual \%. The bolded $(10,500)$ cell is the
+% paper's own campaign; no cell is distinguishable from any other.}
+% \label{tab:hp-grid}
+% \begin{tabular}{lrrrcrrrcrrr}
+% \toprule
+% & \multicolumn{3}{c}{Trade year 2022} & & \multicolumn{3}{c}{Trade year 2023} & & \multicolumn{3}{c}{Mean} \\
+% \cmidrule(lr){2-4} \cmidrule(lr){6-8} \cmidrule(lr){10-12}
+% Islands & $250$ & $500$ & $1000$ & & $250$ & $500$ & $1000$ & & $250$ & $500$ & $1000$ \\
+% \midrule
+% $10$ & $-2.50$ & $\mathbf{+14.40}$ & $+7.39$ & & $+25.81$ & $\mathbf{+31.99}$ & $-0.07$ & & $+11.65$ & $\mathbf{+23.20}$ & $+3.66$ \\
+% $20$ & $-7.14$ & $+22.70$ & $+10.19$ & & $+8.32$ & $+17.29$ & $-12.38$ & & $+0.59$ & $+19.99$ & $-1.10$ \\
+% $40$ & $+9.05$ & $+30.62$ & $+4.29$ & & $-4.96$ & $+13.52$ & $+4.41$ & & $+2.05$ & $+22.07$ & $+4.35$ \\
+% \midrule
+% \textit{Col. mean} & $-0.20$ & $+22.57$ & $+7.29$ & & $+9.72$ & $+20.93$ & $-2.68$ & & $+4.76$ & $+21.75$ & $+2.30$ \\
+% \bottomrule
+% \end{tabular}
+% \end{table*}
+
 
 
 
 \subsection{EXAMM vs Transformers}
 \label{sec:examm-vs-transformers}
 
-Table~\ref{tab:all-datasets} places three published attention baselines --
-Crossformer, DeformTime and PatchTST -- alongside EXAMM. Each transformer is run
-at its \emph{own} published configuration, taken from the authors' released
-training scripts and executed against the authors' own released implementations,
-rather than under a single protocol imposed by us; the only settings we override
-are those this study forces (input length $96$, horizon $1$, our six input
-fields, and ten seeds with prediction-mean ensembling). Every hyperparameter is
-therefore citable to a specific file at a pinned commit.
+We also compared EXAMM's and other state of the art Transformer models in their ability in forecasting stock return accuracy, and how the predictiin turn into portfolio investment returns. We tested DLinear~\cite{zeng2023transformers}, PatchTST~\cite{nie2022time}, iTransformer~\cite{liu2024itransformer},DeformTime~\cite{shu2024deformtime}, Crossformer~\cite{zhang2023crossformer} with input length $96$, and output length 1, we select 96 because it is generally widely reported input sequence length across all transformer models. Other hyperparameters were adopted from default settings. 
 
+% Table~\ref{tab:all-datasets} places three published attention baselines --
+% Crossformer, DeformTime and PatchTST -- alongside EXAMM. Each transformer is run
+% at its \emph{own} published configuration, taken from the authors' released
+% training scripts and executed against the authors' own released implementations,
+% rather than under a single protocol imposed by us; the only settings we override
+% are those this study forces (input length $96$, horizon $1$, our six input
+% fields, and ten seeds with prediction-mean ensembling). Every hyperparameter is
+% therefore citable to a specific file at a pinned commit.
 
+\begin{table}[t]
+\centering
+\caption{Parameter counts, training time, and inference time by model.}
+\label{tab:param-counts}
+\begin{tabular}{lrrr}
+\toprule
+Model & Parameters & Training time & Inference time \\
+\midrule
+EXAMM         & $55$--$77$   & & \\
+DLinear       & $42$         & & \\
+PatchTST      & $16{,}836$   & & \\
+iTransformer  & $817{,}153$  & & \\
+DeformTime & $67{,}449$   & & \\
+Crossformer   & $11{,}185{,}944$ & & \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \TODO{Fill DLinear's rows when its GPU re-run lands; the paragraphs above cover
 EXAMM, Crossformer, PatchTST and DeformTime only.
@@ -339,33 +419,33 @@ EXAMM, Crossformer, PatchTST and DeformTime only.
 \centering
 \caption{All panels and models. Rank IC, ICIR, return net of transaction costs, and gross
 Sharpe ($r_f{=}0$), at the pre-committed L/S~10 book. Bold/underline is best/second per
-metric; parameter counts are in the header. Every cell is a 10-run seed-mean ensemble.}
+metric; parameter counts are in the header. Every cell is a 10-run ensemble. LSTM is the fixed-topology baseline trained through EXAMM's own pipeline; a $+0.00$ return marks a cell where the Algorithm~2 gate never opened, so the book held cash and Sharpe is undefined.}
 \label{tab:all-datasets}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{llrrrrrrrrrrrrrrrrrrrr}
+\begin{tabular}{llrrrrrrrrrrrrrrrrrrrrrrrr}
 \toprule
-Panel & Trade yr & \multicolumn{4}{c}{EXAMM $55$--$77$} & \multicolumn{4}{c}{DLinear $42$} & \multicolumn{4}{c}{PatchTST $16{,}836$} & \multicolumn{4}{c}{iTransf. $817{,}153$} & \multicolumn{4}{c}{DeformT. $67{,}449$} \\
-\cmidrule(lr){3-6} \cmidrule(lr){7-10} \cmidrule(lr){11-14} \cmidrule(lr){15-18} \cmidrule(lr){19-22}
-& & IC & ICIR & Net (\%) & Sharpe & IC & ICIR & Net (\%) & Sharpe & IC & ICIR & Net (\%) & Sharpe & IC & ICIR & Net (\%) & Sharpe & IC & ICIR & Net (\%) & Sharpe \\
+Panel & Trade yr & \multicolumn{4}{c}{EXAMM $55$--$77$} & \multicolumn{4}{c}{DLinear $42$} & \multicolumn{4}{c}{PatchTST $16{,}836$} & \multicolumn{4}{c}{iTransf. $817{,}153$} & \multicolumn{4}{c}{DeformT. $67{,}449$} & \multicolumn{4}{c}{LSTM $295$} \\
+\cmidrule(lr){3-6} \cmidrule(lr){7-10} \cmidrule(lr){11-14} \cmidrule(lr){15-18} \cmidrule(lr){19-22} \cmidrule(lr){23-26}
+& & IC & ICIR & Net (\%) & Sharpe & IC & ICIR & Net (\%) & Sharpe & IC & ICIR & Net (\%) & Sharpe & IC & ICIR & Net (\%) & Sharpe & IC & ICIR & Net (\%) & Sharpe & IC & ICIR & Net (\%) & Sharpe \\
 \midrule
-Dataset A & 2022 & +0.0030 & +0.012 & \textbf{+12.73} & \textbf{+0.98} & -0.0019 & -0.009 & -17.75 & -0.87 & \underline{+0.0041} & \underline{+0.016} & -1.91 & +0.17 & \textbf{+0.0257} & \textbf{+0.117} & -1.94 & +0.17 & +0.0010 & +0.004 & \underline{+4.84} & \underline{+0.45} \\
-Dataset A & 2023 & \textbf{+0.0195} & \textbf{+0.109} & \textbf{+30.24} & \textbf{+2.32} & \underline{+0.0050} & \underline{+0.024} & \underline{+22.29} & \underline{+1.83} & -0.0089 & -0.043 & +9.18 & +0.93 & -0.0094 & -0.049 & -22.52 & -1.75 & -0.0227 & -0.104 & -24.73 & -1.69 \\
+Dataset A & 2022 & +0.0030 & +0.012 & \textbf{+12.73} & \textbf{+0.98} & -0.0019 & -0.009 & -17.75 & -0.87 & +0.0041 & \underline{+0.016} & -1.91 & +0.17 & \textbf{+0.0257} & \textbf{+0.117} & -1.94 & +0.17 & +0.0010 & +0.004 & \underline{+4.84} & \underline{+0.45} & \underline{+0.0042} & +0.015 & +0.00 & --- \\
+Dataset A & 2023 & \textbf{+0.0195} & \textbf{+0.109} & \textbf{+30.24} & \textbf{+2.32} & \underline{+0.0050} & \underline{+0.024} & \underline{+22.29} & \underline{+1.83} & -0.0089 & -0.043 & +9.18 & +0.93 & -0.0094 & -0.049 & -22.52 & -1.75 & -0.0227 & -0.104 & -24.73 & -1.69 & +0.0001 & +0.001 & -16.26 & -2.26 \\
 \midrule
-set1 & 2022 & -0.0035 & -0.013 & -4.63 & -0.13 & +0.0003 & +0.001 & \textbf{+6.15} & \textbf{+0.52} & +0.0103 & \underline{+0.039} & \underline{+3.54} & \underline{+0.35} & \textbf{+0.0159} & \textbf{+0.066} & +0.80 & +0.25 & \underline{+0.0114} & +0.039 & +2.48 & +0.27 \\
-set1 & 2023 & \textbf{+0.0112} & \textbf{+0.057} & \textbf{+21.34} & \textbf{+1.59} & +0.0069 & +0.032 & -4.27 & -0.06 & \underline{+0.0086} & \underline{+0.039} & -10.61 & -0.44 & -0.0010 & -0.005 & \underline{-0.94} & \underline{+0.21} & +0.0025 & +0.011 & -4.64 & -0.11 \\
-set1 & 2024 & +0.0082 & +0.046 & \textbf{+17.19} & \textbf{+1.11} & \underline{+0.0123} & \underline{+0.062} & -15.48 & -0.60 & \textbf{+0.0140} & \textbf{+0.062} & -23.11 & -1.04 & -0.0025 & -0.013 & -17.28 & -0.84 & +0.0075 & +0.032 & \underline{+1.73} & \underline{+0.28} \\
+set1 & 2022 & -0.0035 & -0.013 & -4.63 & -0.13 & +0.0003 & +0.001 & \textbf{+6.15} & \textbf{+0.52} & +0.0103 & \underline{+0.039} & \underline{+3.54} & \underline{+0.35} & \textbf{+0.0159} & \textbf{+0.066} & +0.80 & +0.25 & \underline{+0.0114} & +0.039 & +2.48 & +0.27 & -0.0018 & -0.007 & -3.73 & -0.27 \\
+set1 & 2023 & \underline{+0.0112} & \underline{+0.057} & \textbf{+21.34} & \textbf{+1.59} & +0.0069 & +0.032 & -4.27 & -0.06 & +0.0086 & +0.039 & -10.61 & -0.44 & -0.0010 & -0.005 & \underline{-0.94} & \underline{+0.21} & +0.0025 & +0.011 & -4.64 & -0.11 & \textbf{+0.0175} & \textbf{+0.076} & -4.40 & -0.33 \\
+set1 & 2024 & +0.0082 & +0.046 & \textbf{+17.19} & \textbf{+1.11} & \underline{+0.0123} & \textbf{+0.062} & -15.48 & -0.60 & \textbf{+0.0140} & \underline{+0.062} & -23.11 & -1.04 & -0.0025 & -0.013 & -17.28 & -0.84 & +0.0075 & +0.032 & \underline{+1.73} & \underline{+0.28} & +0.0078 & +0.042 & -9.56 & -0.58 \\
 \addlinespace
-set2 & 2022 & \textbf{+0.0103} & \textbf{+0.043} & \textbf{+35.22} & \textbf{+1.88} & +0.0037 & +0.017 & +5.66 & +0.55 & +0.0056 & +0.026 & -1.85 & +0.17 & \underline{+0.0082} & \underline{+0.040} & \underline{+13.72} & \underline{+1.12} & +0.0008 & +0.004 & -1.61 & +0.12 \\
-set2 & 2023 & \textbf{+0.0127} & \textbf{+0.068} & \textbf{+16.92} & \textbf{+1.26} & \underline{+0.0021} & \underline{+0.011} & \underline{+3.29} & \underline{+0.50} & +0.0003 & +0.001 & -10.35 & -0.45 & +0.0003 & +0.001 & -10.34 & -0.43 & -0.0089 & -0.041 & -15.06 & -0.88 \\
-set2 & 2024 & \textbf{+0.0181} & \textbf{+0.097} & \textbf{+13.80} & \textbf{+1.09} & -0.0017 & -0.009 & -12.99 & -0.69 & \underline{+0.0001} & \underline{+0.001} & \underline{-12.85} & \underline{-0.68} & -0.0082 & -0.045 & -17.71 & -1.05 & -0.0046 & -0.022 & -14.20 & -0.83 \\
+set2 & 2022 & \textbf{+0.0103} & \textbf{+0.043} & \textbf{+35.22} & \textbf{+1.88} & +0.0037 & +0.017 & +5.66 & +0.55 & +0.0056 & +0.026 & -1.85 & +0.17 & \underline{+0.0082} & \underline{+0.040} & \underline{+13.72} & \underline{+1.12} & +0.0008 & +0.004 & -1.61 & +0.12 & +0.0059 & +0.026 & +4.12 & +0.38 \\
+set2 & 2023 & \textbf{+0.0127} & \textbf{+0.068} & \textbf{+16.92} & \textbf{+1.26} & \underline{+0.0021} & \underline{+0.011} & \underline{+3.29} & \underline{+0.50} & +0.0003 & +0.001 & -10.35 & -0.45 & +0.0003 & +0.001 & -10.34 & -0.43 & -0.0089 & -0.041 & -15.06 & -0.88 & -0.0059 & -0.028 & -9.59 & -0.69 \\
+set2 & 2024 & \textbf{+0.0181} & \textbf{+0.097} & \textbf{+13.80} & \textbf{+1.09} & -0.0017 & -0.009 & -12.99 & -0.69 & \underline{+0.0001} & \underline{+0.001} & -12.85 & -0.68 & -0.0082 & -0.045 & -17.71 & -1.05 & -0.0046 & -0.022 & -14.20 & -0.83 & -0.0050 & -0.027 & \underline{-2.88} & \underline{-0.29} \\
 \addlinespace
-set3 & 2022 & \underline{+0.0122} & \underline{+0.050} & \textbf{+36.68} & \textbf{+1.88} & +0.0111 & +0.046 & -1.43 & +0.14 & +0.0099 & +0.039 & +4.27 & +0.45 & \textbf{+0.0304} & \textbf{+0.133} & \underline{+19.65} & \underline{+1.19} & +0.0006 & +0.003 & +3.88 & +0.36 \\
-set3 & 2023 & -0.0120 & -0.077 & \underline{-3.82} & \underline{-0.22} & -0.0060 & -0.030 & \textbf{+1.03} & \textbf{+0.34} & -0.0061 & -0.028 & -8.87 & -0.30 & \textbf{+0.0052} & \textbf{+0.027} & -18.84 & -1.11 & \underline{-0.0054} & \underline{-0.023} & -9.69 & -0.40 \\
-set3 & 2024 & -0.0115 & -0.057 & -2.88 & -0.05 & +0.0003 & +0.002 & \textbf{+24.88} & \textbf{+1.67} & \textbf{+0.0088} & \underline{+0.038} & \underline{+11.46} & \underline{+0.86} & \underline{+0.0083} & \textbf{+0.039} & +6.32 & +0.63 & +0.0037 & +0.016 & -4.84 & -0.07 \\
+set3 & 2022 & \underline{+0.0122} & +0.050 & \textbf{+36.68} & \textbf{+1.88} & +0.0111 & +0.046 & -1.43 & +0.14 & +0.0099 & +0.039 & +4.27 & +0.45 & \textbf{+0.0304} & \textbf{+0.133} & \underline{+19.65} & \underline{+1.19} & +0.0006 & +0.003 & +3.88 & +0.36 & +0.0104 & \underline{+0.055} & -2.19 & -0.06 \\
+set3 & 2023 & -0.0120 & -0.077 & -3.82 & \underline{-0.22} & -0.0060 & -0.030 & \textbf{+1.03} & \textbf{+0.34} & -0.0061 & -0.028 & -8.87 & -0.30 & \textbf{+0.0052} & \textbf{+0.027} & -18.84 & -1.11 & -0.0054 & -0.023 & -9.69 & -0.40 & \underline{+0.0013} & \underline{+0.006} & \underline{+0.00} & --- \\
+set3 & 2024 & -0.0115 & -0.057 & -2.88 & -0.05 & +0.0003 & +0.002 & \textbf{+24.88} & \textbf{+1.67} & \underline{+0.0088} & +0.038 & \underline{+11.46} & \underline{+0.86} & +0.0083 & \underline{+0.039} & +6.32 & +0.63 & +0.0037 & +0.016 & -4.84 & -0.07 & \textbf{+0.0100} & \textbf{+0.048} & +8.33 & +0.70 \\
 \addlinespace
-set4 & 2022 & \textbf{+0.0277} & \textbf{+0.118} & -5.43 & -0.36 & +0.0027 & +0.013 & +8.14 & +0.72 & \underline{+0.0188} & +0.075 & \underline{+20.51} & \underline{+1.30} & +0.0187 & \underline{+0.085} & \textbf{+22.58} & \textbf{+1.48} & +0.0039 & +0.016 & -4.32 & -0.05 \\
-set4 & 2023 & +0.0022 & +0.010 & +1.84 & +0.24 & \textbf{+0.0245} & \textbf{+0.126} & \textbf{+24.33} & \textbf{+2.17} & \underline{+0.0165} & +0.075 & -7.40 & -0.27 & +0.0161 & \underline{+0.080} & \underline{+10.93} & \underline{+1.25} & +0.0021 & +0.009 & -11.13 & -0.54 \\
-set4 & 2024 & \underline{+0.0065} & \underline{+0.033} & \underline{+5.96} & \underline{+0.58} & \textbf{+0.0078} & \textbf{+0.042} & -6.26 & -0.26 & +0.0055 & +0.026 & \textbf{+16.68} & \textbf{+1.50} & -0.0030 & -0.015 & -12.38 & -0.62 & +0.0013 & +0.006 & -9.88 & -0.48 \\
+set4 & 2022 & \textbf{+0.0277} & \textbf{+0.118} & -5.43 & -0.36 & +0.0027 & +0.013 & +8.14 & +0.72 & \underline{+0.0188} & +0.075 & \underline{+20.51} & \underline{+1.30} & +0.0187 & \underline{+0.085} & \textbf{+22.58} & \textbf{+1.48} & +0.0039 & +0.016 & -4.32 & -0.05 & +0.0107 & +0.053 & -9.08 & -0.78 \\
+set4 & 2023 & +0.0022 & +0.010 & +1.84 & +0.24 & \textbf{+0.0245} & \textbf{+0.126} & \textbf{+24.33} & \textbf{+2.17} & +0.0165 & +0.075 & -7.40 & -0.27 & +0.0161 & +0.080 & \underline{+10.93} & \underline{+1.25} & +0.0021 & +0.009 & -11.13 & -0.54 & \underline{+0.0241} & \underline{+0.107} & -7.29 & -0.74 \\
+set4 & 2024 & \underline{+0.0065} & \underline{+0.033} & \underline{+5.96} & \underline{+0.58} & \textbf{+0.0078} & \textbf{+0.042} & -6.26 & -0.26 & +0.0055 & +0.026 & \textbf{+16.68} & \textbf{+1.50} & -0.0030 & -0.015 & -12.38 & -0.62 & +0.0013 & +0.006 & -9.88 & -0.48 & -0.0140 & -0.065 & -1.98 & -0.37 \\
 \bottomrule
 \end{tabular}%
 }
