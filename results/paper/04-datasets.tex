@@ -296,7 +296,34 @@ Test 2024 & $4{,}541$--$4{,}755$ & 2004--2022-12-30 & 250 & 2023 & 252 & 2024 \\
 \label{sec:experimental-setup}
 EXAMM runs on CPU only, using MPI for parallelization. All EXAMM experiments were run on [removed for review]'s high-performance computing cluster, using AMD EPYC ``Milan'' compute nodes (two 64-core processors per node) connected via 100 Gbps Mellanox HDR InfiniBand and running Rocky Linux (CentOS 8-based). Each experiment used 32 CPU cores, allocated as shared resources potentially spanning multiple nodes rather than a single dedicated node. Each EXAMM experiment was repeated 10 times. 
 
-Transformer experiments were instead run on AWS cloud GPU instances, \TODO{Add GPU detials here}.
+% ---------------------------------------------------------------------------
+% MEASURED, not recalled. GPU model, host and worker count come from the
+% timing.json every run writes (551 runs report "NVIDIA GeForce RTX 4090" and
+% num_workers 4, across three container hosts); the software versions were read
+% off the live instance. The two runs reporting gpu "unknown" are local
+% MacBook smoke tests and are not part of any reported result.
+%
+% THE PROVIDER WAS RUNPOD, NOT AWS. The previous sentence said AWS, which no run
+% in this study used -- worth stating plainly because it is the kind of detail a
+% reproduction attempt would take at face value.
+%
+% THE NINE-WAY CONCURRENCY IS LOAD-BEARING and must stay in the text. Per-process
+% step times under it are inflated roughly 1.7-2.1x against a solo run, so the
+% training costs in this paper are costs under a fixed sharing policy, not
+% single-GPU benchmarks. Omitting it invites a reader to compare our seconds
+% against a published isolated-GPU figure and conclude the hardware was slow.
+% ---------------------------------------------------------------------------
+The transformer, linear, and recurrent baselines were instead run on rented cloud
+GPU instances (RunPod). Each instance provided three NVIDIA GeForce RTX~4090 GPUs
+($24$~GiB of VRAM each, compute capability $8.9$, driver $580.159.04$) hosted
+alongside an AMD EPYC~7B13 64-core processor with $128$ cores available. All
+models were trained with PyTorch~$2.7.1$ against CUDA~$11.8$ and cuDNN~$9.1.0$,
+using four dataloader workers per run. Nine runs were executed concurrently,
+distributed round-robin across the three GPUs; because per-process step times are
+inflated by this contention, the training times reported in
+Section~\ref{sec:results} should be read as costs under a fixed nine-way sharing
+policy rather than as isolated single-GPU benchmarks. As with EXAMM, every
+configuration was repeated $10$ times and the predictions averaged.
 
 % \subsection{EXAMM Hyperparameter Settings}
 
