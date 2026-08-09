@@ -1667,7 +1667,7 @@ void RNN_Genome::write_predictions(
 
         rnn->write_predictions(
             output_filename, input_parameter_names, output_parameter_names, inputs[i], outputs[i], time_series_sets,
-            use_dropout, dropout_probability, sequence_length
+            use_dropout, dropout_probability, sequence_length, i
         );
     }
 

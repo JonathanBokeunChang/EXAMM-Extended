@@ -51,6 +51,15 @@ int main(int argc, char** argv) {
     string normalize_type = genome->get_normalize_type();
     if (normalize_type.compare("min_max") == 0) {
         time_series_sets->normalize_min_max(genome->get_normalize_mins(), genome->get_normalize_maxs());
+    } else if (normalize_type.compare("instance") == 0) {
+        // Nothing is carried over from training but the window length: the trailing statistics are
+        // recomputed from the test series itself, which is exactly what makes this scheme causal
+        // and self-contained. The window is stashed under a reserved key in normalize_avgs so the
+        // genome binary format did not have to change.
+        map<string, double> avgs = genome->get_normalize_avgs();
+        int32_t w = (avgs.count("__instance_window__") > 0) ? (int32_t) avgs["__instance_window__"] : 96;
+        Log::info("instance normalization, trailing window %d\n", w);
+        time_series_sets->normalize_instance(w);
     } else if (normalize_type.compare("avg_std_dev") == 0) {
         time_series_sets->normalize_avg_std_dev(
             genome->get_normalize_avgs(), genome->get_normalize_std_devs(), genome->get_normalize_mins(),

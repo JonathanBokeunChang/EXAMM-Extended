@@ -658,6 +658,11 @@ vector<double> RNN::get_predictions(
 
     vector<double> result;
 
+    // INPUTS ARE INDEXED AT j, OUTPUTS AT j + time_offset. The output series was shifted on
+    // export, so output value j is raw observation j+offset and was normalised with THAT
+    // timestep's statistics. Under every constant-statistic scheme the distinction is invisible;
+    // under instance normalisation it is a real error -- it put expected_RET off by up to 0.31
+    // against a target whose own standard deviation is 0.018.
     for (int32_t j = 0; j < series_length; j++) {
         for (int32_t i = 0; i < (int32_t) output_nodes.size(); i++) {
             result.push_back(output_nodes[i]->output_values[j]);
@@ -673,7 +678,8 @@ vector<double> RNN::get_predictions(
 void RNN::write_predictions(
     string output_filename, const vector<string>& input_parameter_names, const vector<string>& output_parameter_names,
     const vector<vector<double> >& series_data, const vector<vector<double> >& expected_outputs,
-    TimeSeriesSets* time_series_sets, bool using_dropout, double dropout_probability, int32_t sequence_length
+    TimeSeriesSets* time_series_sets, bool using_dropout, double dropout_probability, int32_t sequence_length,
+    int32_t series_index
 ) {
     // Buffer the predictions instead of reading output_nodes[i]->output_values[j] straight
     // from the node at write time: in blocked mode each forward_pass overwrites those
@@ -757,18 +763,22 @@ void RNN::write_predictions(
                 outfile << ",";
             }
             // outfile << series_data[i][j];
-            outfile << time_series_sets->denormalize(input_parameter_names[i], series_data[i][j]);
+            outfile << time_series_sets->denormalize(input_parameter_names[i], series_data[i][j], series_index, j);
         }
 
         for (int32_t i = 0; i < (int32_t) output_nodes.size(); i++) {
             outfile << ",";
             // outfile << expected_outputs[i][j];
-            outfile << time_series_sets->denormalize(output_parameter_names[i], expected_outputs[i][j]);
+            outfile << time_series_sets->denormalize(
+                  output_parameter_names[i], expected_outputs[i][j], series_index,
+                  j + time_series_sets->get_export_time_offset());
         }
 
         for (int32_t i = 0; i < (int32_t) output_nodes.size(); i++) {
             outfile << ",";
-            outfile << time_series_sets->denormalize(output_parameter_names[i], predictions[i][j]);
+            outfile << time_series_sets->denormalize(
+                  output_parameter_names[i], predictions[i][j], series_index,
+                  j + time_series_sets->get_export_time_offset());
         }
         outfile << endl;
     }

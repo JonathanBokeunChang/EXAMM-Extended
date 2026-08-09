@@ -163,6 +163,52 @@ void TimeSeries::normalize_avg_std_dev(double avg, double std_dev, double norm_m
     }
 }
 
+void TimeSeries::normalize_instance(int32_t window) {
+    int32_t n = (int32_t) values.size();
+    inst_mean.assign(n, 0.0);
+    inst_std.assign(n, 1.0);
+    vector<double> raw = values;
+
+    // EXPANDING WINDOW BEFORE `window` OBSERVATIONS EXIST, rather than skipping those steps or
+    // padding: a recurrent model is fed the whole series, so leaving the head unnormalised would
+    // hand it a discontinuity at exactly the point its hidden state is still settling. t == 0 has
+    // no history at all and is left at mean 0 / std 1, i.e. untouched.
+    for (int32_t t = 0; t < n; t++) {
+        int32_t lo = (t > window) ? t - window : 0;
+        int32_t cnt = t - lo;
+        if (cnt < 2) {
+            inst_mean[t] = 0.0;
+            inst_std[t] = 1.0;
+            continue;
+        }
+        double sum = 0.0;
+        for (int32_t k = lo; k < t; k++) sum += raw[k];
+        double m = sum / cnt;
+        double acc = 0.0;
+        for (int32_t k = lo; k < t; k++) acc += (raw[k] - m) * (raw[k] - m);
+        double sd = sqrt(acc / (cnt - 1));
+        // A constant trailing window gives sd 0; dividing by it would produce inf/NaN that
+        // propagates silently through training. Fall back to 1.0, i.e. mean-centre only.
+        inst_mean[t] = m;
+        inst_std[t] = (sd > 1e-12) ? sd : 1.0;
+    }
+    for (int32_t t = 0; t < n; t++) values[t] = (raw[t] - inst_mean[t]) / inst_std[t];
+}
+
+double TimeSeries::get_inst_mean(int32_t t) const {
+    if (inst_mean.empty()) return 0.0;
+    if (t < 0) t = 0;
+    if (t >= (int32_t) inst_mean.size()) t = (int32_t) inst_mean.size() - 1;
+    return inst_mean[t];
+}
+
+double TimeSeries::get_inst_std(int32_t t) const {
+    if (inst_std.empty()) return 1.0;
+    if (t < 0) t = 0;
+    if (t >= (int32_t) inst_std.size()) t = (int32_t) inst_std.size() - 1;
+    return inst_std[t];
+}
+
 void TimeSeries::cut(int32_t start, int32_t stop) {
     auto first = values.begin() + start;
     auto last = values.begin() + stop;
@@ -432,6 +478,21 @@ void TimeSeriesSet::normalize_min_max(string field, double min, double max) {
 
 void TimeSeriesSet::normalize_avg_std_dev(string field, double avg, double std_dev, double norm_max) {
     time_series[field]->normalize_avg_std_dev(avg, std_dev, norm_max);
+}
+
+void TimeSeriesSet::normalize_instance(string field, int32_t window) {
+    if (time_series.count(field) == 0) return;
+    time_series[field]->normalize_instance(window);
+}
+
+double TimeSeriesSet::get_inst_mean(string field, int32_t t) {
+    if (time_series.count(field) == 0) return 0.0;
+    return time_series[field]->get_inst_mean(t);
+}
+
+double TimeSeriesSet::get_inst_std(string field, int32_t t) {
+    if (time_series.count(field) == 0) return 1.0;
+    return time_series[field]->get_inst_std(t);
 }
 
 double TimeSeriesSet::get_correlation(string field1, string field2, int32_t lag) const {
@@ -844,6 +905,8 @@ TimeSeriesSets* TimeSeriesSets::generate_from_arguments(const vector<string>& ar
     } else if (tss->normalize_type.compare("min_max") == 0) {
         Log::debug("doing min max normalization on the time series.\n");
         tss->normalize_min_max();
+    } else if (tss->normalize_type.compare("instance") == 0) {
+        tss->normalize_instance(96);
     } else if (tss->normalize_type.compare("avg_std_dev") == 0) {
         Log::debug("doing avg std dev normalization on the time series.\n");
         tss->normalize_avg_std_dev();
@@ -885,6 +948,38 @@ TimeSeriesSets* TimeSeriesSets::generate_test(
     return tss;
 }
 
+void TimeSeriesSets::normalize_instance(int32_t window) {
+    Log::info("doing instance normalization (causal trailing window = %d):\n", window);
+    instance_window = window;
+    for (int32_t i = 0; i < (int32_t) all_parameter_names.size(); i++) {
+        string parameter_name = all_parameter_names[i];
+        for (int32_t j = 0; j < (int32_t) time_series.size(); j++) {
+            time_series[j]->normalize_instance(parameter_name, window);
+        }
+        Log::info_no_header("%30s: standardised against its own trailing %d observations\n",
+                            parameter_name.c_str(), window);
+    }
+    // The genome stores normalisation as maps keyed by field name, with no slot for a scalar.
+    // Rather than change the serialised format -- which would invalidate every genome already on
+    // disk -- the window travels under a reserved key that no real field can collide with.
+    normalize_avgs["__instance_window__"] = (double) window;
+    normalize_type = "instance";
+}
+
+double TimeSeriesSets::denormalize(string field_name, double value, int32_t series_index, int32_t t) {
+    // Every other scheme is series- and time-invariant, so this reduces to the scalar form and
+    // callers never have to branch on normalize_type.
+    if (normalize_type.compare("instance") != 0) return denormalize(field_name, value);
+    if (series_index < 0 || series_index >= (int32_t) time_series.size()) {
+        Log::fatal("instance denormalize: series index %d out of range (%d series)\n",
+                   series_index, (int32_t) time_series.size());
+        exit(1);
+    }
+    double m = time_series[series_index]->get_inst_mean(field_name, t);
+    double sd = time_series[series_index]->get_inst_std(field_name, t);
+    return value * sd + m;
+}
+
 double TimeSeriesSets::denormalize(string field_name, double value) {
     if (normalize_type.compare("none") == 0) {
         return value;
@@ -911,6 +1006,18 @@ double TimeSeriesSets::denormalize(string field_name, double value) {
 
         return value;
 
+    } else if (normalize_type.compare("instance") == 0) {
+        // Reached only if a caller used the scalar form under instance normalisation, which cannot
+        // be inverted without knowing which series and which timestep the value came from. Failing
+        // loudly is the point: silently returning the value unchanged would emit predictions in
+        // normalised units that look like plausible returns.
+        Log::fatal(
+            "denormalize('%s') called without a series/timestep under instance normalisation.\n"
+            "       Use denormalize(field, value, series_index, t) -- the statistics vary per\n"
+            "       series and per timestep, so the scalar form has no correct answer here.\n",
+            field_name.c_str()
+        );
+        exit(1);
     } else {
         Log::fatal(
             "Unknown normalize type on denormalize for '%s' and '%lf', '%s', this should never happen.\n",
@@ -1203,6 +1310,7 @@ void TimeSeriesSets::export_time_series(
 void TimeSeriesSets::export_training_series(
     int32_t time_offset, vector<vector<vector<double> > >& inputs, vector<vector<vector<double> > >& outputs
 ) {
+    export_time_offset = time_offset;
     if (training_indexes.size() == 0) {
         Log::fatal(
             "ERROR: attempting to export training time series, however the training_indexes were not specified.\n"
@@ -1219,6 +1327,7 @@ void TimeSeriesSets::export_training_series(
 void TimeSeriesSets::export_test_series(
     int32_t time_offset, vector<vector<vector<double> > >& inputs, vector<vector<vector<double> > >& outputs
 ) {
+    export_time_offset = time_offset;
     if (test_indexes.size() == 0) {
         Log::fatal("ERROR: attempting to export test time series, however the test_indexes were not specified.\n");
         exit(1);

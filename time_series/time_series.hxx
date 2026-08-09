@@ -26,6 +26,9 @@ class TimeSeries {
     double max_change;
 
     vector<double> values;
+    // trailing mean/std actually applied at each timestep; empty unless normalize_instance ran
+    vector<double> inst_mean;
+    vector<double> inst_std;
 
     TimeSeries();
 
@@ -50,6 +53,24 @@ class TimeSeries {
 
     void normalize_min_max(double min, double max);
     void normalize_avg_std_dev(double avg, double std_dev, double norm_max);
+
+    // INSTANCE NORMALISATION -- causal, per-series, per-timestep. Each value is standardised
+    // against the trailing `window` observations of its OWN series, so every stock is expressed on
+    // its own recent scale instead of one scale shared across the universe. The trailing statistics
+    // are retained so predictions can be mapped back at the same timestep.
+    //
+    // WHY THIS EXISTS. Under the global avg_std_dev scheme every series shares one (avg, max-avg)
+    // pair, so a model that learns "predict near the mean" emits nearly the same number for all 50
+    // stocks: measured cross-sectional spread collapses to 0.000158 against ~0.002 for every
+    // instance-normalised model, and Algorithm 2's sign gate then opens on 0 of ~250 days.
+    //
+    // CAUSAL BY CONSTRUCTION: the window at t covers [t-window, t-1], never t itself, so no future
+    // information reaches the normalisation and none is needed at inference beyond the input series.
+    // That is what lets evaluate_rnn reproduce it from the test file alone, with nothing stored in
+    // the genome but the window length.
+    void normalize_instance(int32_t window);
+    double get_inst_mean(int32_t t) const;
+    double get_inst_std(int32_t t) const;
 
     void cut(int32_t start, int32_t stop);
 
@@ -96,6 +117,9 @@ class TimeSeriesSet {
 
     void normalize_min_max(string field, double min, double max);
     void normalize_avg_std_dev(string field, double avg, double std_dev, double norm_max);
+    void normalize_instance(string field, int32_t window);
+    double get_inst_mean(string field, int32_t t);
+    double get_inst_std(string field, int32_t t);
 
     void export_time_series(vector<vector<double> >& data);
     void export_time_series(vector<vector<double> >& data, const vector<string>& requested_fields);
@@ -123,6 +147,11 @@ class TimeSeriesSets {
     vector<int> test_indexes;
 
     vector<string> input_parameter_names;
+    int32_t instance_window = 0;
+    // The offset the OUTPUT series were shifted by on export. Needed only by instance
+    // normalisation: output value j is raw index j+offset, so its trailing statistics live there
+    // too. Every constant-statistic scheme is indifferent to this.
+    int32_t export_time_offset = 0;
     vector<string> output_parameter_names;
     vector<string> shift_parameter_names;
     vector<string> all_parameter_names;
@@ -179,6 +208,14 @@ class TimeSeriesSets {
     void export_series_by_name(string field_name, vector<vector<double> >& exported_series);
 
     double denormalize(string field_name, double value);
+    // Time- and series-indexed inverse, required by instance normalisation because its statistics
+    // vary per series and per timestep. Falls through to the scalar form for every other scheme, so
+    // callers can use this one unconditionally.
+    double denormalize(string field_name, double value, int32_t series_index, int32_t t);
+    void normalize_instance(int32_t window);
+    int32_t get_instance_window() const { return instance_window; }
+    int32_t get_export_time_offset() const { return export_time_offset; }
+    void set_export_time_offset(int32_t o) { export_time_offset = o; }
 
     string get_normalize_type() const;
     map<string, double> get_normalize_mins() const;
