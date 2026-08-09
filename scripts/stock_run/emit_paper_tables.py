@@ -196,94 +196,189 @@ PORTFOLIO_CAP = (
 
 
 
-# --- transposed layout ------------------------------------------------------------------------
-# Models as ROWS, panel-year cells as COLUMNS. This is the layout the Overleaf draft uses, and it
-# is kept generatable for one reason: the version that was hand-built there reported PEARSON IC,
-# because it was transcribed from tab:all-datasets before the Rank IC decision landed
-# (git f66a0b09 -> e73352c9). A hand-copied table cannot track a metric change; a generated one
-# does. Net, Sharpe and MDD here reproduce that draft exactly -- only the IC row moves, and
-# Turnover is new.
+
+# --- Overleaf layouts -------------------------------------------------------------------------
+# These three reproduce the tables in the shared Overleaf draft EXACTLY -- same columns, same
+# grouping, same captions -- and differ only in that the numbers come from the scored JSON instead
+# of being transcribed. That is the whole point: the hand-built transposed table there reports
+# PEARSON IC, because it was copied from tab:all-datasets before the Rank IC decision landed
+# (f66a0b09 -> e73352c9), and a transcribed table cannot follow a metric change. Net, Sharpe and
+# MDD in that draft are correct and are reproduced here to the last decimal.
+#
+# MODEL ORDER IS THE DRAFT'S, NOT ALPHABETICAL OR BY SIZE: EXAMM, then DLinear under "Other",
+# then the two fixed RNNs, then the four transformers. The grouping carries information (which
+# architecture family a column belongs to) so it is preserved rather than normalised away.
 VAL_CELLS = [(s, y) for s in ["set1", "set2", "set3", "set4"] for y in [2022, 2023, 2024]]
-ALL_CELLS = [("Dataset A", 2022), ("Dataset A", 2023)] + VAL_CELLS
-TRANSPOSED_METRICS = [("Rank IC", "f", "ic1", 4, False), (r"Net (\%)", "p", "net", 2, False),
-                      (r"Sharpe", "p", "sharpe", 2, False), (r"MDD (\%)", "p", "mdd", 2, False),
-                      (r"Turnover (\%)", "p", "turnover", 0, True)]
+NET_ORDER = ["EXAMM", "DLinear", "LSTM-i", "GRU-i", "PatchTST", "iTransf.", "DeformT.", "TimeMixer"]
+
+
+def _pick(vals, i, dec, low=False):
+    v = vals[i]
+    if not np.isfinite(v):
+        return "---"
+    s = f"{v:.{dec}f}" if low else f"{v:+.{dec}f}"
+    fin = [(x, j) for j, x in enumerate(vals) if np.isfinite(x)]
+    if len(fin) >= 2:
+        o = sorted(fin, key=lambda t: (t[0] if low else -t[0]))
+        if i == o[0][1]:
+            return rf"\textbf{{{s}}}"
+        if i == o[1][1]:
+            return rf"\underline{{{s}}}"
+    return s
+
+
+def _net(port):
+    return {(r["panel"], r["yr"], r["model"]): r["net"] for r in port if "net" in r}
+
+
+def net_returns(port):
+    N = _net(port)
+    L = [r"\begin{table*}[t]", r"\centering", r"\caption{" + NET_CAP + "}",
+         r"\label{tab:net-returns}", r"\begin{tabular}{ll" + "r" * 10 + "}", r"\toprule",
+         r" & & \multicolumn{2}{c}{Benchmarks} &  & \multicolumn{1}{c}{Other} & "
+         r"\multicolumn{2}{c}{Fixed RNNs} & \multicolumn{4}{c}{Transformer-based} \\",
+         r"\cmidrule(lr){3-4} \cmidrule(lr){6-6} \cmidrule(lr){7-8} \cmidrule(lr){9-12}",
+         r"Panel & Test yr & B\&H & EW & " + " & ".join(NET_ORDER) + r" \\", r"\midrule"]
+    for n, (p, y) in enumerate(VAL_CELLS):
+        if n and n % 3 == 0:
+            L.append(r"\addlinespace")
+        vals = [N.get((p, y, m), float("nan")) for m in NET_ORDER]
+        b, e = BENCH[(p, y)]
+        L.append(f"{PANEL_NAME[p]} & {y} & {b:+.2f} & {e:+.2f} & "
+                 + " & ".join(_pick(vals, i, 2) for i in range(len(NET_ORDER))) + r" \\")
+    L.append(r"\midrule")
+    vals = [float(np.mean([N[(p, y, m)] for p, y in VAL_CELLS if (p, y, m) in N]))
+            for m in NET_ORDER]
+    bs = [BENCH[c] for c in VAL_CELLS]
+    L.append(r"\multicolumn{2}{l}{\textit{Mean}} & "
+             + f"{np.mean([x[0] for x in bs]):+.2f} & {np.mean([x[1] for x in bs]):+.2f} & "
+             + " & ".join(_pick(vals, i, 2) for i in range(len(NET_ORDER))) + r" \\")
+    L += [r"\bottomrule", r"\end{tabular}", r"\end{table*}"]
+    return "\n".join(L)
+
+
+def net_returns_by_year(port):
+    N = _net(port)
+    L = [r"\begin{table}[t]", r"\centering", r"\caption{" + NET_YEAR_CAP + "}",
+         r"\label{tab:net-returns-by-year}", r"\resizebox{\columnwidth}{!}{%",
+         r"\begin{tabular}{l" + "r" * 10 + "}", r"\toprule",
+         r" & \multicolumn{2}{c}{Benchmarks} &  & \multicolumn{1}{c}{Other} & "
+         r"\multicolumn{2}{c}{Fixed RNNs} & \multicolumn{4}{c}{Transformer-based} \\",
+         r"\cmidrule(lr){2-3} \cmidrule(lr){5-5} \cmidrule(lr){6-7} \cmidrule(lr){8-11}",
+         r"Test yr & B\&H & EW & " + " & ".join(NET_ORDER) + r" \\", r"\midrule"]
+    for y in [2022, 2023, 2024]:
+        cs = [c for c in VAL_CELLS if c[1] == y]
+        vals = [float(np.mean([N[(p, yy, m)] for p, yy in cs if (p, yy, m) in N]))
+                for m in NET_ORDER]
+        bs = [BENCH[c] for c in cs]
+        L.append(f"{y} & {np.mean([x[0] for x in bs]):+.2f} & {np.mean([x[1] for x in bs]):+.2f} & "
+                 + " & ".join(_pick(vals, i, 2) for i in range(len(NET_ORDER))) + r" \\")
+    L.append(r"\midrule")
+    vals = [float(np.mean([N[(p, y, m)] for p, y in VAL_CELLS if (p, y, m) in N]))
+            for m in NET_ORDER]
+    bs = [BENCH[c] for c in VAL_CELLS]
+    L.append(r"\textit{Mean} & "
+             + f"{np.mean([x[0] for x in bs]):+.2f} & {np.mean([x[1] for x in bs]):+.2f} & "
+             + " & ".join(_pick(vals, i, 2) for i in range(len(NET_ORDER))) + r" \\")
+    L += [r"\bottomrule", r"\end{tabular}%", r"}", r"\end{table}"]
+    return "\n".join(L)
+
+
+TRANSPOSED_METRICS = [("Rank IC", "f", "ic1", 4), (r"Net (\%)", "p", "net", 2),
+                      (r"Sharpe", "p", "sharpe", 2), (r"MDD (\%)", "p", "mdd", 2)]
 
 
 def transposed(fore, port):
     F = {(r["panel"], r["yr"], r["model"]): r for r in fore}
     P = {(r["panel"], r["yr"], r["model"]): r for r in port}
 
-    def cell(src, key, cells, mi, dec, low):
-        """Model mi over `cells` (one cell -> its value, many -> the mean), best/second marked."""
-        vals = []
-        for m in MODELS:
-            v = [src[(p, y, m)][key] for p, y in cells
-                 if (p, y, m) in src and key in src[(p, y, m)]]
-            vals.append(float(np.mean(v)) if v else float("nan"))
-        v = vals[mi]
-        s = "---" if not np.isfinite(v) else (f"{v:.{dec}f}" if low else f"{v:+.{dec}f}")
-        fin = [(x, j) for j, x in enumerate(vals) if np.isfinite(x)]
-        if len(fin) >= 2:
-            o = sorted(fin, key=lambda t: (t[0] if low else -t[0]))
-            if mi == o[0][1]:
-                return rf"\textbf{{{s}}}"
-            if mi == o[1][1]:
-                return rf"\underline{{{s}}}"
-        return s
+    def series(src, key, mi):
+        """One metric row: the twelve cells then their mean, each marked against the other models."""
+        out = []
+        for c in list(VAL_CELLS) + [None]:
+            cells = VAL_CELLS if c is None else [c]
+            vals = []
+            for m in NET_ORDER:
+                v = [src[(p, y, m)][key] for p, y in cells
+                     if (p, y, m) in src and key in src[(p, y, m)]]
+                vals.append(float(np.mean(v)) if v else float("nan"))
+            out.append(vals)
+        return out
 
     L = [r"\begin{table*}[t]", r"\centering", r"\scriptsize",
-         r"\caption{" + TRANSPOSED_CAP + "}",
-         r"\label{tab:all-datasets-transposed}", r"\resizebox{\textwidth}{!}{%",
-         r"\begin{tabular}{ll" + "r" * 14 + "}", r"\toprule",
+         r"\caption{" + TRANSPOSED_CAP + "}", r"\label{tab:all-datasets-transposed}",
+         r"\resizebox{\textwidth}{!}{%", r"\begin{tabular}{ll" + "r" * 13 + "}", r"\toprule",
          r"Model & Metric & " + " & ".join(
              rf"\multicolumn{{3}}{{c}}{{{PANEL_NAME[s]}}}"
-             for s in ["set1", "set2", "set3", "set4"]) + r" & Mean & Mean \\",
+             for s in ["set1", "set2", "set3", "set4"]) + r" & Mean \\",
          " ".join(rf"\cmidrule(lr){{{3 + 3 * i}-{5 + 3 * i}}}" for i in range(4)),
-         " & & " + " & ".join(str(y) for _ in range(4) for y in [2022, 2023, 2024])
-         + r" & valid. & all \\", r"\midrule"]
-    for mi, m in enumerate(MODELS):
+         " & & " + " & ".join(str(y) for _ in range(4) for y in [2022, 2023, 2024]) + r" &  \\",
+         r"\midrule"]
+    for mi, m in enumerate(NET_ORDER):
         if mi:
             L.append(r"\addlinespace")
         L.append(rf"\multirow{{{len(TRANSPOSED_METRICS)}}}{{*}}{{{m} {PARAMS[m]}}}")
-        for lbl, which, key, dec, low in TRANSPOSED_METRICS:
-            src = F if which == "f" else P
-            row = [cell(src, key, [c], mi, dec, low) for c in VAL_CELLS]
-            row.append(cell(src, key, VAL_CELLS, mi, dec, low))
-            row.append(cell(src, key, ALL_CELLS, mi, dec, low))
-            L.append(f" & {lbl:15s}& " + " & ".join(row) + r" \\")
+        for lbl, which, key, dec in TRANSPOSED_METRICS:
+            cols = series(F if which == "f" else P, key, mi)
+            L.append(f" & {lbl:10s}& " + " & ".join(_pick(v, mi, dec) for v in cols) + r" \\")
+    # Ungated benchmarks: net return only, and deliberately NOT ranked against the model rows --
+    # they trade every day while every model row is gated by Algorithm 2.
+    for name, j in ((r"B\&H", 0), ("EW", 1)):
+        L.append(r"\addlinespace")
+        vals = [BENCH[c][j] for c in VAL_CELLS]
+        L.append(f"{name} (ungated) & Net (\\%)  & "
+                 + " & ".join(f"{v:+.2f}" for v in vals)
+                 + f" & {np.mean(vals):+.2f}" + r" \\")
     L += [r"\bottomrule", r"\end{tabular}%", r"}", r"\end{table*}"]
     return "\n".join(L)
 
 
+NET_CAP = (
+    r"Net return (\%) at the pre-committed L/S~10 book, net of transaction costs, for all panels "
+    r"and models. Bold/underline is best/second per row among the model columns. The benchmark "
+    r"columns use no predictions and are not gated by Algorithm~\ref{alg:long-short}, so they "
+    r"trade every day; they are shown for reference and are not ranked. Every model cell is a "
+    r"10-run ensemble.")
+
+NET_YEAR_CAP = (
+    r"Net return (\%) averaged across the four panels ($V1$--$V4$) within each trade year. "
+    r"Bold/underline is best/second per row among the model columns; the ungated benchmarks are "
+    r"shown for reference and are not ranked. The Mean row averages the three trade years, and is "
+    r"equivalently the mean over all twelve panel--year cells.")
+
 TRANSPOSED_CAP = (
-    r"All models on the four validation portfolios. Rank IC is the daily cross-sectional "
-    r"Spearman correlation between the one-day-ahead prediction and the next day's return. "
-    r"Return is net of transaction costs; Sharpe ($r_f{=}0$) and maximum drawdown are gross. "
-    r"Turnover is the percentage of test days on which Algorithm~\ref{alg:long-short} re-enters "
-    r"the book; on the remaining days positions are held rather than flattened, so its reciprocal "
-    r"is the mean holding period. The two mean columns average the twelve validation cells and "
-    r"all fourteen, the latter adding the Baseline Portfolio's 2022 and 2023 folds. "
-    r"Bold/underline is best/second per metric per column.")
+    r"All panels and models, transposed: models as rows, panel--year cells as columns. "
+    r"\textbf{Rank IC} (daily cross-sectional Spearman correlation between the one-day-ahead "
+    r"prediction and the next day's return), return net of transaction costs, gross Sharpe "
+    r"($r_f{=}0$) and maximum drawdown, at the pre-committed L/S~10 book. Bold/underline is "
+    r"best/second per metric within each panel--year column, among the model rows. Parameter "
+    r"counts follow each model name. Every cell is a 10-run ensemble. LSTM-i and GRU-i are "
+    r"fixed-topology recurrent baselines trained through EXAMM's own pipeline under causal "
+    r"instance normalisation. The two benchmark rows use no predictions at all: buy-and-hold and "
+    r"daily equal-weight rebalancing (Financial\_toolbox @4bab989); unlike every model row they "
+    r"are not gated by Algorithm~\ref{alg:long-short}, so they trade every day and are not ranked.")
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--which", choices=["forecasting", "portfolio", "transposed"],
+    ap.add_argument("--which", choices=["forecasting", "portfolio", "transposed",
+                             "net-returns", "net-returns-by-year"],
                     required=True)
     a = ap.parse_args()
-    src = "forecasting" if a.which == "transposed" else a.which
-    recs = [r for r in json.load(open(os.path.join(REPO, f"results/{src}_cells.json")))
+    fore = [r for r in json.load(open(os.path.join(REPO, "results/forecasting_cells.json")))
+            if r.get("n_rep")]
+    port = [r for r in json.load(open(os.path.join(REPO, "results/portfolio_cells.json")))
             if r.get("n_rep")]
     if a.which == "transposed":
-        port = [r for r in json.load(open(os.path.join(REPO, "results/portfolio_cells.json")))
-                if r.get("n_rep")]
-        print(transposed(recs, port))
+        print(transposed(fore, port))
+    elif a.which == "net-returns":
+        print(net_returns(port))
+    elif a.which == "net-returns-by-year":
+        print(net_returns_by_year(port))
     elif a.which == "forecasting":
-        print(build(recs, FORECAST_METRICS, FORECAST_CAP, "tab:forecasting", benchmarks=False))
+        print(build(fore, FORECAST_METRICS, FORECAST_CAP, "tab:forecasting", benchmarks=False))
     else:
-        print(build(recs, PORTFOLIO_METRICS, PORTFOLIO_CAP, "tab:portfolio", benchmarks=True))
-
+        print(build(port, PORTFOLIO_METRICS, PORTFOLIO_CAP, "tab:portfolio", benchmarks=True))
 
 if __name__ == "__main__":
     main()

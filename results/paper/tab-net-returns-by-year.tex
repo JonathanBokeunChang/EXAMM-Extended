@@ -1,0 +1,20 @@
+\begin{table}[t]
+\centering
+\caption{Net return (\%) averaged across the four panels ($V1$--$V4$) within each trade year. Bold/underline is best/second per row among the model columns; the ungated benchmarks are shown for reference and are not ranked. The Mean row averages the three trade years, and is equivalently the mean over all twelve panel--year cells.}
+\label{tab:net-returns-by-year}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lrrrrrrrrrr}
+\toprule
+ & \multicolumn{2}{c}{Benchmarks} &  & \multicolumn{1}{c}{Other} & \multicolumn{2}{c}{Fixed RNNs} & \multicolumn{4}{c}{Transformer-based} \\
+\cmidrule(lr){2-3} \cmidrule(lr){5-5} \cmidrule(lr){6-7} \cmidrule(lr){8-11}
+Test yr & B\&H & EW & EXAMM & DLinear & LSTM-i & GRU-i & PatchTST & iTransf. & DeformT. & TimeMixer \\
+\midrule
+2022 & -10.05 & -17.39 & \textbf{+15.46} & +4.63 & +7.89 & +9.25 & +6.62 & \underline{+14.19} & +0.11 & +1.74 \\
+2023 & +11.18 & +3.99 & \textbf{+9.07} & \underline{+6.09} & -14.58 & -13.22 & -9.31 & -4.80 & -10.13 & +4.31 \\
+2024 & +6.80 & -0.93 & \textbf{+8.52} & -2.46 & -10.18 & -9.70 & -1.96 & -10.26 & -6.80 & \underline{+6.22} \\
+\midrule
+\textit{Mean} & +2.64 & -4.78 & \textbf{+11.02} & +2.75 & -5.62 & -4.56 & -1.55 & -0.29 & -5.61 & \underline{+4.09} \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
