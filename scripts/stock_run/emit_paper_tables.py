@@ -420,11 +420,111 @@ HORIZON_CAP = (
     r"$\rho = -0.786$). Bold/underline is best/second per column.")
 
 
+def model_summary(fore, port):
+    """Per-model means over the twelve validation cells, in the Overleaf draft's grouped layout.
+
+    ADDS MSE, MAE AND TURNOVER to the IC/Net/Sharpe/MDD the draft already carried. Each earns its
+    place differently:
+      MSE, MAE -- point accuracy. They belong here precisely BECAUSE they do not separate: the
+        eight models span ~15% on MSE while their net returns span 17 percentage points, and the
+        two give an identical ordering (Spearman 1.0000 across the model means, so MAE adds no
+        information over MSE and is reported only to forestall the question).
+      Turnover -- the share of test days on which Algorithm 2 re-enters the book. On the other
+        days positions are HELD, not flattened (Financial_toolbox portfolio.py:451 updates the
+        book only inside `if do_trade`), so its reciprocal is the holding period: ~6.9 days for
+        EXAMM against 1.1-1.9 for every baseline. Without this column a reader sees EXAMM winning
+        Net and Sharpe and attributes it to forecast accuracy, which the IC column contradicts.
+
+    PROMOTED TO table* BECAUSE TEN COLUMNS CANNOT LIVE IN \columnwidth. The draft's version was a
+    single-column table inside \resizebox; three more columns there would put the type near 5pt.
+
+    IC IS PEARSON, matching the draft. Rank IC disagrees (EXAMM +0.0068 rather than +0.0106) and
+    the difference is outlier-driven -- see score_forecasting.row_corr. Both are in the JSON.
+    """
+    F = {(r["panel"], r["yr"], r["model"]): r for r in fore}
+    P = {(r["panel"], r["yr"], r["model"]): r for r in port}
+
+    def mean(src, key, m):
+        v = [src[(p, y, m)][key] for p, y in VAL_CELLS
+             if (p, y, m) in src and key in src[(p, y, m)]]
+        return float(np.mean(v)) if v else float("nan")
+
+    # (key, source, header, decimals, scale, lower-is-better)
+    METS = [("icp1", F, r"IC", 4, 1, False),
+            ("mse", F, r"MSE ($\times10^{-4}$)", 2, 1e4, True),
+            ("mae", F, r"MAE ($\times10^{-2}$)", 3, 1e2, True),
+            ("net", P, r"Net (\%)", 2, 1, False),
+            ("sharpe", P, r"Sharpe", 2, 1, False),
+            ("mdd", P, r"MDD (\%)", 2, 1, False),
+            ("turnover", P, r"Turnover (\%)", 1, 1, True)]
+    cols = {k: [mean(src, k, m) for m in NET_ORDER] for k, src, _, _, _, _ in METS}
+
+    def cell(k, i, dec, scale, low):
+        v = cols[k][i]
+        if not np.isfinite(v):
+            return "---"
+        s = f"{v * scale:.{dec}f}" if low else f"{v * scale:+.{dec}f}"
+        fin = [(x, j) for j, x in enumerate(cols[k]) if np.isfinite(x)]
+        o = sorted(fin, key=lambda t: (t[0] if low else -t[0]))
+        if i == o[0][1]:
+            return rf"\textbf{{{s}}}"
+        if i == o[1][1]:
+            return rf"\underline{{{s}}}"
+        return s
+
+    # The draft prints EXAMM as $66$ in its summary tables (the mean of the Baseline Portfolio's
+    # two evolved genomes, 55 and 77) and as the range elsewhere. Matched here so this table drops
+    # in without a mismatch against tab:param-counts.
+    show = dict(PARAMS, **{"EXAMM": "$66$"})
+    GROUPS = [("", ["EXAMM"]), ("Other", ["DLinear"]), ("Fixed RNNs", ["LSTM-i", "GRU-i"]),
+              ("Transformer-based", ["PatchTST", "iTransf.", "DeformT.", "TimeMixer"])]
+    L = [r"\begin{table*}[t]", r"\centering", r"\caption{" + SUMMARY_CAP + "}",
+         r"\label{tab:model-summary}", r"\begin{tabular}{llr" + "r" * len(METS) + "}",
+         r"\toprule",
+         r" & Model & Params & " + " & ".join(h for _, _, h, _, _, _ in METS) + r" \\",
+         r"\midrule"]
+    for gi, (gname, members) in enumerate(GROUPS):
+        if gi:
+            L.append(r"\midrule")
+        for j, m in enumerate(members):
+            i = NET_ORDER.index(m)
+            lead = ""
+            if j == 0 and gname:
+                lead = (gname if len(members) == 1
+                        else rf"\multirow{{{len(members)}}}{{*}}{{{gname}}}")
+            L.append(f"{lead} & {m} & {show[m]} & "
+                     + " & ".join(cell(k, i, d, sc, lo) for k, _, _, d, sc, lo in METS)
+                     + r" \\")
+    # Benchmarks: net return only. Ungated, so ranking them against the model rows would compare
+    # two different strategies.
+    L.append(r"\midrule")
+    bh = float(np.mean([BENCH[c][0] for c in VAL_CELLS]))
+    ew = float(np.mean([BENCH[c][1] for c in VAL_CELLS]))
+    pad_l = " & ".join(["---"] * 3)
+    pad_r = " & ".join(["---"] * 3)
+    L.append(rf"\multirow{{2}}{{*}}{{Benchmarks}} & Buy \& hold & --- & {pad_l} & {bh:+.2f} & {pad_r} \\")
+    L.append(rf" & Equal weight & --- & {pad_l} & {ew:+.2f} & {pad_r} \\")
+    L += [r"\bottomrule", r"\end{tabular}", r"\end{table*}"]
+    return "\n".join(L)
+
+
+SUMMARY_CAP = (
+    r"Per-model summary over the twelve validation panel--year cells, each metric averaged across "
+    r"cells. IC and the two error metrics are measured on the raw forecasts, before the entry "
+    r"gate of Algorithm~\ref{alg:long-short} and before transaction costs, and so are the only "
+    r"columns independent of the trading rule. Turnover is the percentage of test days on which "
+    r"the gate opens and the book is re-entered; on the remaining days positions are held rather "
+    r"than flattened, so its reciprocal is the mean holding period --- about seven trading days "
+    r"for EXAMM against one to two for every baseline. Bold/underline is best/second per column "
+    r"among the model rows. The benchmarks use no predictions and are ungated, so they trade "
+    r"every day and are neither scored on forecast accuracy nor ranked.")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--which", choices=["forecasting", "portfolio", "transposed",
                              "net-returns", "net-returns-by-year",
-                             "horizon"],
+                             "horizon", "model-summary"],
                     required=True)
     a = ap.parse_args()
     fore = [r for r in json.load(open(os.path.join(REPO, "results/forecasting_cells.json")))
@@ -439,6 +539,8 @@ def main():
         print(net_returns_by_year(port))
     elif a.which == "horizon":
         print(horizon(fore))
+    elif a.which == "model-summary":
+        print(model_summary(fore, port))
     elif a.which == "forecasting":
         print(build(fore, FORECAST_METRICS, FORECAST_CAP, "tab:forecasting", benchmarks=False))
     else:

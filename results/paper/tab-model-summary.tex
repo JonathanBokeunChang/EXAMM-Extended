@@ -1,0 +1,25 @@
+\begin{table*}[t]
+\centering
+\caption{Per-model summary over the twelve validation panel--year cells, each metric averaged across cells. IC and the two error metrics are measured on the raw forecasts, before the entry gate of Algorithm~\ref{alg:long-short} and before transaction costs, and so are the only columns independent of the trading rule. Turnover is the percentage of test days on which the gate opens and the book is re-entered; on the remaining days positions are held rather than flattened, so its reciprocal is the mean holding period --- about seven trading days for EXAMM against one to two for every baseline. Bold/underline is best/second per column among the model rows. The benchmarks use no predictions and are ungated, so they trade every day and are neither scored on forecast accuracy nor ranked.}
+\label{tab:model-summary}
+\begin{tabular}{llrrrrrrrr}
+\toprule
+ & Model & Params & IC & MSE ($\times10^{-4}$) & MAE ($\times10^{-2}$) & Net (\%) & Sharpe & MDD (\%) & Turnover (\%) \\
+\midrule
+ & EXAMM & $66$ & \textbf{+0.0106} & \textbf{3.81} & \textbf{1.358} & \textbf{+11.02} & \textbf{+0.74} & \textbf{-10.76} & \textbf{14.5} \\
+\midrule
+Other & DLinear & $194$ & +0.0067 & \underline{3.83} & \underline{1.362} & +2.75 & +0.42 & \underline{-12.49} & 70.2 \\
+\midrule
+\multirow{2}{*}{Fixed RNNs} & LSTM-i & $295$ & +0.0035 & 4.25 & 1.398 & -5.62 & -0.15 & -18.93 & 94.3 \\
+ & GRU-i & $295$ & +0.0024 & 4.17 & 1.391 & -4.56 & -0.10 & -19.39 & 91.4 \\
+\midrule
+\multirow{4}{*}{Transformer-based} & PatchTST & $16{,}836$ & \underline{+0.0068} & 3.84 & 1.363 & -1.55 & +0.12 & -15.48 & 76.3 \\
+ & iTransf. & $817{,}153$ & +0.0046 & 3.89 & 1.375 & -0.29 & +0.17 & -15.15 & 77.2 \\
+ & DeformT. & $67{,}449$ & -0.0019 & 3.87 & 1.370 & -5.61 & -0.19 & -17.38 & \underline{51.9} \\
+ & TimeMixer & $72{,}997$ & +0.0032 & 14.95 & 2.490 & \underline{+4.09} & \underline{+0.43} & -13.12 & 69.9 \\
+\midrule
+\multirow{2}{*}{Benchmarks} & Buy \& hold & --- & --- & --- & --- & +2.64 & --- & --- & --- \\
+ & Equal weight & --- & --- & --- & --- & -4.78 & --- & --- & --- \\
+\bottomrule
+\end{tabular}
+\end{table*}
