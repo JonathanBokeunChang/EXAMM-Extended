@@ -52,7 +52,7 @@ OUT = os.path.join(REPO, "results/paper/figures")
 HS = list(range(1, 11))
 VAL = [(s, y) for s in ["set1", "set2", "set3", "set4"] for y in [2022, 2023, 2024]]
 # (display name, parameter count). Order here is only the legend's; colour comes from the count.
-MODELS = [("EXAMM", 66), ("DLinear", 194), ("LSTM-i", 295), ("GRU-i", 295),
+MODELS = [("EXAMM", 66), ("DLinear", 194), ("GRU-i", 511), ("LSTM-i", 679),
           ("PatchTST", 16836), ("DeformT.", 67449), ("TimeMixer", 72997), ("iTransf.", 817153)]
 HOLD = 6.9          # EXAMM's mean holding period, = 100 / 14.5% turnover (tab:portfolio)
 N_BOOT = 10000

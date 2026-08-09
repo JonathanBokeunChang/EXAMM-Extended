@@ -2,18 +2,18 @@
 \centering
 \caption{Rank IC by forecast horizon, on the twelve validation panel--year cells. No model is retrained: every prediction is the same one-day-ahead value, and only the realised return it is scored against changes, to the forward $h$-day compounded return. Rows are ordered by parameter count. $h{=}3$ and $h{=}5$ are the horizons at which the gated book is actually held (Table~\ref{tab:all-datasets-transposed}, turnover row); $h{=}1$ is the horizon the forecasting literature reports, and $h{=}20$ is included to show where the effect closes. The final column is the ratio of $h{=}5$ to $h{=}1$ accuracy: it exceeds one only for the two smallest models and falls with capacity across the eight (Spearman $\rho = -0.786$). Bold/underline is best/second per column.}
 \label{tab:horizon}
-\begin{tabular}{lrrrrrrrr}
+\begin{tabular}{lrrrrrrr}
 \toprule
-Model & Params & $h{=}1$ & $h{=}2$ & $h{=}3$ & $h{=}5$ & $h{=}10$ & $h{=}20$ & $h5/h1$ \\
+Model & Params & $h{=}1$ & $h{=}2$ & $h{=}3$ & $h{=}5$ & $h{=}10$ & $h5/h1$ \\
 \midrule
-EXAMM & $55$--$77$ & +0.0068 & \textbf{+0.0126} & \underline{+0.0109} & \textbf{+0.0117} & \textbf{+0.0142} & +0.0068 & +1.71$\times$ \\
-DLinear & $194$ & +0.0053 & +0.0051 & \textbf{+0.0110} & \underline{+0.0086} & \underline{+0.0109} & +0.0099 & +1.61$\times$ \\
-LSTM-i & $295$ & +0.0061 & +0.0043 & +0.0038 & +0.0051 & +0.0101 & \textbf{+0.0200} & +0.83$\times$ \\
-GRU-i & $295$ & +0.0056 & +0.0031 & +0.0013 & +0.0013 & +0.0055 & \underline{+0.0156} & +0.24$\times$ \\
-PatchTST & $16{,}836$ & \textbf{+0.0077} & +0.0048 & +0.0075 & +0.0047 & +0.0063 & +0.0129 & +0.61$\times$ \\
-DeformT. & $67{,}449$ & +0.0012 & -0.0006 & +0.0022 & -0.0004 & +0.0011 & +0.0112 & -0.35$\times$ \\
-TimeMixer & $72{,}997$ & +0.0024 & +0.0009 & +0.0009 & -0.0002 & -0.0035 & -0.0000 & -0.09$\times$ \\
-iTransf. & $817{,}153$ & \underline{+0.0074} & \underline{+0.0060} & +0.0066 & +0.0037 & +0.0102 & +0.0144 & +0.50$\times$ \\
+EXAMM & $55$--$77$ & +0.0068 & \textbf{+0.0126} & \underline{+0.0109} & \textbf{+0.0117} & \textbf{+0.0142} & +1.71$\times$ \\
+DLinear & $194$ & +0.0053 & +0.0051 & \textbf{+0.0110} & \underline{+0.0086} & \underline{+0.0109} & +1.61$\times$ \\
+GRU-i & $511$ & +0.0056 & +0.0031 & +0.0013 & +0.0013 & +0.0055 & +0.24$\times$ \\
+LSTM-i & $679$ & +0.0061 & +0.0043 & +0.0038 & +0.0051 & +0.0101 & +0.83$\times$ \\
+PatchTST & $16{,}836$ & \textbf{+0.0077} & +0.0048 & +0.0075 & +0.0047 & +0.0063 & +0.61$\times$ \\
+DeformT. & $67{,}449$ & +0.0012 & -0.0006 & +0.0022 & -0.0004 & +0.0011 & -0.35$\times$ \\
+TimeMixer & $72{,}997$ & +0.0024 & +0.0009 & +0.0009 & -0.0002 & -0.0035 & -0.09$\times$ \\
+iTransf. & $817{,}153$ & \underline{+0.0074} & \underline{+0.0060} & +0.0066 & +0.0037 & +0.0102 & +0.50$\times$ \\
 \bottomrule
 \end{tabular}
 \end{table*}

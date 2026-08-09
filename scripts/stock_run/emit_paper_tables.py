@@ -45,14 +45,17 @@ import numpy as np
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MODELS = ["EXAMM", "DLinear", "PatchTST", "iTransf.", "DeformT.", "TimeMixer", "LSTM-i", "GRU-i"]
+# LSTM-i/GRU-i were carried as 295 apiece in an earlier table; that cannot be right --
+# an LSTM has four gates to a GRU's three, so equal counts are impossible. The values
+# below are tab:param-counts', whose ratio 679/511 = 1.33 is exactly 4/3.
 PARAMS = {"EXAMM": "$55$--$77$", "DLinear": "$194$", "PatchTST": "$16{,}836$",
           "iTransf.": "$817{,}153$", "DeformT.": "$67{,}449$", "TimeMixer": "$72{,}997$",
-          "LSTM-i": "$295$", "GRU-i": "$295$"}
+          "LSTM-i": "$679$", "GRU-i": "$511$"}
 # Forecast horizons carried by tab:horizon, and numeric parameter counts used ONLY to order its
 # rows by capacity -- that ordering is the finding there (h5/h1 falls with size, rho = -0.786), so
 # it must not depend on parsing PARAMS' LaTeX back into integers.
 HS = [1, 2, 3, 5, 10]
-PARAM_N = {"EXAMM": 66, "DLinear": 194, "LSTM-i": 295, "GRU-i": 295,
+PARAM_N = {"EXAMM": 66, "DLinear": 194, "GRU-i": 511, "LSTM-i": 679,
            "PatchTST": 16836, "DeformT.": 67449, "TimeMixer": 72997, "iTransf.": 817153}
 
 # Panel display names. The scorers key on directory names (set1..set4, "Dataset A"); the paper
