@@ -104,6 +104,12 @@ def main():
     col = {m: cmap(norm(p)) for m, p in MODELS}
     mk = {"EXAMM": "o", "DLinear": "s", "LSTM-i": "^", "GRU-i": "v",
           "PatchTST": "D", "DeformT.": "P", "TimeMixer": "X", "iTransf.": "*"}
+    # Colour is keyed to parameter count, so models of similar size necessarily get similar
+    # colours -- DeformTime (67,449) and TimeMixer (72,997) are indistinguishable by hue alone,
+    # as are GRU-i (511) and LSTM-i (679). MODELS is size-ordered, so alternating the dash
+    # pattern down that list guarantees every adjacent pair differs in style as well as hue,
+    # without distorting the colour ramp to manufacture separation it should not have.
+    ls = {m: ("-" if i % 2 == 0 else (0, (3.5, 1.6))) for i, (m, _) in enumerate(MODELS)}
 
     means = {m: np.nanmean(data[m], axis=0) for m, _ in MODELS}
 
@@ -114,8 +120,8 @@ def main():
     for m, p in MODELS:
         exam = (m == "EXAMM")
         ax.plot(HS, means[m], color=col[m], lw=2.1 if exam else 0.95,
-                marker=mk[m], ms=3.6 if exam else 2.5, mew=0,
-                markevery=1 if exam else 3,
+                linestyle=ls[m], marker=mk[m], ms=3.6 if exam else 2.8, mew=0,
+                markevery=1 if exam else 2,
                 zorder=7 if exam else 3, alpha=1.0 if exam else 0.85,
                 solid_capstyle="round")
 
@@ -129,11 +135,14 @@ def main():
     ax.set_axisbelow(True)
 
     # Legend ordered by size, which is the figure's organising variable.
-    handles = [Line2D([], [], color=col[m], lw=2.1 if m == "EXAMM" else 1.1, marker=mk[m],
-                      ms=3.6 if m == "EXAMM" else 2.8, mew=0, label=m)
+    handles = [Line2D([], [], color=col[m], lw=2.1 if m == "EXAMM" else 1.1,
+                      linestyle=ls[m], marker=mk[m], ms=3.6 if m == "EXAMM" else 2.8,
+                      mew=0, label=m)
                for m, p in MODELS]
     fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.56, -0.015),
-               frameon=False, ncol=4, handlelength=1.5, columnspacing=0.9,
+               # handlelength must show a full dash cycle, or the key cannot distinguish the
+               # styles the plot relies on.
+               frameon=False, ncol=4, handlelength=2.3, columnspacing=0.8,
                labelspacing=0.3, handletextpad=0.35, fontsize=6.4)
 
     # Reported on stdout, not plotted: the capacity correlation the colouring encodes.
