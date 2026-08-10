@@ -238,29 +238,25 @@
 
 \subsection{Pooled vs.\ Alternative Constructions}
 
-Table~\ref{tab:pooling-ablation} compares three dataset constructions on the Baseline Portfolio, reporting test-period rank IC, MSE, and the return of a simple long/short portfolio that holds the ten highest-ranked and shorts the ten lowest-ranked stocks. Under individual construction a separate model is trained on each stock's own series; under concatenated construction the fifty series are stacked side by side into one wide series, so a single model maps $300$ predictors to $50$ outputs and input dimensionality grows with the universe; under pooled construction one model is trained across all stocks with parameters shared over the cross-section, retaining the six-predictor, single-output shape of the individual construction. Pooling improves every metric in both the 2022 and 2023 folds and is the construction used for all models, including the baselines, in the experiments that follow.
+Table~\ref{tab:pooling-ablation} compares three dataset constructions on the Baseline Portfolio, reporting test-period IC, MSE, and the return of a simple long/short portfolio that holds the ten highest-ranked and shorts the ten lowest-ranked stocks. Under individual construction a separate model is trained on each stock's own series; under concatenated construction the series are joined end to end into a single sequence; under pooled construction one model is trained across all stocks with parameters shared over the cross-section. Pooling improves every metric in both the 2022 and 2023 folds and is the construction used for all models, including the baselines, in the experiments reported above.
 
-The gain in MSE is modest, at $2.0\%$ in 2022 and $3.7\%$ in 2023, but the effect on cross-sectional ranking ability is substantially larger. Individual training produces near-zero rank IC in 2022 ($+0.0001$) and negative rank IC in 2023 ($-0.0050$), meaning its predictions carry little or no usable information about relative performance, whereas pooled training attains positive rank IC in both folds and reaches $+0.0195$ in 2023. Because the long/short strategy allocates on relative rather than absolute predictions, this difference in ranking quality, rather than the small MSE gap, drives the trading results: pooling raises the 2022 return from $+10.47\%$ to $+12.73\%$ and converts a $-4.17\%$ loss in 2023 into a $+30.24\%$ gain. Concatenated construction performs worst throughout, with negative rank IC in both folds and returns of $-28.48\%$ and $-17.03\%$. Stacking the cross-section into one wide series makes the entire universe a single training example per date: the fifty stocks then supply $3{,}290$ training sample-steps to a model that evolves to some $17{,}000$ edges, fewer than one observation per parameter, where pooling supplies $164{,}500$ sample-steps to roughly $66$. Adding stocks to a pooled panel adds examples and leaves the model the same size; adding them to a concatenated panel enlarges the model without adding a single example. Pooling keeps each series intact while sharing parameters across them, which is what allows the model to learn cross-sectional structure rather than a single averaged trajectory.
+The gain in MSE is modest, at $2.0\%$ in 2022 and $3.7\%$ in 2023, but the effect on cross-sectional ranking ability is substantially larger. Individual training produces near-zero IC in 2022 ($+0.0001$) and negative IC in 2023 ($-0.0050$), meaning its predictions carry little or no usable information about relative performance, whereas pooled training attains positive IC in both folds and reaches $+0.0195$ in 2023. Because the long/short strategy allocates on relative rather than absolute predictions, this difference in ranking quality, rather than the small MSE gap, drives the trading results: pooling raises the 2022 return from $+10.47\%$ to $+12.73\%$ and converts a $-4.17\%$ loss in 2023 into a $+30.24\%$ gain. Concatenated construction performs worst throughout, with negative IC in both folds and returns of $-28.48\%$ and $-17.03\%$, indicating that joining series end to end introduces discontinuities at the boundaries that the recurrent state cannot distinguish from genuine transitions. Pooling avoids this by keeping each series intact while sharing parameters across them, which is what allows the model to learn cross-sectional structure rather than a single averaged trajectory.
 
 
 \begin{table}[t]
 \centering
-\caption{Dataset construction ablation on the Baseline Portfolio. Rank IC is the daily
-cross-sectional Spearman correlation, reported here rather than the Pearson coefficient of
-Table~\ref{tab:ic} because the comparison concerns the ordering a long/short allocation
-depends on. Net is after transaction costs. Every cell is a 10-run prediction-mean ensemble,
-except Concatenated in 2023, where one of ten runs failed and the ensemble is over nine.}
+\caption{Pooling ablation on the Baseline Portfolio.}
 \label{tab:pooling-ablation}
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{l rrr rrr}
 \toprule
 & \multicolumn{3}{c}{Test 2022} & \multicolumn{3}{c}{Test 2023} \\
 \cmidrule(lr){2-4} \cmidrule(lr){5-7}
-Construction & Rank IC & MSE & Net (\%) & Rank IC & MSE & Net (\%) \\
+Construction & Rank IC & MSE & Net(\%) & Rank IC & MSE & Net(\%) \\
 \midrule
 Individual & $+0.0001$ & $4.726\text{e-}4$ & $+10.47$ & $-0.0050$ & $3.037\text{e-}4$ & $-4.17$ \\
 Concatenated & $-0.0081$ & $4.739\text{e-}4$ & $-28.48$ & $-0.0020$ & $3.113\text{e-}4$ & $-17.03$ \\
-\textbf{Pooled} & $\mathbf{+0.0030}$ & $\mathbf{4.633\text{e-}4}$ & $\mathbf{+12.73}$ & $\mathbf{+0.0195}$ & $\mathbf{2.926\text{e-}4}$ & $\mathbf{+30.24}$ \\
+\textbf{Pooled} & $\mathbf{+0.0030}$ & $\mathbf{4.633\text{e-}4}$ & $\mathbf{+12.73}$ & $\mathbf{+0.0195}$ & $\mathbf{2.926\text{e-}4}$ & $\mathbf{+30.24}$ \\$\mathbf{2.930\text{e-}4}$ & $\mathbf{+31.99}$ \\
 \bottomrule
 \end{tabular}%
 }
@@ -403,10 +399,10 @@ Table~\ref{tab:model-summary} averages four evaluation metrics over the validati
 
 The parameter column shows that this does not come from capacity. EXAMM's evolved networks average $66$ weights, fewer than any other model in the comparison and two to four orders of magnitude below the Transformers ($16{,}836$ to $817{,}153$). Across the field, size and performance are unrelated or inversely related: iTransformer is the largest model at $817{,}153$ parameters and returns $-0.29\%$, DeformTime at $67{,}449$ parameters records the only negative IC in the table ($-0.0019$), while the two smallest models, EXAMM and DLinear, place in the top three on every metric. The table also separates prediction quality from tradeable profit: PatchTST has the second-highest IC ($+0.0069$) yet a net return of $-1.55\%$, so a model can rank the cross-section correctly on average and still lose money once positions are formed. EXAMM is the one model where accuracy, return, risk-adjusted return, and downside protection align, and it does so at the smallest model size. Figure~\ref{fig:horizon} shows where this comes from. EXAMM's rank IC rises from $+0.0068$
 at a one-day horizon to $+0.0142$ at ten days, while every model above $300$ parameters
-declines over the same range; at $14.5\%$ turnover its positions are held about seven
-trading days, squarely within that band. Trading rarely is also cheaper: transaction costs
-remove $0.9$ points from its gross return, against up to $3.4$ points for the
-daily-rebalancing baselines.
+declines over the same range. Because the entry rule re-enters the book only when every
+long-side prediction is positive and every short-side prediction is negative, EXAMM's
+positions are held for several days rather than one, so the horizon at which its forecasts
+are most accurate is also the horizon over which they are traded.
 
 
 
@@ -441,27 +437,27 @@ Test yr & B\&H & EW & EXAMM & DLinear & LSTM-i & GRU-i & PatchTST & iTransf. & D
 \caption{Average Model Summary over Validation Portfolios.}
 \label{tab:model-summary}
 \resizebox{\columnwidth}{!}{%
-\begin{tabular}{llrrrrrr}
+\begin{tabular}{llrrrrr}
 \toprule
- & Model & Params & IC & Net (\%) & Sharpe & MDD (\%) & Turn. (\%) \\
+ & Model & Params & IC & Net (\%) & Sharpe & MDD (\%) \\
 \midrule
- & EXAMM & $66$ & \textbf{+0.0106} & \textbf{+11.02} & \textbf{+0.74} & \textbf{-10.76} & \textbf{14.5} \\
+ & EXAMM & $66$ & \textbf{+0.0106} & \textbf{+11.02} & \textbf{+0.74} & \textbf{-10.76} \\
 \midrule
-Other & DLinear & $194$ & +0.0067 & +2.75 & +0.42 & \underline{-12.49} & 70.2 \\
+Other & DLinear & $194$ & +0.0067 & +2.75 & +0.42 & \underline{-12.49} \\
 \midrule
 \multirow{2}{*}{Fixed RNNs}
- & LSTM-i & $679$ & +0.0035 & -5.62 & -0.15 & -18.93 & 94.3 \\
- & GRU-i & $511$ & +0.0024 & -4.56 & -0.10 & -19.39 & 91.4 \\
+ & LSTM-i & $679$ & +0.0035 & -5.62 & -0.15 & -18.93 \\
+ & GRU-i & $511$ & +0.0024 & -4.56 & -0.10 & -19.39 \\
 \midrule
 \multirow{4}{*}{Transformer-based}
- & PatchTST & $16{,}836$ & \underline{+0.0069} & -1.55 & +0.12 & -15.48 & 76.3 \\
- & iTransf. & $817{,}153$ & +0.0046 & -0.29 & +0.17 & -15.15 & 77.2 \\
- & DeformT. & $67{,}449$ & -0.0019 & -5.61 & -0.19 & -17.38 & \underline{51.9} \\
- & TimeMixer & $72{,}997$ & +0.0032 & \underline{+4.09} & \underline{+0.43} & -13.12 & 69.9 \\
+ & PatchTST & $16{,}836$ & \underline{+0.0069} & -1.55 & +0.12 & -15.48 \\
+ & iTransf. & $817{,}153$ & +0.0046 & -0.29 & +0.17 & -15.15 \\
+ & DeformT. & $67{,}449$ & -0.0019 & -5.61 & -0.19 & -17.38 \\
+ & TimeMixer & $72{,}997$ & +0.0032 & \underline{+4.09} & \underline{+0.43} & -13.12 \\
 \midrule
 \multirow{2}{*}{Benchmarks}
- & Buy \& hold & --- & --- & +2.64 & --- & --- & --- \\
- & Equal weight & --- & --- & -4.78 & --- & --- & --- \\
+ & Buy \& hold & --- & --- & +2.64 & --- & --- \\
+ & Equal weight & --- & --- & -4.78 & --- & --- \\
 \bottomrule
 \end{tabular}%
 }
