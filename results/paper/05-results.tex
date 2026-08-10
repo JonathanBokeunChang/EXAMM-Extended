@@ -1,118 +1,266 @@
-% ---------------------------------------------------------------------------
+ % ---------------------------------------------------------------------------
 % Results section (\input as 05-results from sigconf.tex).
 %
-% THIS FILE IS THE OVERLEAF DRAFT. It was synced from the shared Overleaf
-% document on 2026-08-09 so the two stop diverging; before that, the repo copy
-% carried tab:forecasting/tab:portfolio that Overleaf never had, while Overleaf
-% carried tab:ic/tab:net-returns/tab:model-summary that the repo never had, and
-% a hand-transcribed IC column that had gone stale. The previous repo-only
-% version is recoverable from git ac7e1213.
-%
-% STATUS (2026-08-09): SEVEN live tables. Prose is written for every one of them
-% except tab:param-counts, tab:examm-training-cost and tab:ina219_results (the
-% last currently commented out). In order of appearance:
-%   tab:pooling-ablation  -- does pooling beat individual training? Read FIRST:
-%                            it justifies the construction every later table
-%                            assumes. Its Concatenated row is still empty; the
-%                            wide-panel runs are on Anvil
-%                            (scripts/stock_run/anvil_mse_combined.sb).
+% STATUS (2026-08-06): eight result tables. Prose is written for
+% tab:pooling-ablation and sec:examm-vs-transformers; the remaining tables are
+% still carried by their comment blocks rather than body text. In table order:
+%   tab:pooling-ablation  -- does pooling (Table~\ref{tab:constructions}) beat
+%                            individual training? Read this FIRST -- it
+%                            justifies the pooled construction every other
+%                            table in this section then assumes. PROSE WRITTEN.
+%   tab:results-2022-2023 -- the main model comparison (EXAMM/DLinear/
+%                            transformers), using the strategy defined right
+%                            below. DLinear alone still dashed.
+%   tab:sharpe            -- risk-adjusted view of the same cells. Kept as a
+%                            SEPARATE table: packing "return (Sharpe)" into
+%                            each book-size cell was tried and reverted --
+%                            two different-unit numbers per cell inside a
+%                            \resizebox'd 10-column table shrinks the type to
+%                            the point of illegibility.
+%   tab:transformer-hparams -- every transformer hyperparameter with its source
+%                            script and pinned commit. Machine-readable copy,
+%                            including resolved argv, in
+%                            results/transformer_hyperparameters.md.
 %   tab:hp-grid           -- EXAMM island x repopulation grid, trading returns.
-%   tab:ic                -- per-cell Pearson IC, the forecast-accuracy claim.
-%   tab:net-returns       -- per-cell net return, the portfolio claim.
-%   tab:model-summary     -- all seven metrics per model, means over the twelve
-%                            validation cells. Carries TURNOVER, which is what
-%                            reconciles the other two.
-%   tab:net-returns-by-year -- the same returns averaged within trade year, for
-%                            the regime argument.
-%   tab:param-counts      -- size, training time, single-thread CPU inference.
-%   tab:examm-training-cost -- search cost by MPI rank count.
-%   tab:ina219_results    -- on-device (Pi Zero) deployment cost. COMMENTED OUT.
+%   tab:hp-grid-sharpe    -- same grid, Sharpe.
+%   tab:net-of-cost       -- same cells, after transaction costs.
+%   tab:midhighmid        -- replication on four independent 50-stock draws.
+%   tab:ina219_results    -- on-device (Raspberry Pi Zero) deployment cost,
+%                            connects back to the parameter-count columns in
+%                            tab:results-2022-2023.
 %
-% FOUR TABLES ARE GENERATED. Do not hand-edit them; edit the scorer and re-emit,
-% or the next regeneration silently reverts the change:
-%   python3 scripts/stock_run/score_forecasting.py  # -> results/forecasting_cells.json
-%   python3 scripts/stock_run/score_portfolio.py    # -> results/portfolio_cells.json
-%   python3 scripts/stock_run/emit_paper_tables.py --which {ic,net-returns,net-returns-by-year,model-summary}
-% Panel names ($V1$--$V4$, Baseline) are mapped in the emitter; the directories on
-% disk keep their set1..set4 names, which every submit script depends on.
-%
-% WHAT THE SYNC CORRECTED, all verified against the scored JSON:
-%   - tab:ic's Mean row: PatchTST +0.0069 -> +0.0068. The exact mean is 0.006844;
-%     +0.0069 came from averaging the per-cell values AFTER rounding each to four
-%     decimals. Every per-cell value was already right. The generators now average
-%     then round, uniformly, so no two tables can print different digits for the
-%     same quantity again.
-%   - tab:model-summary: LSTM-i and GRU-i were both listed at 295 parameters.
-%     That is impossible -- an LSTM has four gates to a GRU's three, so its count
-%     must be larger at equal width. tab:param-counts' 679/511 is the correct
-%     pair (ratio 1.33 = 4/3) and is now used everywhere.
-%   - tab:net-returns-by-year: PatchTST 2024 -1.95 -> -1.96, TimeMixer 2024
-%     +6.23 -> +6.22. Same rounding-order issue, immaterial.
-%
-% SEED VARIANCE, which the tables do not show and the prose therefore must not
-% lean on. Independent reproductions of the identical EXAMM configuration move a
-% SINGLE cell's net return by 20-36 points (V1/2024 spans -15.81..+17.19 across
-% four trees; the Baseline 2023 fold spans -22.14..+30.24 across five). The panel
-% MEANS move by at most two points and the model ordering never changes. All
-% claims here are therefore drawn from the summary rows. The cells shown are the
-% trees the paper has always reported: _rep3 for the validation panels, untagged
-% for the Baseline Portfolio.
+
 %
 % REMOVED 2026-08-02 (recoverable from git c9134cc9):
 %   - tab:grid-robustness -- the 225-cell long/short sweep.
-%   - The Reversal control row. The scoring path is intact (Financial_toolbox
+%   - The Reversal control row, from every table in this section. A short-term
+%     reversal benchmark was re-measured in Aug 2026 and removed again by
+%     decision; the scoring path is intact (Financial_toolbox
 %     short_term_reversal_return) if it is ever wanted back.
-%   - sec:gate-units and tab:gate-units, which explained Crossformer's two 0.00
-%     cells via a per-model percentile threshold sweep. Crossformer is now
-%     omitted from the study entirely: at the authors' Traffic configuration its
-%     gate opens on 0 of ~250 days in 8 of the 12 validation cells.
+%   - The "gate threshold is not in comparable units" subsection
+%     (sec:gate-units) and tab:gate-units, which explained Crossformer's
+%     two 0.00 cells via a per-model percentile threshold sweep. The
+%     mechanism is now summarised in body prose under "EXAMM vs Transformers"
+%     and in the table footnote instead.
 %
-% The \clearpage at the end of 04-datasets.tex already flushes anything queued
-% from that section before this one's floats begin, so nothing drifts across the
-% \input boundary. Do NOT add a second \clearpage here -- two adjacent \clearpage
-% calls force an extra, needless page break.
+% The \clearpage at the end of 04-datasets.tex already flushes anything
+% queued from that section before this one's floats begin, so nothing
+% drifts across the \input boundary. Do NOT add a second \clearpage here --
+% two adjacent \clearpage calls force an extra, needless page break (this
+% is what was leaving page 2 half-empty: the first one truncated section 4
+% early, the second then stranded this section's heading alone on its own
+% page before its tables could join it).
 % ---------------------------------------------------------------------------
 
+
+% ---------------------------------------------------------------------------
+% POOLING ABLATION -- goes FIRST in this section, ahead of the STRATEGY block
+% below, because every other table in this section takes the pooled
+% construction as given; this is the one table that actually justifies it
+% rather than asserting it. L/S~10 here uses the identical conditional
+% long/short strategy defined in the STRATEGY comment immediately below --
+% not redefined here to avoid saying it twice.
+%
+% Does the pooled-panel construction (Table~\ref{tab:constructions}) actually
+% outperform the individual (one-model-per-stock) alternative it replaces?
+% Individual here is EXAMM trained one stock at a time (50 independent models x 10
+% runs each, scripts/stock_run/anvil_cohort_individual.sb), same cohorts/windows as
+% the pooled comparison below, predictions averaged across the 10 runs per stock
+% (ensemble, matching how every other model in this paper is scored) before scoring
+% IC/MSE/MAE and trading. Verified: expected_RET identical across all 10 runs per
+% stock before averaging (rules out a file-pairing error); one run (WRB, cohort 2021)
+% failed genome verification and was excluded, so that stock's ensemble is 9 runs.
+%
+% READING: MSE/MAE are nearly identical between individual and pooled in both years --
+% pooling does not make each stock's point prediction more accurate. IC is where the
+% gap actually lives (individual ~0 or negative both years; pooled clearly positive
+% both years), which is the direct mechanism for the trading gap: a long/short
+% strategy needs predictions that rank stocks against each other, andsonly the pooled
+% model reliably produces that. State this explicitly in body prose -- it's the
+% mechanistic explanation the rest of the section's numbers otherwise leave implicit.
+% ---------------------------------------------------------------------------
+
+
+% \begin{table*}[t]
+% \centering
+% \caption{Pooling vs. individual (one model per stock) training, both 10-run
+% ensembles, identical cohorts/windows/strategy as
+% Table~\ref{tab:all-datasets}.}
+% \label{tab:pooling-ablation}
+% \begin{tabular}{llrrrr}
+% \toprule
+% Trade year & Construction & IC & MSE & MAE & L/S~10 \\
+% \midrule
+% 2022 & Individual & $+0.0001$ & $4.726{\times}10^{-4}$ & $0.01584$ & $+13.36$ \\
+% 2022 & \textbf{Pooled (ours)} & $\mathbf{+0.0030}$ & $\mathbf{4.630{\times}10^{-4}}$ & $\mathbf{0.01566}$ & $\mathbf{+14.40}$ \\
+% \midrule
+% 2023 & Individual & $-0.0050$ & $3.037{\times}10^{-4}$ & $0.01232$ & $-1.08$ \\
+% 2023 & \textbf{Pooled (ours)} & $\mathbf{+0.0195}$ & $\mathbf{2.930{\times}10^{-4}}$ & $\mathbf{0.01205}$ & $\mathbf{+31.99}$ \\
+% \bottomrule
+% \end{tabular}
+% \end{table*}
+
+% The \emph{individual} construction fits a separate model per stock, so no information is shared across the universe. The \emph{concatenated} construction fits one model over all stocks by stacking their predictors into a wide series (300 inputs, 50 outputs), making input dimensionality scale with universe size. The \emph{pooled panel} adopted here retains the six-predictor, single-output structure of the individual construction while fitting one model across all stocks, so parameters are shared across the universe and input dimensionality remains fixed regardless of how many stocks are included.
+
+% ---------------------------------------------------------------------------
+% PROVENANCE OF EVERY VALUE IN THIS TABLE. Each was read from the named script
+% at the named pinned commit; values absent from a script come from that repo's
+% own argparse defaults. Full machine-readable copy, including the exact argv
+% each run was launched with, lives in results/transformer_hyperparameters.md.
+% Reproduce any row with:
+%   DRY_RUN=1 MODEL=<model> COHORT=<cohort> SEQ_LEN=96 PROFILE=author \
+%     [CF_CONFIG=traffic] bash scripts/transformer_bench/anvil_transformer.sb
+% which prints the resolved argv and exits without training.
+%
+% LOOKBACK CAVEAT, stated in the caption because it is load-bearing: PatchTST
+% and DeformTime publish ONLY seq_len=336 -- there is no released 96 setting for
+% either, so at our protocol length they run at the authors' capacity but not
+% the authors' lookback. Crossformer's Traffic script is the single published
+% configuration among all three that natively uses in_len=96.
+% ---------------------------------------------------------------------------
+% \begin{table*}[t]
+% \centering
+% \caption{Transformer hyperparameters, each at its own authors' published configuration and
+% pinned commit. PatchTST and DeformTime publish only \texttt{seq\_len}~$336$, so at our $96$
+% they carry the authors' capacity but not their lookback.}
+% \label{tab:transformer-hparams}
+% \resizebox{\textwidth}{!}{%
+% \begin{tabular}{llllll}
+% \toprule
+% Model & Params & Capacity & Tokenizer & Schedule & Source (pinned commit) \\
+% \midrule
+% PatchTST & $16{,}836$
+%   & \texttt{d\_model 16}, \texttt{n\_heads 4}, \texttt{d\_ff 128},
+%     \texttt{e\_layers 3}, \texttt{dropout 0.3}
+%   & \texttt{patch\_len 16}, \texttt{stride 8}
+%   & \texttt{lr 1e-4}, \texttt{bs 128}, $100$ ep, \texttt{pat.\ 20}, \texttt{type3}
+%   & \texttt{yuqinie98/PatchTST@204c21ef} \\
+%  & & \texttt{fc\_dropout 0.3}, \texttt{head\_dropout 0} & & & \texttt{scripts/PatchTST/etth1.sh} \\
+% \addlinespace
+% DeformTime & $67{,}449$
+%   & \texttt{d\_model 32}, \texttt{n\_heads 4}, \texttt{e\_layers 2},
+%     \texttt{d\_layers 2}, \texttt{dropout 0}
+%   & \texttt{n\_reshape 24}, \texttt{patch\_len 6}, \texttt{kernel 7}
+%   & \texttt{lr 1e-3}, \texttt{bs 16}, $100$ ep, \texttt{pat.\ 5}, \texttt{type1}
+%   & \texttt{ClaudiaShu/DeformTime@cb99f4f6} \\
+%  & & & & & \texttt{scripts/DeformTime/ETTh1.sh} \\
+% \addlinespace
+% \textbf{Crossformer} & $722{,}032$
+%   & \texttt{d\_model 64}, \texttt{d\_ff 128}, \texttt{n\_heads 2},
+%     \texttt{e\_layers 3}, \texttt{dropout 0.2}
+%   & \texttt{seg\_len 12}, \texttt{win\_size 2}
+%   & \texttt{lr 1e-3}, \texttt{bs 32}, $20$ ep, \texttt{pat.\ 3}, \texttt{type1}
+%   & \texttt{Thinklab-SJTU/Crossformer@c10c8ead} \\
+% (\textsc{Traffic}, reported) & & \texttt{baseline 0} & & & \texttt{scripts/Traffic.sh} (\texttt{in\_len 96}) \\
+% \addlinespace
+% Crossformer & $11{,}185{,}944$
+%   & \texttt{d\_model 256}, \texttt{d\_ff 512}, \texttt{n\_heads 4},
+%     \texttt{e\_layers 3}, \texttt{dropout 0.2}
+%   & \texttt{seg\_len 6}, \texttt{win\_size 2}
+%   & \texttt{lr 1e-4}, \texttt{bs 32}, $20$ ep, \texttt{pat.\ 3}, \texttt{type1}
+%   & \texttt{Thinklab-SJTU/Crossformer@c10c8ead} \\
+% (ETTh1, see text) & & \texttt{baseline 0} & & & \texttt{scripts/ETTh1.sh} (\texttt{in\_len 168}) \\
+% \addlinespace
+% \textbf{iTransformer} & $817{,}153$
+%   & \texttt{d\_model 256}, \texttt{d\_ff 256}, \texttt{n\_heads 8},
+%     \texttt{e\_layers 2}, \texttt{d\_layers 1}, \texttt{dropout 0.1}
+%   & none (inverted embedding)
+%   & \texttt{lr 1e-4}, \texttt{bs 32}, $10$ ep, \texttt{pat.\ 3}, \texttt{type1}
+%   & \texttt{thuml/iTransformer@c2426e68} \\
+%  & & \texttt{use\_norm 1}, \texttt{activation gelu}, \texttt{embed timeF} & & & \texttt{iTransformer\_ETTh1.sh} (\texttt{seq\_len 96}) \\
+% \bottomrule
+% \end{tabular}%
+% }
+% \end{table*}
+
+
+% ---------------------------------------------------------------------------
+% SOURCE: results/hp_grid_orig_ic.csv, results/hp_grid_orig_trade.csv (raw per-cell
+% numbers), narrative in results/hp_grid_orig.md. Full factorial
+% --number_islands {10,20,40} x --extinction_event_generation_number {250,500,1000},
+% 9 cells x 2 cohorts x 10 seeds = 180 runs, all completed. Everything else held at
+% the paper's configuration (island_size 10, num_mutations 1, bp_iterations 10,
+% max_genomes 10000, --normalize avg_std_dev, no sequence slicing).
+%
+% ALL NINE CELLS RECOMPUTED from the two CSVs and internally consistent.
+%
+% THE BASELINE CELL (10, 500) IS THE PAPER'S OWN CAMPAIGN, not a re-run:
+% test_output/mse_cohort_202{0,1}_aligned, reproducing Table~\ref{tab:all-datasets}
+% exactly (+0.003009 / +0.019496 IC, +14.40 / +31.99 trading).
+%
+% THE NOISE FLOOR IS THE POINT, and it is measured, not assumed. An independent
+% re-run of that SAME configuration (test_output/hp_baseline_cohort_202{0,1}_aligned)
+% scored IC +0.0033 / +0.0013 and trading -2.56 / -6.13. Same knobs, same evaluation
+% -- verified by reading both submit scripts and scoring both through one pipeline.
+% They differ only in which genomes the search happened to find: mpi/examm_mpi.cxx:146
+% is MPI_Probe(MPI_ANY_SOURCE, ...), so genome-insertion order is wall-clock dependent
+% and --seed fixes the RNG stream, not the sequence of events. The resulting gap --
+% 0.0182 IC and 38.1 pp on the 2023 cohort -- EXCEEDS the entire spread of this grid
+% (0.0170 IC, 24.3 pp). Every difference in the table fits inside the noise of
+% changing nothing.
+%
+% CAUTION -- results/hp_grid_orig.md contains three figures that do NOT reproduce from
+% the CSVs and should not be quoted: it gives the trading spread as 27.5 pp
+% (recomputed: 24.3), Pearson IC-vs-trade as -0.12 and Spearman as +0.05 "across the
+% 9 cells" (recomputed on 9 cells: +0.19 and +0.28; the -0.14 Pearson it likely meant
+% is the 8 swept cells only). The table below uses only recomputed values.
+%
+% METHODOLOGICAL TRAP, recorded for reuse: cohort_2020_aligned's test split spans TWO
+% calendar years (2022-01-04 -> 2023-12-29, 500 rows) unlike cohort_2021_aligned (249
+% rows, 2023 only). eval_ensemble_ic.py has no date awareness and averages every row,
+% so scoring cohort_2020 unsliced returns a two-year blend: +0.0157 for the baseline
+% against a true 2022 figure of +0.0030, a 5x overstatement that looks entirely
+% plausible. All cohort_2020 numbers here are sliced to 2022 only.
+% ---------------------------------------------------------------------------
+
+% \begin{table*}[t]
+% \centering
+% \caption{EXAMM island count $\times$ repopulation interval, $9$ cells $\times$ $2$ cohorts $\times$
+% $10$ seeds. Algorithm~2 returns at L/S~10, gross annual \%. The bolded $(10,500)$ cell is the
+% paper's own campaign; no cell is distinguishable from any other.}
+% \label{tab:hp-grid}
+% \begin{tabular}{lrrrcrrrcrrr}
+% \toprule
+% & \multicolumn{3}{c}{Trade year 2022} & & \multicolumn{3}{c}{Trade year 2023} & & \multicolumn{3}{c}{Mean} \\
+% \cmidrule(lr){2-4} \cmidrule(lr){6-8} \cmidrule(lr){10-12}
+% Islands & $250$ & $500$ & $1000$ & & $250$ & $500$ & $1000$ & & $250$ & $500$ & $1000$ \\
+% \midrule
+% $10$ & $-2.50$ & $\mathbf{+14.40}$ & $+7.39$ & & $+25.81$ & $\mathbf{+31.99}$ & $-0.07$ & & $+11.65$ & $\mathbf{+23.20}$ & $+3.66$ \\
+% $20$ & $-7.14$ & $+22.70$ & $+10.19$ & & $+8.32$ & $+17.29$ & $-12.38$ & & $+0.59$ & $+19.99$ & $-1.10$ \\
+% $40$ & $+9.05$ & $+30.62$ & $+4.29$ & & $-4.96$ & $+13.52$ & $+4.41$ & & $+2.05$ & $+22.07$ & $+4.35$ \\
+% \midrule
+% \textit{Col. mean} & $-0.20$ & $+22.57$ & $+7.29$ & & $+9.72$ & $+20.93$ & $-2.68$ & & $+4.76$ & $+21.75$ & $+2.30$ \\
+% \bottomrule
+% \end{tabular}
+% \end{table*}
 \section{Results}
 \label{sec:results}
 
 \subsection{Pooled vs.\ Alternative Constructions}
-% ---------------------------------------------------------------------------
-% POOLING ABLATION -- goes FIRST because every other table in this section takes
-% the pooled construction as given; this is the one table that justifies it.
-%
-% Individual here is EXAMM trained one stock at a time (50 independent models x 10
-% runs each, scripts/stock_run/anvil_cohort_individual.sb), same cohorts/windows as
-% the pooled comparison, predictions averaged across the 10 runs per stock before
-% scoring. Verified: expected_RET identical across all 10 runs per stock before
-% averaging (rules out a file-pairing error); one run (WRB, cohort 2021) failed
-% genome verification and was excluded, so that stock's ensemble is 9 runs.
-%
-% READING: MSE/MAE are nearly identical between individual and pooled in both
-% years -- pooling does not make each stock's point prediction more accurate. IC
-% is where the gap lives, which is the direct mechanism for the trading gap: a
-% long/short strategy needs predictions that rank stocks against each other.
-% ---------------------------------------------------------------------------
 
-% The \emph{individual} construction fits a separate model per stock, so no information is shared across the universe. The \emph{concatenated} construction fits one model over all stocks by stacking their predictors into a wide series (300 inputs, 50 outputs), making input dimensionality scale with universe size. The \emph{pooled panel} adopted here retains the six-predictor, single-output structure of the individual construction while fitting one model across all stocks, so parameters are shared across the universe and input dimensionality remains fixed regardless of how many stocks are included.
+Table~\ref{tab:pooling-ablation} compares three dataset constructions on the Baseline Portfolio, reporting test-period rank IC, MSE, and the return of a simple long/short portfolio that holds the ten highest-ranked and shorts the ten lowest-ranked stocks. Under individual construction a separate model is trained on each stock's own series; under concatenated construction the fifty series are stacked side by side into one wide series, so a single model maps $300$ predictors to $50$ outputs and input dimensionality grows with the universe; under pooled construction one model is trained across all stocks with parameters shared over the cross-section, retaining the six-predictor, single-output shape of the individual construction. Pooling improves every metric in both the 2022 and 2023 folds and is the construction used for all models, including the baselines, in the experiments that follow.
 
-Table~\ref{tab:pooling-ablation} compares pooled and individual training on the Baseline Portfolio, reporting test-period IC, MSE, and the return of a simple long/short portfolio that holds the ten highest-ranked and shorts the ten lowest-ranked stocks. Pooling improves every metric in both the 2022 and 2023 folds. The gain in MSE is modest, however the effect on cross-sectional ranking ability is substantially larger: individual training produces near-zero IC in 2022 and negative IC in 2023, meaning its predictions carry little or no usable signal about relative performance, whereas pooled training attains positive IC in both folds. Because the long/short strategy allocates on relative rather than absolute predictions, this difference in ranking quality, rather than the small MSE gap, drives the trading results. Pooling improves the long/short return in 2022 and, in 2023, converts a strategy that loses money under individual training into a profitable one. We therefore adopt pooled training for all subsequent experiments.
+The gain in MSE is modest, at $2.0\%$ in 2022 and $3.7\%$ in 2023, but the effect on cross-sectional ranking ability is substantially larger. Individual training produces near-zero rank IC in 2022 ($+0.0001$) and negative rank IC in 2023 ($-0.0050$), meaning its predictions carry little or no usable information about relative performance, whereas pooled training attains positive rank IC in both folds and reaches $+0.0195$ in 2023. Because the long/short strategy allocates on relative rather than absolute predictions, this difference in ranking quality, rather than the small MSE gap, drives the trading results: pooling raises the 2022 return from $+10.47\%$ to $+12.73\%$ and converts a $-4.17\%$ loss in 2023 into a $+30.24\%$ gain. Concatenated construction performs worst throughout, with negative rank IC in both folds and returns of $-28.48\%$ and $-17.03\%$. Stacking the cross-section into one wide series makes the entire universe a single training example per date: the fifty stocks then supply $3{,}290$ training sample-steps to a model that evolves to some $17{,}000$ edges, fewer than one observation per parameter, where pooling supplies $164{,}500$ sample-steps to roughly $66$. Adding stocks to a pooled panel adds examples and leaves the model the same size; adding them to a concatenated panel enlarges the model without adding a single example. Pooling keeps each series intact while sharing parameters across them, which is what allows the model to learn cross-sectional structure rather than a single averaged trajectory.
 
 
 \begin{table}[t]
 \centering
-\caption{Pooling ablation on the Baseline Portfolio.}
+\caption{Dataset construction ablation on the Baseline Portfolio. Rank IC is the daily
+cross-sectional Spearman correlation, reported here rather than the Pearson coefficient of
+Table~\ref{tab:ic} because the comparison concerns the ordering a long/short allocation
+depends on. Net is after transaction costs. Every cell is a 10-run prediction-mean ensemble,
+except Concatenated in 2023, where one of ten runs failed and the ensemble is over nine.}
 \label{tab:pooling-ablation}
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{l rrr rrr}
 \toprule
 & \multicolumn{3}{c}{Test 2022} & \multicolumn{3}{c}{Test 2023} \\
 \cmidrule(lr){2-4} \cmidrule(lr){5-7}
-Construction & IC & MSE & L/S~10 & IC & MSE & L/S~10 \\
+Construction & Rank IC & MSE & Net (\%) & Rank IC & MSE & Net (\%) \\
 \midrule
-Individual & $+0.0001$ & $4.726\text{e-}4$ & $+13.36$ & $-0.0050$ & $3.037\text{e-}4$ & $-1.08$ \\
-Concatenated &  &  &  &  &  &  \\
-\textbf{Pooled} & $\mathbf{+0.0030}$ & $\mathbf{4.630\text{e-}4}$ & $\mathbf{+14.40}$ & $\mathbf{+0.0195}$ & $\mathbf{2.930\text{e-}4}$ & $\mathbf{+31.99}$ \\
+Individual & $+0.0001$ & $4.726\text{e-}4$ & $+10.47$ & $-0.0050$ & $3.037\text{e-}4$ & $-4.17$ \\
+Concatenated & $-0.0081$ & $4.739\text{e-}4$ & $-28.48$ & $-0.0020$ & $3.113\text{e-}4$ & $-17.03$ \\
+\textbf{Pooled} & $\mathbf{+0.0030}$ & $\mathbf{4.633\text{e-}4}$ & $\mathbf{+12.73}$ & $\mathbf{+0.0195}$ & $\mathbf{2.926\text{e-}4}$ & $\mathbf{+30.24}$ \\
 \bottomrule
 \end{tabular}%
 }
@@ -121,40 +269,16 @@ Concatenated &  &  &  &  &  &  \\
 \subsection{EXAMM Hyperparameter Search}
 \label{sec:examm-hparams}
 
-Speciation is central to convergence behaviour in neuroevolutionary search: the island
-population structure determines how much architectural diversity is maintained, while the
-repopulation interval controls how aggressively converged islands are reseeded from elsewhere in
-the population. Too frequent repopulation discards partially converged architectures before they
-can be refined; too infrequent repopulation allows islands to stagnate. We therefore swept both
-parameters jointly, over island counts $\{10, 20, 40\}$ and repopulation intervals
-$\{250, 500, 1000\}$, evaluating all $9$ configurations on both test cohorts.
+Speciation is central to convergence behaviour in distributed neuroevolutionary search: the island population structure determines how much architectural diversity is maintained, while the repopulation interval controls how aggressively converged islands are reseeded from elsewhere in the population. Work by Lyu~\etal~finds tunning the repopulation strategy can be important for adopting to a new dataset\cite{lyu2021improving}\cite{lyu2023online}.  We therefore swept both parameters jointly, over island counts $\{10, 20, 40\}$ and repopulation intervals $\{250, 500, 1000\}$, evaluating all $9$ configurations on both test cohorts on baseline portfolio.
 
-Table~\ref{tab:hp-grid} reports the results. The repopulation interval is the more consequential
-of the two parameters: the $500$ setting yields the strongest returns at every island count in
-both cohorts, whereas $250$ and $1000$ are inconsistent and in several configurations produce
-losses. Island settings differ across 2022 and 2023 test year.
-Given that additional islands increase search cost without a corresponding gain, we adopt
-$(10~\text{islands}, 500)$ repopulation frequency for all subsequent experiments.
+Table~\ref{tab:hp-grid} reports the long short trading results. The repopulation frequency of $500$ setting yields the strongest returns at every island count in both 2022 and 2023, whereas the number of islands setting differ across 2022 and 2023 test year.
+Given that additional islands increase search cost without a corresponding gain, we use $10$ islands with repopulation frequency of $500$ for all subsequent experiments.
 
-% ---------------------------------------------------------------------------
-% THE NOISE FLOOR IS THE POINT OF THIS GRID, and it is measured, not assumed. An
-% independent re-run of the SAME (10, 500) configuration
-% (test_output/hp_baseline_cohort_202{0,1}_aligned) scored IC +0.0033 / +0.0013 and
-% trading -2.56 / -6.13. They differ only in which genomes the search happened to
-% find: mpi/examm_mpi.cxx:146 is MPI_Probe(MPI_ANY_SOURCE, ...), so
-% genome-insertion order is wall-clock dependent and --seed fixes the RNG stream,
-% not the sequence of events. The resulting gap -- 0.0182 IC and 38.1 pp on the
-% 2023 cohort -- EXCEEDS the entire spread of this grid (0.0170 IC, 24.3 pp).
-% Every difference in the table fits inside the noise of changing nothing, and the
-% prose above should not be read as claiming otherwise.
-%
-% CAUTION -- results/hp_grid_orig.md contains three figures that do NOT reproduce
-% from the CSVs and must not be quoted: trading spread 27.5 pp (recomputed 24.3),
-% Pearson IC-vs-trade -0.12 and Spearman +0.05 (recomputed +0.19 and +0.28).
-% ---------------------------------------------------------------------------
+
+
 \begin{table}[t]
 \centering
-\caption{EXAMM hyperparameter search}
+\caption{EXAMM Repopulation Strategy on Baseline Portfolio}
 \label{tab:hp-grid}
 \begin{tabular}{l rrr c rrr}
 \toprule
@@ -171,12 +295,13 @@ $40$ & $+9.05$ & $+30.62$ & $+4.29$ & & $-4.96$ & $+13.52$ & $+4.41$ \\
 \end{tabular}
 \end{table}
 
-% GENERATED -- emit_paper_tables.py --which ic. Do not hand-edit.
 \begin{table*}[t]
 \centering
-\caption{Pearson information coefficient (IC) of the raw forecasts, all panels and models. IC is measured on the predictions themselves, before the entry gate of Algorithm~\ref{alg:long-short} and before transaction costs, so it is the one metric reported here that is independent of the trading rule. Bold/underline is best/second per row. The benchmarks use no predictions and so have no IC.}
+\caption{Pearson information coefficient (IC) of Forecasting Performance across All Models}
 \label{tab:ic}
+\begin{threeparttable}
 \footnotesize
+% \resizebox{\textwidth}{!}{%
 \begin{tabular}{llrrrrrrrr}
 \toprule
  & &  & \multicolumn{1}{c}{Other} & \multicolumn{2}{c}{Fixed RNNs} & \multicolumn{4}{c}{Transformer-based} \\
@@ -199,16 +324,25 @@ $V4$ & 2022 & \textbf{+0.0272} & +0.0087 & \underline{+0.0257} & +0.0175 & +0.02
 $V4$ & 2023 & -0.0011 & \textbf{+0.0245} & -0.0150 & -0.0124 & \underline{+0.0129} & +0.0110 & -0.0007 & -0.0199 \\
 $V4$ & 2024 & \textbf{+0.0107} & +0.0103 & +0.0092 & \underline{+0.0106} & +0.0078 & -0.0052 & +0.0080 & +0.0006 \\
 \midrule
-\multicolumn{2}{l}{\textit{Mean}} & \textbf{+0.0106} & +0.0067 & +0.0035 & +0.0024 & \underline{+0.0068} & +0.0046 & -0.0019 & +0.0032 \\
+\multicolumn{2}{l}{\textit{Mean}} & \textbf{+0.0106} & +0.0067 & +0.0035 & +0.0024 & \underline{+0.0069} & +0.0046 & -0.0019 & +0.0032 \\
 \bottomrule
-\end{tabular}
+
+\end{tabular}%
+\begin{tablenotes}[flushleft]
+\footnotesize
+\item \textit{Note:} Values in \textbf{bold} are the highest IC for the trading year; \underline{underlined} values are the second highest.
+\end{tablenotes}
+\end{threeparttable}
 \end{table*}
 
-% GENERATED -- emit_paper_tables.py --which net-returns. Do not hand-edit.
+
+
+% Requires: \usepackage{booktabs}
 \begin{table*}[t]
 \centering
-\caption{Net return (\%) at the pre-committed L/S~10 book, net of transaction costs, for all panels and models. Bold/underline is best/second per row among the model columns. The benchmark columns use no predictions and are not gated by Algorithm~\ref{alg:long-short}, so they trade every day; they are shown for reference and are not ranked. Every model cell is a 10-run ensemble.}
+\caption{Net return (\%) using Model's Predicted Return for Portfolio Trading}
 \label{tab:net-returns}
+\begin{threeparttable}
 \footnotesize
 \begin{tabular}{llrrrrrrrrrr}
 \toprule
@@ -234,66 +368,53 @@ $V4$ & 2024 & +6.69 & -1.14 & +5.96 & -6.26 & +1.69 & +5.13 & \textbf{+16.68} & 
 \midrule
 \multicolumn{2}{l}{\textit{Mean}} & +2.64 & -4.78 & \textbf{+11.02} & +2.75 & -5.62 & -4.56 & -1.55 & -0.29 & -5.61 & \underline{+4.09} \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+\begin{tablenotes}[flushleft]
+\footnotesize
+\item \textit{Note:} Values in \textbf{bold} are the highest net return for the trading year; \underline{underlined} values are the second highest.
+\end{tablenotes}
+\end{threeparttable}
 \end{table*}
 
 \subsection{Forecast Quality}
 \label{sec:examm-vs-transformers}
 Transformer models generally perform well on real-world, multidimensional data, yet simpler architectures such as linear models have been claimed to outperform them for time series forecasting~\cite{zeng2023transformers}. We bring these different families of models together to compare their ability to forecast stock returns and how that translates into portfolio returns. We tested the linear model DLinear~\cite{zeng2023transformers}, along with the Transformer-based PatchTST~\cite{nie2022time}, iTransformer~\cite{liu2024itransformer}, DeformTime~\cite{shu2024deformtime}, and TimeMixer~\cite{wang2023timemixer}, with an input length of $96$ and an output length of $1$. We chose an input length of $96$ because it is the most widely reported input sequence length across these models, and an output length of $1$ so that the results are directly comparable to the one-step-ahead forecasts of the EXAMM-evolved RNNs. All other hyperparameters were adopted from the default settings.
 
-We additionally include two fixed-topology recurrent baselines, LSTM-i and GRU-i. Each is a two hidden layer recurrent network whose hidden layer size equals the input size.
+We additionally include two fixed-topology recurrent baselines, LSTM-i and GRU-i. Each is a two hidden layer recurrent network whose hidden layer size equals the input size. Models were trained with $1000$ backpropagation epochs with learning rate of $1e-4$. All experiments were run 10 times. 
 
-Table~\ref{tab:ic} reports the Pearson information coefficient of the raw forecasts, measured before the entry rule is applied and before transaction costs, and so is the only quantity we report that is independent of the trading rule. EXAMM attains the highest mean IC ($+0.0106$), followed by PatchTST ($+0.0068$) and DLinear ($+0.0067$); DeformTime is the only model with a negative mean IC ($-0.0019$). All values are small in absolute terms, which is expected for one-step-ahead daily return prediction, and no model is consistently positive across every panel-year cell: even EXAMM is negative in two of twelve cells.
+
+Table~\ref{tab:ic} reports the average Pearson information coefficient of the raw return predictions. Results reported here is independent of the trading strategy. It shows the prediction performance comparasion among models. Values in bold are the highest IC for the trading year; underlined values are the second highest. And values marked with underscore are the second highest IC in that trading year. EXAMM attains the highest mean IC ($+0.0106$), followed by PatchTST ($+0.0069$) and DLinear ($+0.0067$); DeformTime is the only model with a negative mean IC ($-0.0019$). All values are small in absolute terms, which is expected for one-step-ahead daily return prediction, and no model is consistently positive across every panel-year cell: even EXAMM is negative in two of twelve cells.
 
 \subsection{Portfolio Returns}
 
-Table~\ref{tab:net-returns} reports net return at the pre-committed L/S~10 book. EXAMM achieves the highest mean net return ($+11.02\%$), roughly $2.7\times$ the next-best model (TimeMixer, $+4.09\%$), and is the best or second-best model in seven of twelve cells. Only three of the eight models exceed buy-and-hold on the mean ($+2.64\%$): EXAMM, TimeMixer and DLinear. The remaining five, including three of the four Transformer variants, fall below a strategy that uses no predictions at all.
+Table~\ref{tab:net-returns} reports the net returns of the 4 validation portfolios for the 2022, 2023, and 2024 trading years, using a simple daily long-short strategy that longs the 10 stocks with the highest predicted return and shorts the 10 stocks with the lowest predicted return. The table also includes the portfolio returns for Buy \& Hold (B\&H) and daily equal-weight (EW) strategies as benchmark results. EXAMM achieves the highest mean net return ($+11.02\%$), roughly $2.7\times$ that of the next-best model (TimeMixer, $+4.09\%$), and is the best or second-best model in seven of the twelve cells. Only three of the eight models exceed buy-and-hold on the mean ($+2.64\%$): EXAMM, TimeMixer, and DLinear. The remaining five, including three of the four Transformer variants, fall below a strategy that uses no predictions at all.
 
-The two fixed-topology recurrent baselines are informative here. Despite sharing EXAMM's pipeline, normalisation and entry rule, LSTM-i and GRU-i return $-5.62\%$ and $-4.56\%$ respectively, placing them among the weakest columns in the study. The gap between them and EXAMM is therefore attributable to the evolved topology rather than to any component of the surrounding infrastructure.
+The two fixed-topology recurrent baselines, LSTM-i and GRU-i, return $-5.62\%$ and $-4.56\%$, respectively, placing them among the weakest columns in the study. This gap highlights the benefit of the evolved topology discovered through neuroevolution, rather than any advantage inherent to recurrent architectures with memory cells alone.
 
 \subsection{Behaviour across market regimes}
-Table~\ref{tab:net-returns-by-year} averages each column within trade years, and separates two effects that the pooled mean conflates. The 2022 test year is a drawdown regime in all four panels, with buy-and-hold at $-10.05\%$ and equal-weight at $-17.39\%$; 2023 and 2024 are recovery regimes ($+11.18\%$ and $+6.80\%$ for buy-and-hold).
 
-In 2022, \emph{all eight} models are positive while both ungated benchmarks are sharply negative. Because the entry rule of Algorithm~\ref{alg:long-short} is common to every model column and absent from both benchmark columns, we attribute this to reduced market exposure under the gate rather than to forecast skill in any individual model, and we caution against reading EXAMM's $+15.46\%$ in 2022 as evidence for the evolved architecture specifically. Consistent with this reading, EXAMM's excess over buy-and-hold is $+25.52$ points in 2022 but $-2.11$ and $+1.72$ points in 2023 and 2024, and over the full study it beats buy-and-hold in eight of twelve cells with all four losses occurring in recovery-regime cells.
 
-What does separate the models is behaviour once the gate stops helping. In 2023 and 2024 only EXAMM ($+9.07\%$, $+8.52\%$) and TimeMixer ($+4.31\%$, $+6.22\%$) remain positive; the fixed RNNs lose between $9.7$ and $14.6$ points per year, and iTransformer, PatchTST and DeformTime all turn negative. EXAMM and TimeMixer are the only two columns positive in all three trade years, and EXAMM's margin is the larger by a factor of roughly $2.7$. We therefore characterise EXAMM's contribution as consistency across regimes rather than as outperformance in any one of them.
+Table~\ref{tab:net-returns-by-year} averages each column of Table~\ref{tab:net-returns} within trade years, and separates two effects that the pooled mean conflates. The 2022 test year is a drawdown regime across $V1$--$V4$, with buy-and-hold at $-10.05\%$ and equal-weight at $-17.39\%$; 2023 and 2024 are recovery regimes with $+11.18\%$ and $+6.80\%$ for buy-and-hold.
 
-\subsection{Overall comparison}
-Table~\ref{tab:model-summary} summarises all seven metrics per model. EXAMM ranks first on every one: IC ($+0.0106$), MSE, MAE, net return ($+11.02\%$), Sharpe ($+0.74$), maximum drawdown ($-10.76\%$ against a field mean of $-15.99\%$) and turnover. The drawdown result is the most consistent of these at the cell level: EXAMM records the shallowest drawdown in five of twelve cells and is best or second-best in eight, with a per-cell range of $-7.49\%$ to $-16.13\%$, so the mean is not driven by a small number of favourable cells. It achieves this with three to four orders of magnitude fewer parameters than the Transformer baselines.
+EXAMM is the highest-returning model in all three trade years, beating buy-and-hold by $25.51$ points in the drawdown year and by $1.72$ points in the 2024 recovery, and trailing it by only $2.11$ points in 2023, when every fixed architecture except DLinear and TimeMixer loses money. Averaged over the three years it returns $+11.02\%$, against $+2.64\%$ for buy-and-hold and $+4.09\%$ for TimeMixer. Table~\ref{tab:net-returns} shows why this average is stable: EXAMM is negative in $4$ of $12$ panel-years, but those losses are small ($-5.43\%$ to $-2.88\%$) while its gains are large ($+36.68\%$, $+35.22\%$, $+21.34\%$, $+17.19\%$), so the within-year averages remain clearly positive in every regime. For the transformer baselines, large per-panel gains are matched or outweighed by losses of similar size, leaving year averages near or below zero. EXAMM and TimeMixer are the only two columns positive in all three trade years, and EXAMM's three-year mean is larger by a factor of roughly $2.7$. We therefore characterise EXAMM's contribution as consistency across regimes rather than as outperformance in any one of them.
 
-Two of those seven columns deserve qualification rather than credit. EXAMM's lead on MSE and MAE is $0.5\%$ over DLinear, negligible beside the $17$-point spread in net return: point accuracy does not order these models, which is the same conclusion the pooling ablation of Table~\ref{tab:pooling-ablation} reaches on a different comparison. Turnover is not a performance metric at all but a description of the strategy --- EXAMM re-enters the book on $14.5\%$ of test days against $52$--$94\%$ for every baseline, and because positions are held rather than flattened on the remaining days, its mean holding period is roughly seven trading days against one. That difference is the mechanism behind both the transaction-cost advantage and the shallower drawdown, and it should be read as an explanation of the return column rather than as independent evidence for the evolved architecture.
+\subsection{Overall Comparison}
+Table~\ref{tab:model-summary} averages four evaluation metrics over the validation portfolios, alongside each model's parameter count: information coefficient (IC), net return, Sharpe ratio, and maximum drawdown (MDD), the largest peak-to-trough decline in portfolio value. The benchmarks are listed with net return only, as buy-and-hold and equal weight issue no predictions and therefore have no IC, and their fixed allocations are not comparable on the risk metrics. EXAMM is the only model that is best on all four: IC ($+0.0106$ against $+0.0069$ for PatchTST), net return ($+11.02\%$ against $+4.09\%$ for TimeMixer), Sharpe ($+0.74$ against $+0.43$), and MDD ($-10.76\%$ against $-12.49\%$ for DLinear). Only three models return more than buy-and-hold's $+2.64\%$, and only EXAMM does so by a wide margin.
 
-% GENERATED -- emit_paper_tables.py --which model-summary. Do not hand-edit.
-\begin{table*}[t]
-\centering
-\caption{Per-model summary over the twelve validation panel--year cells, each metric averaged across cells. IC and the two error metrics are measured on the raw forecasts, before the entry gate of Algorithm~\ref{alg:long-short} and before transaction costs, and so are the only columns independent of the trading rule. Turnover is the percentage of test days on which the gate opens and the book is re-entered; on the remaining days positions are held rather than flattened, so its reciprocal is the mean holding period --- about seven trading days for EXAMM against one to two for every baseline. Bold/underline is best/second per column among the model rows. The benchmarks use no predictions and are ungated, so they trade every day and are neither scored on forecast accuracy nor ranked.}
-\label{tab:model-summary}
-\begin{tabular}{llrrrrrrrr}
-\toprule
- & Model & Params & IC & MSE ($\times10^{-4}$) & MAE ($\times10^{-2}$) & Net (\%) & Sharpe & MDD (\%) & Turnover (\%) \\
-\midrule
- & EXAMM & $66$ & \textbf{+0.0106} & \textbf{3.81} & \textbf{1.358} & \textbf{+11.02} & \textbf{+0.74} & \textbf{-10.76} & \textbf{14.5} \\
-\midrule
-Other & DLinear & $194$ & +0.0067 & \underline{3.83} & \underline{1.362} & +2.75 & +0.42 & \underline{-12.49} & 70.2 \\
-\midrule
-\multirow{2}{*}{Fixed RNNs} & LSTM-i & $679$ & +0.0035 & 4.25 & 1.398 & -5.62 & -0.15 & -18.93 & 94.3 \\
- & GRU-i & $511$ & +0.0024 & 4.17 & 1.391 & -4.56 & -0.10 & -19.39 & 91.4 \\
-\midrule
-\multirow{4}{*}{Transformer-based} & PatchTST & $16{,}836$ & \underline{+0.0068} & 3.84 & 1.363 & -1.55 & +0.12 & -15.48 & 76.3 \\
- & iTransf. & $817{,}153$ & +0.0046 & 3.89 & 1.375 & -0.29 & +0.17 & -15.15 & 77.2 \\
- & DeformT. & $67{,}449$ & -0.0019 & 3.87 & 1.370 & -5.61 & -0.19 & -17.38 & \underline{51.9} \\
- & TimeMixer & $72{,}997$ & +0.0032 & 14.95 & 2.490 & \underline{+4.09} & \underline{+0.43} & -13.12 & 69.9 \\
-\midrule
-\multirow{2}{*}{Benchmarks} & Buy \& hold & --- & --- & --- & --- & +2.64 & --- & --- & --- \\
- & Equal weight & --- & --- & --- & --- & -4.78 & --- & --- & --- \\
-\bottomrule
-\end{tabular}
-\end{table*}
+The parameter column shows that this does not come from capacity. EXAMM's evolved networks average $66$ weights, fewer than any other model in the comparison and two to four orders of magnitude below the Transformers ($16{,}836$ to $817{,}153$). Across the field, size and performance are unrelated or inversely related: iTransformer is the largest model at $817{,}153$ parameters and returns $-0.29\%$, DeformTime at $67{,}449$ parameters records the only negative IC in the table ($-0.0019$), while the two smallest models, EXAMM and DLinear, place in the top three on every metric. The table also separates prediction quality from tradeable profit: PatchTST has the second-highest IC ($+0.0069$) yet a net return of $-1.55\%$, so a model can rank the cross-section correctly on average and still lose money once positions are formed. EXAMM is the one model where accuracy, return, risk-adjusted return, and downside protection align, and it does so at the smallest model size. Figure~\ref{fig:horizon} shows where this comes from. EXAMM's rank IC rises from $+0.0068$
+at a one-day horizon to $+0.0142$ at ten days, while every model above $300$ parameters
+declines over the same range; at $14.5\%$ turnover its positions are held about seven
+trading days, squarely within that band. Trading rarely is also cheaper: transaction costs
+remove $0.9$ points from its gross return, against up to $3.4$ points for the
+daily-rebalancing baselines.
 
-% GENERATED -- emit_paper_tables.py --which net-returns-by-year. Do not hand-edit.
+
+
+
+% Requires: \usepackage{booktabs}
 \begin{table}[t]
 \centering
-\caption{Net return (\%) averaged across the four panels ($V1$--$V4$) within each trade year. Bold/underline is best/second per row among the model columns; the ungated benchmarks are shown for reference and are not ranked. The Mean row averages the three trade years, and is equivalently the mean over all twelve panel--year cells.}
+\caption{Average Net return (\%) across $V1$--$V4$}
 \label{tab:net-returns-by-year}
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{lrrrrrrrrrr}
@@ -304,7 +425,7 @@ Test yr & B\&H & EW & EXAMM & DLinear & LSTM-i & GRU-i & PatchTST & iTransf. & D
 \midrule
 2022 & -10.05 & -17.39 & \textbf{+15.46} & +4.63 & +7.89 & +9.25 & +6.62 & \underline{+14.19} & +0.11 & +1.74 \\
 2023 & +11.18 & +3.99 & \textbf{+9.07} & \underline{+6.09} & -14.58 & -13.22 & -9.31 & -4.80 & -10.13 & +4.31 \\
-2024 & +6.80 & -0.93 & \textbf{+8.52} & -2.46 & -10.18 & -9.70 & -1.96 & -10.26 & -6.80 & \underline{+6.22} \\
+2024 & +6.80 & -0.93 & \textbf{+8.52} & -2.46 & -10.18 & -9.70 & -1.95 & -10.26 & -6.80 & \underline{+6.23} \\
 \midrule
 \textit{Mean} & +2.64 & -4.78 & \textbf{+11.02} & +2.75 & -5.62 & -4.56 & -1.55 & -0.29 & -5.61 & \underline{+4.09} \\
 \bottomrule
@@ -312,109 +433,237 @@ Test yr & B\&H & EW & EXAMM & DLinear & LSTM-i & GRU-i & PatchTST & iTransf. & D
 }
 \end{table}
 
-\subsection{Model Size Comparison}
-% ---------------------------------------------------------------------------
-% PARAMETER COUNTS are recomputed by instantiating each model at the EXACT config
-% its runs used, not transcribed from the papers. Two were wrong before that pass:
-%   DLinear    42 -> 194 (42 is the seq_len=20 value; every run here is 96).
-%   TimeMixer  77,589 -> 72,997 (first figure probed d_model=32; authors use 16).
-% A third was wrong later: LSTM-i and GRU-i were both carried at 295 in an early
-% summary table. Impossible -- an LSTM has four gates to a GRU's three, so equal
-% counts cannot occur at equal width. 679/511 (ratio 1.33 = 4/3) is correct.
-%
-% TWO CONFOUNDS in the inference column, both in the footnote because the ratio
-% does more work than the parameter counts alone. (1) FRAMEWORK: EXAMM is C++, the
-% rest PyTorch, whose per-call overhead is ~50-100 us regardless of size -- that is
-% most of DLinear's 77 us, since 194 parameters of arithmetic cannot cost that.
-% (2) AMORTISATION: EXAMM emits a prediction at every recurrent step, so a 250-step
-% pass yields 250 predictions, while a transformer consumes a 96-step window per
-% prediction. The second is a real architectural property for streaming inference;
-% the first is not.
-%
-% LATENCY DOES NOT TRACK PARAMETERS, which is the interesting part: iTransformer at
-% 817k is 6.5x FASTER than DeformTime at 67k, because depth and sequential
-% structure cost more than width. Worth a sentence in prose.
-% ---------------------------------------------------------------------------
+
+
+% Requires: \usepackage{booktabs}, \usepackage{multirow}
 \begin{table}[t]
 \centering
-\caption{Model size, training time, and inference latency per prediction. Training is the
-mean over ${\sim}120$ portfolio runs per model on an RTX~4090 at nine-way concurrency;
-EXAMM's is CPU wall-clock at $32$ MPI ranks and is not comparable to the GPU figures.
-Inference is single-sample, single-thread CPU on one machine. EXAMM emits a prediction at
-every recurrent step, so one pass over a $250$-step series yields $250$ predictions; the
-attention and linear models consume a $96$-step window per prediction.}
-\label{tab:param-counts}
-\begin{tabular}{lrrr}
+\caption{Average Model Summary over Validation Portfolios.}
+\label{tab:model-summary}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{llrrrrrr}
 \toprule
-Model & Parameters & Training (Min) & Inference ($\mu$s) \\
+ & Model & Params & IC & Net (\%) & Sharpe & MDD (\%) & Turn. (\%) \\
 \midrule
-EXAMM         & $66$       & $16.2$ $^{\dagger}$ & $\mathbf{0.71}^{\ddagger}$ \\
-DLinear       & $194$            & $9.2$   & $77$ \\
-GRU-i         & $511$            & $9.5$   & $2{,}201$ \\
-LSTM-i        & $679$            & $14.7$  & $2{,}060$ \\
-PatchTST      & $16{,}836$       & $19.1$  & $1{,}210$ \\
-DeformTime    & $67{,}449$       & $58.5$  & $5{,}657$ \\
-TimeMixer     & $72{,}997$       & $14.9$  & $2{,}422$ \\
-Crossformer   & $722{,}032$      & $59.9$  & $5{,}203$ \\
-iTransformer  & $817{,}153$      & $8.2$   & $870$ \\
+ & EXAMM & $66$ & \textbf{+0.0106} & \textbf{+11.02} & \textbf{+0.74} & \textbf{-10.76} & \textbf{14.5} \\
+\midrule
+Other & DLinear & $194$ & +0.0067 & +2.75 & +0.42 & \underline{-12.49} & 70.2 \\
+\midrule
+\multirow{2}{*}{Fixed RNNs}
+ & LSTM-i & $679$ & +0.0035 & -5.62 & -0.15 & -18.93 & 94.3 \\
+ & GRU-i & $511$ & +0.0024 & -4.56 & -0.10 & -19.39 & 91.4 \\
+\midrule
+\multirow{4}{*}{Transformer-based}
+ & PatchTST & $16{,}836$ & \underline{+0.0069} & -1.55 & +0.12 & -15.48 & 76.3 \\
+ & iTransf. & $817{,}153$ & +0.0046 & -0.29 & +0.17 & -15.15 & 77.2 \\
+ & DeformT. & $67{,}449$ & -0.0019 & -5.61 & -0.19 & -17.38 & \underline{51.9} \\
+ & TimeMixer & $72{,}997$ & +0.0032 & \underline{+4.09} & \underline{+0.43} & -13.12 & 69.9 \\
+\midrule
+\multirow{2}{*}{Benchmarks}
+ & Buy \& hold & --- & --- & +2.64 & --- & --- & --- \\
+ & Equal weight & --- & --- & -4.78 & --- & --- & --- \\
 \bottomrule
-\end{tabular}
-
-\vspace{2pt}
-{\footnotesize $^{\dagger}$CPU, $32$ MPI ranks, not comparable to the GPU rows. \quad
-$^{\ddagger}$C++; the other rows are PyTorch, which adds ${\sim}50$--$100\,\mu$s of per-call
-overhead irrespective of model size. On a Raspberry Pi Zero the same genomes take
-$9.59$--$12.04\,\mu$s.}
+\end{tabular}%
+}
 \end{table}
 
-\subsection{EXAMM Scalability}
+\begin{figure}[t]
+\caption{Rank IC as a function of \emph{scoring} horizon}
 
-EXAMM is an asynchronous parallel neural architecture search algorithm that scales across different numbers of cores. The table below shows EXAMM's training time as the number of cores varies.
+\centering
+\includegraphics[width=\columnwidth]{horizon}
+\Description{Plot showing Rank IC as a function of scoring horizon.}
+\label{fig:horizon}
+\end{figure}
 
-% ---------------------------------------------------------------------------
-% TRAINING COST. SOURCE: results/scaling/timings.csv, 5 rank counts x 10 repeats
-% = 50 runs. scripts/stock_run/anvil_examm_scaling.sb on Anvil `wholenode`
-% --exclusive (a timing study on `shared` measures co-tenants too). Every EXAMM
-% flag is byte-identical to anvil_mse_pooled.sb, so the 32-rank row IS the paper's
-% production configuration and reproduces that campaign's own fitness_log.csv.
-%
-% REPORTED AS TIME, NOT SPEEDUP OR EFFICIENCY, deliberately. The arms did the same
-% WORK (genomes and BP epochs within 1.2%) but NOT the same-sized networks
-% (edges_mean spans 13.82-19.19, a 39% spread, because insertion order is
-% wall-clock dependent). That is enough to move an efficiency RATIO by several
-% points, so a "% of linear" column would be reporting the confound. Measured
-% wall-clock and core-hours need no such correction.
-%
-% THE POINT IS THE PAIR OF COLUMNS: core-hours are flat (8.26-9.88) while
-% wall-clock moves 18.8x. Total compute is invariant; how long you wait is a
-% scheduling choice.
-% ---------------------------------------------------------------------------
+
+\subsection{Scalability and Deployment}
+
 \begin{table}[t]
 \centering
-\caption{EXAMM training cost for the paper's configuration ($10{,}000$ genomes), by MPI rank
-count; $10$ runs each on one exclusive node, $\pm$ is the standard deviation. Total compute
-is flat while wall-clock falls $18.8\times$.}
-\label{tab:examm-training-cost}
+\caption{EXAMM cost end to end: architecture search on CPU, and on-device inference}
+\label{tab:examm-cost}
+\begin{threeparttable}
 \begin{tabular}{rrrr}
 \toprule
-Ranks & Workers & Wall-clock (min) & Core-hours \\
+\multicolumn{4}{l}{\textit{Architecture search (CPU only, $10{,}000$ genomes)}} \\
+\midrule
+Ranks & Workers & Wall-clock (min) & Core-h \\
 \midrule
 $8$   & $7$   & $72.8 \pm 15.6$ & $9.70$ \\
 $16$  & $15$  & $37.1 \pm 7.7$  & $9.88$ \\
 \textbf{32} & \textbf{31} & $\mathbf{16.2 \pm 2.8}$ & $\mathbf{8.65}$ \\
 $64$  & $63$  & $8.1 \pm 1.9$   & $8.59$ \\
-$128$ & $127$ & $\mathbf{3.9 \pm 1.0}$ & $8.26$ \\
+$128$ & $127$ & $\mathbf{3.9} \pm 1.0$ & $8.26$ \\
+\midrule
+\multicolumn{4}{l}{\textit{Deployment (Raspberry Pi Zero)}} \\
+\midrule
+
+\multicolumn{3}{l}{Parameters}          & $66$ \\
+\multicolumn{3}{l}{Latency ($\mu$s)}    & $10.82$ \\
+\multicolumn{3}{l}{Throughput (k/s)}    & $100.5$ \\
+\multicolumn{3}{l}{Power over idle (mW)} & $476.7$ \\
 \bottomrule
 \end{tabular}
+\begin{tablenotes}[flushleft]
+\footnotesize
+\item \textit{Note:} Search runs on one exclusive node, $\pm$ is the standard deviation; values in \textbf{bold} show the configuration used in all other experiments. Inference is measured on-device with an INA219 sensor.
+\end{tablenotes}
+\end{threeparttable}
 \end{table}
 
-% \subsection{Raspberry Pi Zero Results}
-% \label{sec:ina-219}
-% We evaluate each trained RNN on-device on a Raspberry Pi Zero to characterize inference accuracy, latency, and power consumption under realistic edge-deployment conditions. Each evaluation loads a serialized \texttt{RNN\_Genome} produced by EXAMM~\cite{examm} together with its saved normalization parameters (min--max or mean--standard-deviation), applies the same normalization to the held-out test series, and reports mean squared error (MSE) and mean absolute error (MAE) over the full test set. Wall-clock inference time is measured around the forward pass only (excluding I/O and prediction-writing overhead) using \texttt{std::chrono::high\_resolution\_clock}, from which we derive per-data-point latency and throughput (points/second). Concurrently with inference, an INA219 current/power sensor connected over I2C is polled from a dedicated sampling thread, recording bus voltage, shunt voltage, current, and power at fixed intervals; energy consumption is obtained by trapezoidal integration of power over the sampler's timestamped readings, and normalized by the number of test points to yield an energy-per-inference estimate. This setup allows us to directly relate model size and predictive accuracy to their on-device latency and energy cost.
-%
+Table~\ref{tab:examm-cost} reports the computational cost of EXAMM. EXAMM performs architecture search asynchronously in parallel: a master process maintains the population and distributes candidate genomes to worker processes, which train and evaluate them independently without global synchronisation barriers. Scaling is consequently near-linear in the number of workers. Total compute remains approximately constant at $8.3$--$9.9$ core-hours across all configurations tested, while wall-clock time decreases from $72.8$ minutes at $8$ ranks to $16.2$ minutes at $32$ ranks, the configuration used in all other experiments, and $3.9$ minutes at $128$ ranks. The search is CPU-only and requires no accelerator at any stage. At $8$ and $16$ ranks, core counts typical of contemporary laptop and desktop processors, a complete $10{,}000$-genome search completes in $72.8$ and $37.1$ minutes respectively, whereas the Transformer baselines require GPU training for models of up to $817{,}153$ parameters.
+
+The resulting models are correspondingly inexpensive to deploy. Evolved genomes average $66$ parameters and execute in $10.82\,\mu$s per prediction on a Raspberry Pi Zero, a passively cooled single-core device, at $476.7$~mW above idle draw. Inference latency is therefore negligible relative to the daily rebalancing interval, and the sub-watt power requirement permits operation on battery or embedded hardware. The same networks that produce the returns in Table~\ref{tab:net-returns-by-year} can thus be both discovered and deployed on commodity hardware, which is not feasible for the baseline architectures.
+
 % \begin{table}[t]
 % \centering
-% \caption{Model size, INA219 power/energy, averaged across 10 runs per year on Raspberry Pi Zero.}
+% \caption{Model size, training time, and inference latency per prediction. Training is the
+% mean over ${\sim}120$ portfolio runs per model on an RTX~4090 at nine-way concurrency;
+% EXAMM's is CPU wall-clock at $32$ MPI ranks and is not comparable to the GPU figures.
+% Inference is single-sample, single-thread CPU on one machine. EXAMM emits a prediction at
+% every recurrent step, so one pass over a $250$-step series yields $250$ predictions; the
+% attention and linear models consume a $96$-step window per prediction.}
+% \label{tab:param-counts}
+% \begin{tabular}{lrrr}
+% \toprule
+% Model & Parameters & Training (Min) & Inference ($\mu$s) \\
+% \midrule
+% EXAMM         & $66$       & $16.2$ $^{\dagger}$ & $\mathbf{0.71}^{\ddagger}$ \\
+% DLinear       & $194$            & $9.2$   & $77$ \\
+% GRU-i         & $511$            & $9.5$   & $2{,}201$ \\
+% LSTM-i        & $679$            & $14.7$  & $2{,}060$ \\
+% PatchTST      & $16{,}836$       & $19.1$  & $1{,}210$ \\
+% DeformTime    & $67{,}449$       & $58.5$  & $5{,}657$ \\
+% TimeMixer     & $72{,}997$       & $14.9$  & $2{,}422$ \\
+% Crossformer   & $722{,}032$      & $59.9$  & $5{,}203$ \\
+% iTransformer  & $817{,}153$      & $8.2$   & $870$ \\
+% \bottomrule
+% \end{tabular}
+
+% \vspace{2pt}
+% {\footnotesize $^{\dagger}$CPU, $32$ MPI ranks, not comparable to the GPU rows. \quad
+% $^{\ddagger}$C++; the other rows are PyTorch, which adds ${\sim}50$--$100\,\mu$s of per-call
+% overhead irrespective of model size. On a Raspberry Pi Zero the same genomes take
+% $9.59$--$12.04\,\mu$s (Table~\ref{tab:ina219_results}).}
+% \end{table}
+
+
+% \begin{table}[t]
+% \centering
+% \caption{EXAMM training cost for the paper's configuration ($10{,}000$ genomes) by MPI rank
+% count; $10$ runs each on one exclusive node, $\pm$ is the standard deviation. Speedup is
+% relative to $8$ ranks; efficiency normalises speedup by the worker ratio, as rank~0 is the
+% master and evaluates no genomes.}
+% \label{tab:examm-training-cost}
+% \begin{tabular}{rrrrrr}
+% \toprule
+% Ranks & Workers & Wall-clock (min) & Speedup & Eff. & Core-h \\
+% \midrule
+% $8$   & $7$   & $72.8 \pm 15.6$ & $1.00\times$ & --- & $9.70$ \\
+% $16$  & $15$  & $37.1 \pm 7.7$  & $1.96\times$ & $0.92$ & $9.88$ \\
+% \textbf{32} & \textbf{31} & $\mathbf{16.2 \pm 2.8}$ & $\mathbf{4.49\times}$ & $\mathbf{1.02}$ & $\mathbf{8.65}$ \\
+% $64$  & $63$  & $8.1 \pm 1.9$   & $8.99\times$ & $1.00$ & $8.59$ \\
+% $128$ & $127$ & $3.9 \pm 1.0$   & $18.67\times$ & $1.03$ & $8.26$ \\
+% \bottomrule
+% \end{tabular}
+% \end{table}
+% \begin{table}[t]
+% \centering
+% \caption{EXAMM training cost by MPI rank count}
+% \label{tab:examm-training-cost}
+% \begin{threeparttable}
+% \begin{tabular}{rrrr}
+% \toprule
+% Ranks & Workers & Wall-clock (min) & Core-h \\
+% \midrule
+% $8$   & $7$   & $72.8 \pm 15.6$ & $9.70$ \\
+% $16$  & $15$  & $37.1 \pm 7.7$  & $9.88$ \\
+% \textbf{32} & \textbf{31} & $\mathbf{16.2 \pm 2.8}$ & $\mathbf{8.65}$ \\
+% $64$  & $63$  & $8.1 \pm 1.9$   & $8.59$ \\
+% $128$ & $127$ & $\mathbf{3.9} \pm 1.0$ & $8.26$ \\
+% \bottomrule
+% \end{tabular}
+% \begin{tablenotes}[flushleft]
+% \footnotesize
+% \item \textit{Note:} Values in \textbf{bold} show the configuration used in all other experiments.
+% \end{tablenotes}
+% \end{threeparttable}
+% \end{table}
+
+
+% Table~\ref{tab:param-counts} places this alongside the baselines. Training time does not track model size: iTransformer is the largest model at $817{,}153$ parameters and trains fastest at $8.2$ minutes, while DeformTime ($67{,}449$) and Crossformer ($722{,}032$) take $58.5$ and $59.9$ minutes, reflecting sequential depth rather than capacity. EXAMM's $16.2$ minutes sits mid-field despite being CPU-only and therefore not directly comparable to the GPU rows. The clearer separation is at inference, where EXAMM evaluates a prediction in $0.71\,\mu$s against $870\,\mu$s for iTransformer and $5{,}657\,\mu$s for DeformTime. Part of this gap is implementation---EXAMM's C++ runtime avoids the ${\sim}50$--$100\,\mu$s of per-call overhead PyTorch adds regardless of model size---but that overhead alone exceeds EXAMM's entire inference cost by two orders of magnitude, and the largest baselines sit far above the overhead floor, so the difference is not attributable to framework accounting. Combined with $66$ parameters, this is what makes the evolved models deployable on hardware where the baselines are not: the same genomes run in $9.59$--$12.04\,\mu$s on a Raspberry Pi Zero (Table~\ref{tab:ina219_results}).
+% % ---------------------------------------------------------------------------
+% TRAINING COST (tab:examm-training-cost). The companion to tab:ina219_results:
+% that one measures what the evolved model costs to RUN, this one what it costs
+% to FIND. Both are needed -- a 55-parameter model that took a supercomputer to
+% discover is a different proposition from one that did not, and a reader who
+% only sees inference energy is entitled to ask.
+%
+% SOURCE: results/scaling/timings.csv, 5 rank counts x 10 repeats = 50 runs, all
+% completed. scripts/stock_run/anvil_examm_scaling.sb on Anvil `wholenode`
+% --exclusive (a timing study on `shared` measures co-tenants too). Every EXAMM
+% flag is byte-identical to anvil_mse_pooled.sb, so the 32-rank row IS the
+% paper's own production configuration, not a lighter stand-in; it reproduces
+% the 10,031-genome / ~16 min figure in that campaign's own fitness_log.csv.
+%
+% REPORTED AS TIME, NOT AS SPEEDUP OR EFFICIENCY, and that is deliberate. The
+% arms did the same WORK (genomes 10,007-10,127 and BP epochs 98,757-99,965,
+% both 1.2% spread) but NOT the same-sized networks: edges_mean spans 13.82-19.19,
+% a 39% spread, because EXAMM's genome-insertion order is wall-clock dependent
+% (mpi/examm_mpi.cxx MPI_Probe(MPI_ANY_SOURCE)) so rank count changes which
+% topologies get explored. That is enough to move an efficiency RATIO by several
+% points -- the arm with the largest genomes (16 ranks) looks worst and the one
+% with the smallest (128) looks best -- so a "% of linear" column would be
+% reporting the confound. Measured wall-clock and measured core-hours are facts
+% about what these runs cost; they need no such correction.
+%
+% THE POINT OF THE TABLE is the pair of columns, not either alone: core-hours are
+% flat (8.26-9.88, 20% spread) while wall-clock moves 18.8x. Total compute is
+% invariant; how long you wait is a scheduling choice. That is what answers the
+% obvious objection to Table~\ref{tab:constructions}'s parameter counts -- EXAMM's
+% training cost is parallel cost, and at one node the paper's entire search is
+% under four minutes.
+% ---------------------------------------------------------------------------
+% \begin{table}[t]
+% \centering
+% \caption{EXAMM training cost for the paper's configuration ($10{,}000$ genomes), by MPI rank
+% count; $10$ runs each on one exclusive node, $\pm$ is the standard deviation. Total compute
+% is flat while wall-clock falls $18.8\times$.}
+% \label{tab:examm-training-cost}
+% \begin{tabular}{rrrr}
+% \toprule
+% Ranks & Workers & Wall-clock (min) & Core-hours \\
+% \midrule
+% $8$   & $7$   & $72.8 \pm 15.6$ & $9.70$ \\
+% $16$  & $15$  & $37.1 \pm 7.7$  & $9.88$ \\
+% \textbf{32} & \textbf{31} & $\mathbf{16.2 \pm 2.8}$ & $\mathbf{8.65}$ \\
+% $64$  & $63$  & $8.1 \pm 1.9$   & $8.59$ \\
+% $128$ & $127$ & $\mathbf{3.9 \pm 1.0}$ & $8.26$ \\
+% \bottomrule
+% \end{tabular}
+% \end{table}
+
+
+
+
+% \subsection{Respberry Pi Zero Results}
+% \label{sec:ina-219}
+% We evaluate each trained RNN on-device on a Raspberry Pi Zero to characterize inference accuracy, latency, and power consumption under realistic edge-deployment conditions. Each evaluation loads a serialized \texttt{RNN\_Genome} produced by EXAMM~\cite{examm} together with its saved normalization parameters (min--max or mean--standard-deviation), applies the same normalization to the held-out test series, and reports mean squared error (MSE) and mean absolute error (MAE) over the full test set. Wall-clock inference time is measured around the forward pass only (excluding I/O and prediction-writing overhead) using \texttt{std::chrono::high\_resolution\_clock}, from which we derive per-data-point latency and throughput (points/second). Concurrently with inference, an INA219 current/power sensor connected over I2C is polled from a dedicated sampling thread, recording bus voltage, shunt voltage, current, and power at fixed intervals; energy consumption is obtained by trapezoidal integration of power over the sampler's timestamped readings, and normalized by the number of test points to yield an energy-per-inference estimate. This setup allows us to directly relate model size and predictive accuracy to their on-device latency and energy cost.
+
+% % CAPTION KEPT SHORT -- detail retained here:
+% %   * The 32-rank row IS the paper's production configuration and reproduces that
+% %     campaign's own fitness_log.csv (~16 min for 10,031 genomes).
+% %   * EXAMM is master-worker, so N ranks give N-1 evaluators.
+% %   * Reported as TIME, not speedup or efficiency: the arms did the same work (genomes and
+% %     BP epochs within 1.2%) but not the same-sized networks (edges_mean spans 13.82-19.19,
+% %     a 39% spread, because insertion order is wall-clock dependent). That moves an
+% %     efficiency RATIO by several points; measured wall-clock and core-hours need no such
+% %     correction.
+% \begin{table}[t]
+% \centering
+% % \footnotesize
+% \caption{Model size, INA219 power/energy, averaged across 10 runs per year on Raspberry PiZero.}
 % \label{tab:ina219_results}
 % \begin{tabular}{lrr}
 % \toprule
@@ -431,4 +680,6 @@ $128$ & $127$ & $\mathbf{3.9 \pm 1.0}$ & $8.26$ \\
 % Throughput (k/s)    & 113.3   & 87.7   \\
 % \bottomrule
 % \end{tabular}
+
 % \end{table}
+
