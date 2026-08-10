@@ -1,0 +1,73 @@
+\section{Method}
+
+\subsection{Problem Formulation and Panel Construction}
+\label{subsec:panel}
+
+Let $x_{i,t}\in\mathbb{R}^{d}$ collect the $d=6$ predictors (Section~\ref{sec:dataset}) of stock $i\in\{1,\dots,N\}$ at the close of trading day $t$, and let $y_{i,t}=r_{i,t+1}$ denote the stock's next-day return. A forecasting model maps the predictor history $X_{i,t}=(x_{i,1},\dots,x_{i,t})$ (truncated to a model-specific lookback in practice) to a prediction $\hat{y}_{i,t}$. Because the long--short strategy of Section~\ref{subsec:trading} allocates by \emph{sorting} stocks on $\hat{y}_{i,t}$, the economically relevant property of a model is cross-sectional ranking quality rather than pointwise accuracy, and we evaluate both (Section~\ref{subsec:metrics}).
+
+For a universe of $N$ stocks the task admits three panel constructions, differing in how parameters and training data are shared across the cross-section.
+
+\paragraph{Individual.} A separate model with $d$ inputs and one output is fit per stock, yielding $N$ models trained on one series each; no information is shared across stocks.
+
+\paragraph{Concatenated.} A single model with $Nd$ inputs and $N$ outputs maps the stacked predictors of all stocks to all next-day returns jointly. Parameters are shared, but input and output dimensionality---and with them the architecture search space---grow linearly with the universe: at $N=50$ the minimal EXAMM seed network already contains $Nd\times N=15{,}000$ input--output connections, two orders of magnitude more than any evolved pooled genome in this study.
+
+\paragraph{Pooled.} A single model with $d$ inputs and one output is fit on the union of all stocks' example pairs, $\mathcal{D}=\bigcup_{i=1}^{N}\{(X_{i,t},y_{i,t})\}_{t}$, with no stock identifier among the inputs. Input dimensionality is fixed at $d$ regardless of $N$, while the training sample grows in proportion to the universe.
+
+We adopt the pooled construction. It instantiates the standard formulation of characteristics-based empirical asset pricing, in which conditional expected returns are a single function of observable characteristics shared by all stocks, $\mathbb{E}_{t}[r_{i,t+1}]=g(x_{i,t})$~\cite{gu2020empirical}, whereas the individual construction must recover $N$ separate functions from $N$ short, noisy series. It likewise follows the global-model principle in time-series forecasting: one model fit across many related series enlarges the effective sample and regularizes against series-specific noise~\cite{montero2021}, an effect amplified in the low signal-to-noise regime of daily returns.
+
+For neuroevolution these advantages compound. EXAMM evaluates thousands of candidate genomes, each trained only briefly from inherited weights, so fitness estimates benefit directly from larger samples; and because pooled input dimensionality is fixed, the architecture search space is independent of universe size---seed networks have $d$ inputs and one output whether the universe holds fifty or five thousand stocks. On our 50-stock panel the contrast is concrete: pooled training fits a single $55$--$77$-parameter genome on $164{,}450$ examples, where the individual construction spreads $6{,}227$ parameters across fifty models of some $7{,}300$ examples each, and the concatenated construction fits a $15{,}000$-connection seed network on $4{,}063$ (the latter two as reported by~\cite{lyu2025evostar}). Section~\ref{subsec:pooling-ablation} ablates the constructions empirically.
+
+\begin{algorithm*}[!t]
+    \caption{Daily Long--Short Strategy}
+    \label{alg:long-short}
+    \begin{algorithmic}[1]
+        \footnotesize
+        \Function{Portfolio-Long-Short-Return}{PortfolioList, InitialCapital, NumStocksLong, NumStocksShort}
+            \State $CurrentCash = InitialCapital$
+            \For {$t$ in $[1, T]$}
+                \State $SortedPortfolio = Sort(PortfolioList, t)$ \Comment{\emph{Sort by predicted return at time $t$, descending; negative indices count from the bottom}}
+                \If{$SortedPortfolio[NumStocksLong].predictedReturn(t) > 0$ \textbf{and} $SortedPortfolio[-NumStocksShort].predictedReturn(t) < 0$} \Comment{\emph{Trade only if the weakest long and weakest short both qualify}}
+                    \State $CurrentCash += ClearHoldings(PortfolioList)$ \Comment{\emph{First clear all long and short holdings}}
+                    \State $QuotaForLong = CurrentCash/NumStocksLong$
+                    \State $QuotaForShort = CurrentCash/NumStocksShort$ \Comment{\emph{Short notional equals current capital, i.e.\ 50\% of the resulting total book}}
+                    \For{$i$ in $[1, NumStocksLong]$} \Comment{\emph{Long side}}
+                        \State $SortedPortfolio[i].buy(QuotaForLong, t)$
+                        \State $CurrentCash -= QuotaForLong$
+                    \EndFor
+                    \For{$i$ in $[1, NumStocksShort]$} \Comment{\emph{Short side}}
+                        \State $SortedPortfolio[-i].sell(QuotaForShort, t)$
+                        \State $CurrentCash += QuotaForShort$
+                    \EndFor
+                \EndIf
+            \EndFor
+            \State $CurrentCash += ClearPortfolio(PortfolioList)$ \Comment{\emph{At the end of time $T$, clear all holdings}}
+            \State $PortfolioReturn = (CurrentCash - InitialCapital)/InitialCapital$ \Comment{\emph{Overall net return}}
+        \EndFunction
+    \end{algorithmic}
+\end{algorithm*}
+
+
+
+
+\subsection{EXAMM}
+\label{subsec:examm}
+
+This work uses the Evolutionary eXploration of Augmenting Memory Models (EXAMM) neuroevolution algorithm~\cite{ororbia2019examm} to evolve RNNs for stock return prediction. EXAMM evolves progressively larger RNNs through mutation and crossover (reproduction) operations, starting from minimal seed networks that contain only input-to-output connections. The population is distributed across distinct islands whose genomes evolve independently to preserve genetic diversity, with periodic inter-island crossover for information exchange; new genomes are generated through 11 mutation and 2 crossover operators~\cite{ororbia2019examm}, inherit their weights from their parents to greatly reduce the training each genome requires~\cite{lyu2021experimental}, and islands are periodically repopulated to prevent stagnation~\cite{lyu2021improving}.
+
+Relative to fixed-architecture forecasting models, EXAMM's distinguishing features are its node- and edge-level mutations, its intra- and inter-island reproduction, and its Lamarckian weight inheritance, which together allow candidate genomes to reach good fitness within a small number of training epochs~\cite{lyu2021experimental}. Combined with its library of memory cells and recurrent edge connections, this makes it well suited to evolving compact RNNs for time series forecasting. Whether that flexibility is best spent evolving a separate network per stock or a single network shared across the universe is an empirical question; Section~\ref{subsec:pooling-ablation} shows the pooled construction of Section~\ref{subsec:panel} is decisively stronger.
+
+\subsection{Daily Long--Short Trading Strategy}
+\label{subsec:trading}
+
+Predictions are evaluated through a daily long--short strategy, the standard choice in the related literature~\cite{park2020intelligent, hou2020enriched}. Relative to a long-only strategy, it hedges market exposure and can generate returns in bull and bear markets alike, taking long positions in stocks expected to appreciate and short positions in those expected to depreciate.
+
+Following common practice, capital equal to the initial investment is borrowed for short selling: with initial capital of \$100, an additional \$100 of short notional brings the total book to \$200, of which 50\% is allocated to the short side. Algorithm~\ref{alg:long-short} gives the procedure, parameterized by the number of long and short positions, $NumStocksLong$ and $NumStocksShort$, both fixed at 10 throughout this paper (the L/S~10 book).
+
+At each trading day $t$, stocks are sorted by predicted return. Trades execute only when all $NumStocksLong$ top-ranked stocks have positive predicted returns and all $NumStocksShort$ bottom-ranked stocks have negative predicted returns; on days when this condition fails, existing positions are simply held. When it holds, all positions are first liquidated---held stocks are sold and borrowed shares repaid---and the resulting capital is then reallocated in equal amounts within each side.
+
+\paragraph{Transaction costs.} All reported strategy returns are net of transaction costs. Every transaction---purchase, sale, short sale, and short cover---is charged the half quoted spread, $c_{i,t}=\tfrac{1}{2}\,(P^{\mathrm{ask}}_{i,t}-P^{\mathrm{bid}}_{i,t})$ per share, computed from the CRSP closing ask and bid quotes of stock $i$ on day $t$---the same quote fields underlying the bid--ask spread predictor of Section~\ref{sec:dataset}. Costs are therefore stock- and day-specific, and the strategy pays more to trade precisely when liquidity is poor. Because Algorithm~\ref{alg:long-short} liquidates all holdings before re-entering, a name retained in the book across consecutive trading days is charged on both the liquidation and the re-entry, making reported net returns conservative. We do not model commissions, market impact, or short borrow fees; net returns should be read as attainable at modest capital rather than at institutional scale.
+
+\subsection{Evaluation Metrics}
+\label{subsec:metrics}
+
+For each test day $t$ we compute the rank information coefficient $\mathrm{IC}_t=\rho_{\mathrm{S}}(\hat{y}_{\cdot,t},\,y_{\cdot,t})$, the Spearman correlation between predicted and realized next-day returns across the $N$ stocks, and report its test-period mean $\overline{\mathrm{IC}}$ and information ratio $\mathrm{ICIR}=\overline{\mathrm{IC}}/\sigma(\mathrm{IC}_t)$, which rewards consistency of the ranking signal; test-set MSE is additionally reported as a measure of pointwise accuracy. Net portfolio return compounds daily strategy returns after the transaction charges of Section~\ref{subsec:trading}, and the Sharpe ratio is computed on the same daily net series and annualized as $\sqrt{252}\,\overline{r}/\sigma(r)$ with $r_f{=}0$.

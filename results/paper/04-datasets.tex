@@ -34,6 +34,8 @@ To test the robustness of EXAMM beyond the fixed 50-stock selection above, we co
 
 We define our target market capitalization range, expressed in USD billions, as $2 \le M_i < 50$ (covering mid-cap through high-mid/low-large-cap securities), where $M_i$ denotes the current market capitalization of security $i$. To construct the target universe $\mathcal{U}$, we first restrict the S\&P 500 CRSP panel to securities with at least 20 years of continuous trading history, of which 203 fall within the target market capitalization range. From these, 200 securities were randomly selected to form $\mathcal{U}$, which we then partition into four disjoint 50-stock validation portfolios $V1$--$V4$.
 
+This construction is subject to survivorship bias: drawing from current S\&P~500 constituents and requiring at least 20 years of continuous history projects today's survivors backward into both the training and test periods. The history requirement is a modeling necessity rather than a convenience: the walk-forward folds train on 17--19 years of daily data, and the pooled panel requires all 50 stocks in a portfolio to trade contemporaneously over the full window. Because every model family is trained and evaluated on the identical universe, folds, and trading rule, this bias inflates absolute return levels roughly uniformly and should not overturn the cross-model comparison that is the object of this study. Reported net returns should nonetheless be read as optimistic, and we make no claim of deployable alpha; repeating the study on point-in-time index constituents is left for future work.
+
 
 % The first dataset we used comes directly from Lyu~\etal~\cite{lyu2025evostar}; it was used for EXAMM hyperparameter search and for comparing performance against transformer models. To test the robustness of our approach, we further constructed four additional portfolios from mid-to-high-cap stocks in the 2026 S\&P 500 list. The following section discusses the details of these datasets.
 
@@ -114,27 +116,6 @@ We apply the same walk-forward evaluation design to the Validation Portfolios ($
 
 % Prior work on this universe used two constructions (Table~\ref{tab:constructions}): \emph{individual}, which fits one model per stock, and \emph{combined}, which concatenates all 50 stocks into a single wide series (300 inputs, 50 outputs). We instead use a \textbf{pooled panel}: each stock keeps its own six-predictor file, as in \emph{individual}, but one model is trained across all 50 stocks with no stock identifier, forcing it to learn a single rule that generalizes across the universe.
 
-% Individual/combined figures: \cite{lyu2025evostar}'s own (full history, not
-% independently re-derived -- see OPEN ITEM 4 below). Pooled: ours, cohort 2020.
-\begin{table}[t]
-\centering
-\caption{The three dataset constructions on the same 50-stock panel. Individual/combined
-figures are~\cite{lyu2025evostar}'s; pooled is ours.}
-\label{tab:constructions}
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lccc}
-\toprule
- & Individual & Combined & \textbf{Pooled (ours)} \\
-\midrule
-Models fitted            & 50                  & 1   & \textbf{1} \\
-Inputs, outputs          & 6, 1                & 300, 50 & 6, 1 \\
-Sees other stocks        & no                  & yes & no \\
-Training examples        & 7{,}333/stock avg.  & 4{,}063 & \textbf{164{,}450} \\
-Parameters, 50 stocks    & 6{,}227 (98--188 each) & grows with universe & \textbf{55 (23--90)} \\
-\bottomrule
-\end{tabular}%
-}
-\end{table}
 
 \begin{table}[t]
 \centering
@@ -319,11 +300,10 @@ GPU instances (RunPod). Each instance provided three NVIDIA GeForce RTX~4090 GPU
 alongside an AMD EPYC~7B13 64-core processor with $128$ cores available. All
 models were trained with PyTorch~$2.7.1$ against CUDA~$11.8$ and cuDNN~$9.1.0$,
 using four dataloader workers per run. Nine runs were executed concurrently,
-distributed round-robin across the three GPUs; because per-process step times are
-inflated by this contention, the training times reported in
-Section~\ref{sec:results} should be read as costs under a fixed nine-way sharing
-policy rather than as isolated single-GPU benchmarks. As with EXAMM, every
+distributed round-robin across the three GPUs. As with EXAMM, every
 configuration was repeated $10$ times and the predictions averaged.
+
+The trading algorithms used across experiments use simple long-short algorithm stated in Algorithm~\ref{alg:long-short}. And long $10$ stocks and short $10$ stocks. Net returns are reported with transaction cost incorporated. 
 
 % \subsection{EXAMM Hyperparameter Settings}
 
