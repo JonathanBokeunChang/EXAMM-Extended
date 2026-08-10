@@ -95,8 +95,8 @@ def main():
     # SINGLE COLUMN. Generating at 3.4in means the 8pt type here is 8pt on the page; generating
     # wide and letting \includegraphics shrink it to \columnwidth would land the labels near 4pt,
     # which is the usual way a good figure becomes unreadable in print.
-    fig, ax = plt.subplots(figsize=(3.4, 3.05))
-    fig.subplots_adjust(bottom=0.34, left=0.20, right=0.985, top=0.90)
+    fig, ax = plt.subplots(figsize=(3.4, 2.55))
+    fig.subplots_adjust(bottom=0.27, left=0.20, right=0.985, top=0.97)
 
     counts = np.array([p for _, p in MODELS], float)
     norm = matplotlib.colors.LogNorm(vmin=counts.min() * 0.75, vmax=counts.max() * 1.3)
@@ -123,7 +123,6 @@ def main():
     ax.set_ylabel("Rank IC")
     ax.set_xlim(0.6, 10.4)
     ax.set_xticks(HS)
-    ax.set_title("Ranking skill by horizon", loc="left", pad=4, fontweight="semibold")
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
     ax.grid(axis="y", color="0.92", lw=0.6, zorder=0)
@@ -131,11 +130,11 @@ def main():
 
     # Legend ordered by size, which is the figure's organising variable.
     handles = [Line2D([], [], color=col[m], lw=2.1 if m == "EXAMM" else 1.1, marker=mk[m],
-                      ms=3.6 if m == "EXAMM" else 2.8, mew=0, label=f"{m} {p:,}")
+                      ms=3.6 if m == "EXAMM" else 2.8, mew=0, label=m)
                for m, p in MODELS]
-    fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.56, -0.012),
-               frameon=False, ncol=2, handlelength=1.7, columnspacing=1.2,
-               labelspacing=0.32, handletextpad=0.45, fontsize=6.4)
+    fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.56, -0.015),
+               frameon=False, ncol=4, handlelength=1.5, columnspacing=0.9,
+               labelspacing=0.3, handletextpad=0.35, fontsize=6.4)
 
     # Reported on stdout, not plotted: the capacity correlation the colouring encodes.
     ratio = np.array([means[m][4] / means[m][0] for m, _ in MODELS])
