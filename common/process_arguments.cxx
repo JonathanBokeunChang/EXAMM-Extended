@@ -122,10 +122,23 @@ EXAMM* generate_examm_from_arguments(
     // A MISSPELLED rate flag is simply never read, so the run would proceed on default rates and
     // produce a clean-looking null result -- indistinguishable from "biasing growth doesn't help".
     // Reject any unrecognised --*_rate argument instead of ignoring it.
+    //
+    // ...but NOT every --*_rate flag is a mutation rate. --learning_rate and --decay_rate are
+    // read by WeightUpdate (weights/weight_update.cxx), and the original guard rejected both,
+    // so ANY run passing a learning rate died at startup with a message pointing at mutation
+    // operators. scripts/stock_run/train_stock.sh passes --learning_rate 0.001 and was dead on
+    // arrival; the Anvil scripts do not, which is why it went unnoticed. Whitelist the flags
+    // that other subsystems own rather than narrowing the suffix match, so a genuinely
+    // misspelled --add_egde_rate is still caught.
+    vector<string> non_mutation_rates = {"learning", "decay"};
     for (const string& arg : arguments) {
         if (arg.size() > 7 && arg.compare(0, 2, "--") == 0 &&
             arg.compare(arg.size() - 5, 5, "_rate") == 0) {
             string op = arg.substr(2, arg.size() - 7);
+            if (find(non_mutation_rates.begin(), non_mutation_rates.end(), op)
+                != non_mutation_rates.end()) {
+                continue;
+            }
             if (find(known_ops.begin(), known_ops.end(), op) == known_ops.end()) {
                 Log::fatal("unknown mutation rate argument '%s'\n", arg.c_str());
                 Log::fatal("valid: --<op>_rate for op in {clone, add_edge, add_recurrent_edge,\n");
