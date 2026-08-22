@@ -7,11 +7,20 @@
 # purely by --possible_node_types (and, for EXA-GP-MIN, --weight_initialize gp). So the
 # arms below differ from anvil_mse_pooled.sb in exactly those two flags and NOTHING else.
 #
-# WHY LOCAL RATHER THAN ANVIL. Measured on this panel, 500 genomes takes 44 s for
-# EXA-GP-MIN and 68 s for EXAMM on 8 threads -- a full 10,000-genome run is 15-23 min.
-# The whole 2-arm x 2-cohort x 10-seed campaign is well under a day on one laptop, so it
-# does not need a queue. To scale up on Anvil instead, copy anvil_mse_pooled.sb and add the
-# same two flags this script's ARM_ARGS sets -- nothing else about the protocol changes.
+# COST, AND WHY THE OBVIOUS EXTRAPOLATION IS WRONG. The first 500 genomes take 44 s for
+# EXA-GP-MIN on 8 threads, which invites the estimate "10,000 genomes in 15 minutes". That is
+# wrong by an order of magnitude, because the networks GROW and per-genome cost grows with
+# them. Measured on a real 10,000-genome run of this exact arm:
+#     genome  500 ->   43 s elapsed,  7.6 genomes/s,   4 enabled edges
+#     genome 2000 ->  428 s elapsed,  3.1 genomes/s,  11 enabled edges
+#     genome 4600 -> 2339 s elapsed,  1.0 genomes/s,  55 enabled edges
+# so a full run is ~2.8 h, and a 10-seed cell is a day rather than three hours. Budget from
+# the decay curve, never from the first 500. A 10-seed cell at 500 genomes, by contrast, is
+# about ten minutes -- see run_exagp_budget_sweep.sh for why that budget is scientifically
+# interesting and not merely cheap.
+#
+# To scale up on Anvil instead, copy anvil_mse_pooled.sb and add the same two flags this
+# script's ARM_ARGS sets -- nothing else about the protocol changes.
 #
 # WHY THERE IS A LOCAL EXAMM ARM AT ALL, when the paper already has EXAMM numbers.
 # Table 1's EXAMM row was produced by examm_mpi on Anvil; this runs examm_mt on a Mac.
@@ -39,6 +48,7 @@
 #     seeds  : how many runs, seeded 1..N (default 10 -- the paper's ensemble size)
 #
 #   bash scripts/stock_run/run_exagp_local.sh exagpmin cohort_2021_aligned 10 10000
+#   PANEL=set1 bash scripts/stock_run/run_exagp_local.sh exagpmin cohort_2020_aligned 10 500
 set -u
 
 ARM=${1:?usage: run_exagp_local.sh <exagpmin|exagp|examm> [cohort] [seeds] [max_genomes]}
@@ -47,7 +57,16 @@ SEEDS=${3:-10}
 MAXG=${4:-10000}
 THREADS=${THREADS:-8}
 BIN=${BIN:-build/multithreaded/examm_mt}
-DATA_DIR=datasets/walkforward/$COHORT
+# PANEL selects which of the paper's two dataset families the cohort lives in. Empty (the
+# default) is Dataset A, whose cohorts sit directly under walkforward/. set1..set4 are the
+# twelve mid_highmid_price panels that make up the other twelve of the paper's fourteen
+# cells; score_forecasting.data_dir() resolves them the same way.
+PANEL=${PANEL:-}
+if [ -n "$PANEL" ]; then
+    DATA_DIR=datasets/walkforward/mid_highmid_price/$PANEL/$COHORT
+else
+    DATA_DIR=datasets/walkforward/$COHORT
+fi
 
 # ---- the arm definition: the ONLY thing that differs between arms --------------------
 # EXAMM defaults are left implicit (no --possible_node_types) so the control is
@@ -95,7 +114,7 @@ if [ "$NUNIQ" -ne 1 ]; then
     exit 1
 fi
 
-OUT_ROOT=test_output/${ARM}_${COHORT}${REPLICATE_TAG:+_$REPLICATE_TAG}
+OUT_ROOT=test_output/${ARM}_${PANEL:+${PANEL}_}${COHORT}${REPLICATE_TAG:+_$REPLICATE_TAG}
 mkdir -p "$OUT_ROOT"
 
 BIN_SHA=$(shasum -a 256 "$BIN" 2>/dev/null | awk '{print $1}')
