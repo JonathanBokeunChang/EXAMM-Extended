@@ -136,6 +136,18 @@ for RUN in $(seq 1 "$SEEDS"); do
         echo "[run $RUN] already done, skipping"; continue
     fi
 
+    # mkdir is atomic, so it doubles as a lock: whichever worker creates OUT.lock owns this
+    # run and any other worker moves on to the next seed. Without it, a second worker's
+    # `rm -rf "$OUT"` below would delete a run the first is still writing, and both would then
+    # race to produce the same genome. This is what makes it safe to point two (or ten) workers
+    # at one output tree to use idle cores -- the same trick anvil_mse_pooled.sb uses to let a
+    # SLURM job array share one directory.
+    mkdir -p "$(dirname "$OUT")"
+    if ! mkdir "$OUT.lock" 2>/dev/null; then
+        echo "[run $RUN] another worker owns it, skipping"; continue
+    fi
+    trap 'rmdir "$OUT.lock" 2>/dev/null' EXIT
+
     case "$OUT" in */run_[0-9]*) ;; *) echo "ERROR: refusing rm -rf '$OUT'" >&2; exit 1;; esac
     rm -rf "$OUT"; mkdir -p "$OUT"
 
@@ -190,6 +202,7 @@ for RUN in $(seq 1 "$SEEDS"); do
     if [ $RC -eq 0 ] && [ -n "$GB" ] && [ -s "$GB" ] && [ "$LAST_G" -ge "$MIN_G" ]; then
         touch "$OUT/.done"
         echo "[run $RUN] FINISHED in ${ELAPSED}s  genomes=$LAST_G  $(basename "$GB")"
+        rmdir "$OUT.lock" 2>/dev/null
     else
         echo "[run $RUN] FAILED rc=$RC genome='${GB:-none}' genomes=$LAST_G (need >=$MIN_G) after ${ELAPSED}s" >&2
         echo "          see $OUT/train.log" >&2

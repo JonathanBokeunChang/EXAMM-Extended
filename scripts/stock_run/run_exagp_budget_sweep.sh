@@ -36,11 +36,17 @@ LOG=${LOG:-test_output/exagp_budget_sweep.log}
 SEEDS=${SEEDS:-10}
 BUDGETS=${BUDGETS:-"500 2000"}
 export THREADS=${THREADS:-4}
+# ARMS/COHORTS exist so a SECOND worker can walk the same matrix in the opposite order and
+# meet the first in the middle. run_exagp_local.sh locks each run directory, so two workers
+# sharing one output tree divide the seeds between them instead of colliding -- which is how
+# both halves of an 8-core box get used without a scheduler.
+ARMS=${ARMS:-"exagpmin examm"}
+COHORTS=${COHORTS:-"cohort_2021_aligned cohort_2020_aligned"}
 
 {
   for G in $BUDGETS; do
-      for ARM in exagpmin examm; do
-          for COHORT in cohort_2021_aligned cohort_2020_aligned; do
+      for ARM in $ARMS; do
+          for COHORT in $COHORTS; do
               echo "=== BUDGET $G $ARM $COHORT | started $(date '+%Y-%m-%d %H:%M:%S') ==="
               # REPLICATE_TAG is what keeps a budget arm in its own tree. Without it every
               # budget would land in test_output/<arm>_<cohort>, and the SECOND budget would
