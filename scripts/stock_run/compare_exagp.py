@@ -44,13 +44,15 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from score_forecasting import PRIMARY, data_dir, from_per_ticker, load, metrics  # noqa: E402
 
-# Train through N-1, validate on N, trade N+1 -- the only two true walk-forward cells.
-TRADE_YEAR = {"cohort_2020_aligned": 2022, "cohort_2021_aligned": 2023}
+# Train through N-1, validate on N, trade N+1. Dataset A supplies two such cells; the
+# mid_highmid_price panels supply three apiece, which is the same rule with cohort_2022 added.
+TRADE_YEAR = {"cohort_2020_aligned": 2022, "cohort_2021_aligned": 2023,
+              "cohort_2022_aligned": 2024}
 
 
-def arm_metrics(root, cohort, year):
+def arm_metrics(root, cohort, year, panel="dsA"):
     """Ensemble metrics plus the per-run IC spread behind them."""
-    dd = data_dir("dsA", cohort)
+    dd = data_dir(panel, cohort)
     ens = os.path.join(root, "ensemble_test")
     if not os.path.isdir(ens):
         raise FileNotFoundError(
@@ -107,6 +109,8 @@ def equations(root):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cohort", required=True, choices=sorted(TRADE_YEAR))
+    ap.add_argument("--panel", default="dsA",
+                    help="dsA (default) or set1..set4 for the mid_highmid_price cells")
     ap.add_argument("--arm", action="append", default=[], metavar="LABEL=ROOT",
                     help="repeatable; e.g. 'EXA-GP-MIN=test_output/exagpmin_cohort_2021_aligned'")
     ap.add_argument("--no-reference", action="store_true",
@@ -121,7 +125,7 @@ def main():
     if not a.no_reference:
         try:
             rows.append(("EXAMM (Anvil, paper)",
-                         metrics(load("EXAMM", "dsA", a.cohort, rep=""), year)))
+                         metrics(load("EXAMM", a.panel, a.cohort, rep=""), year)))
         except (FileNotFoundError, ValueError) as e:
             print(f"! reference EXAMM unavailable: {e}", file=sys.stderr)
 
@@ -129,11 +133,11 @@ def main():
         if "=" not in spec:
             ap.error(f"--arm wants LABEL=ROOT, got {spec!r}")
         label, root = spec.split("=", 1)
-        rows.append((label, arm_metrics(root, a.cohort, year)))
+        rows.append((label, arm_metrics(root, a.cohort, year, a.panel)))
 
     hdr = ["model", "days", "runs"] + [f"IC h={h}" for h in PRIMARY] + \
           ["MSE", "MAE", "single IC mean", "sd", "range"]
-    print(f"\n=== {a.cohort} -> trade {year} (rank IC, cross-sectional) ===\n")
+    print(f"\n=== {a.panel} {a.cohort} -> trade {year} (rank IC, cross-sectional) ===\n")
     print(" | ".join(hdr))
     print("-|-".join("-" * len(h) for h in hdr))
     for label, m in rows:
