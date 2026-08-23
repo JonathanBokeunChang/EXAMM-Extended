@@ -77,14 +77,30 @@ def arm_metrics(root, cohort, year):
 def equations(root):
     """The evolved closed form per run -- the thing EXAMM cannot produce at all.
 
-    EXA-GP writes the genome as an equation in the .txt next to the .bin. Deduplicating
-    is deliberate: ten seeds frequently rediscover the same short expression, and that
-    convergence is a result worth seeing rather than ten lines of noise to scroll past.
+    ONE GENOME PER RUN, THE HIGHEST-INDEXED ONE. A run directory can hold more than one
+    global_best_genome_* file (run_7 of the g500 2021 tree holds both 325 and 363), so a
+    plain glob reports more "runs" than exist and double-counts whichever seed happened to
+    flush twice. eval_ic_run.sh scores the highest index -- the best fitness found -- so
+    this must select identically or the equations shown would not be the equations scored.
+
+    THE WHOLE BLOCK, NOT THE FIRST LINE. Equations with hidden nodes are written across
+    several lines (H0 = ..., H1 = ..., then RET(t + 1) in terms of them). Taking only the
+    first line renders such a genome as "H0 = sin(...)", which silently misreports a
+    two-term model as a one-term one -- and hides the output line entirely.
     """
     seen = {}
-    for f in sorted(glob.glob(os.path.join(root, "run_*", "global_best_genome_*.txt"))):
-        eq = open(f).read().strip().splitlines()[0].strip()
-        seen.setdefault(eq, []).append(os.path.basename(os.path.dirname(f)))
+    for d in sorted(glob.glob(os.path.join(root, "run_*"))):
+        fs = glob.glob(os.path.join(d, "global_best_genome_*.txt"))
+        if not fs:
+            continue
+        best = max(fs, key=lambda p: int(p.rsplit("_", 1)[1].split(".")[0]))
+        body = []
+        for line in open(best).read().splitlines():
+            if line.startswith("best_validation_mse"):
+                break
+            if line.strip():
+                body.append(line.strip())
+        seen.setdefault(" ; ".join(body), []).append(os.path.basename(d))
     return seen
 
 
