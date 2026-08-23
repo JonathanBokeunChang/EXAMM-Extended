@@ -144,9 +144,23 @@ for RUN in $(seq 1 "$SEEDS"); do
     # SLURM job array share one directory.
     mkdir -p "$(dirname "$OUT")"
     if ! mkdir "$OUT.lock" 2>/dev/null; then
-        echo "[run $RUN] another worker owns it, skipping"; continue
+        # A LOCK IS NOT PROOF OF A LIVE WORKER. Killing a sweep (the harness reaps background
+        # tasks with SIGTERM to the process group; a laptop sleeping does the same) leaves the
+        # lock directory behind, and every later worker then skips that seed FOREVER -- the
+        # ensemble silently comes back with nine members instead of ten and nothing looks
+        # wrong. So the lock records its owner's pid and is reclaimed when that pid is gone.
+        OWNER=$(cat "$OUT.lock/pid" 2>/dev/null || echo "")
+        if [ -n "$OWNER" ] && kill -0 "$OWNER" 2>/dev/null; then
+            echo "[run $RUN] owned by live pid $OWNER, skipping"; continue
+        fi
+        echo "[run $RUN] reclaiming stale lock (owner '${OWNER:-unknown}' is gone)"
+        rm -rf "$OUT.lock"
+        if ! mkdir "$OUT.lock" 2>/dev/null; then
+            echo "[run $RUN] lost the race to reclaim, skipping"; continue
+        fi
     fi
-    trap 'rmdir "$OUT.lock" 2>/dev/null' EXIT
+    echo $$ > "$OUT.lock/pid"
+    trap 'rm -rf "$OUT.lock" 2>/dev/null' EXIT
 
     case "$OUT" in */run_[0-9]*) ;; *) echo "ERROR: refusing rm -rf '$OUT'" >&2; exit 1;; esac
     rm -rf "$OUT"; mkdir -p "$OUT"
@@ -202,7 +216,7 @@ for RUN in $(seq 1 "$SEEDS"); do
     if [ $RC -eq 0 ] && [ -n "$GB" ] && [ -s "$GB" ] && [ "$LAST_G" -ge "$MIN_G" ]; then
         touch "$OUT/.done"
         echo "[run $RUN] FINISHED in ${ELAPSED}s  genomes=$LAST_G  $(basename "$GB")"
-        rmdir "$OUT.lock" 2>/dev/null
+        rm -rf "$OUT.lock" 2>/dev/null
     else
         echo "[run $RUN] FAILED rc=$RC genome='${GB:-none}' genomes=$LAST_G (need >=$MIN_G) after ${ELAPSED}s" >&2
         echo "          see $OUT/train.log" >&2
