@@ -1,6 +1,33 @@
 [
   {
     "panel": "dsA",
+    "cohort": "cohort_2020_aligned",
+    "trade_year": 2022,
+    "exagpmin": {
+      "ic1": -0.005814770771586008,
+      "ic3": 0.00210170468187275,
+      "ic5": 0.010116302521008404,
+      "mse": 0.0004559587417788282,
+      "ret_raw": 34.22,
+      "ret_demeaned": -21.99,
+      "ret_ungated": -21.99,
+      "gate_raw": 18,
+      "gate_days": 250
+    },
+    "examm": {
+      "ic1": 0.0015967309078680839,
+      "ic3": 0.01115543817527011,
+      "ic5": 0.017460936374549825,
+      "mse": 0.0004608290001229136,
+      "ret_raw": 12.59,
+      "ret_demeaned": -22.96,
+      "ret_ungated": -22.96,
+      "gate_raw": 55,
+      "gate_days": 250
+    }
+  },
+  {
+    "panel": "dsA",
     "cohort": "cohort_2021_aligned",
     "trade_year": 2023,
     "exagpmin": {
