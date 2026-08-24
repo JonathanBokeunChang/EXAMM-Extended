@@ -32,6 +32,16 @@ OUT="$REPO_ROOT/test_output/purpleair_${TAG}_holdout_${SITE}"
 # The whole point of the comparison is EXA-GP's readable equation against EXAMM's memory
 # cells on a task whose incumbent is itself an equation, so both arms must be reachable
 # from one runner at a matched budget.
+# Hyperparameters were never tuned: they are the defaults of the original smoke-test
+# wiring script. bp_iterations 2 in particular means every candidate genome gets two
+# backprop epochs before being judged, against 10 in the stock campaign, so the search
+# may be selecting among underfit models rather than among architectures. Exposed here
+# so the sensitivity can be measured instead of assumed.
+BP_ITER=${BP_ITER:-2}
+ISLANDS=${ISLANDS:-4}
+ISLAND_SIZE=${ISLAND_SIZE:-5}
+NORMALIZE=${NORMALIZE:-min_max}
+
 ARM=${ARM:-examm}
 case "$ARM" in
     examm)    ARM_ARGS=(--possible_node_types simple UGRNN MGU GRU delta LSTM) ;;
@@ -123,11 +133,11 @@ echo "###-------------------###"
     --time_offset 0 \
     --input_parameter_names $INPUT_PARAMETERS \
     --output_parameter_names $OUTPUT_PARAMETERS \
-    --normalize min_max \
-    --number_islands 4 \
-    --island_size 5 \
+    --normalize "$NORMALIZE" \
+    --number_islands "$ISLANDS" \
+    --island_size "$ISLAND_SIZE" \
     --max_genomes "$MAX_GENOMES" \
-    --bp_iterations 2 \
+    --bp_iterations "$BP_ITER" \
     --num_mutations 2 \
     --output_directory "$OUT" \
     ${ARM_ARGS[@]+"${ARM_ARGS[@]}"} \
