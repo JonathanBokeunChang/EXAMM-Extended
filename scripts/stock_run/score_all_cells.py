@@ -90,12 +90,12 @@ def gate_opens(pred_dir, panel, cohort, year):
     return n, len(P)
 
 
-def trade(pred_dir, panel, cohort, year):
+def trade(pred_dir, panel, cohort, year, strategy="daily_hybrid_long_short_return"):
     cmd = ["python3", "scripts/stock_run/trade_portfolio.py",
            "--pred-dir", os.path.relpath(pred_dir, REPO),
            "--data-dir", os.path.relpath(data_dir(panel, cohort), REPO),
            "--align", "suffix", "--expect-n", "50", "--long", str(L), "--short", str(S),
-           "--strategy", "daily_hybrid_long_short_return"]
+           "--strategy", strategy]
     # cohort_2020's test split spans two years; restrict to the trade year, as the
     # forecasting scorer does with its year slice.
     cmd += ["--window-start", f"{year}-01-01", "--window-end", f"{year}-12-31"]
@@ -133,6 +133,11 @@ def main():
                     "mse": m["mse"],
                     "ret_raw": trade(ens, panel, cohort, year),
                     "ret_demeaned": trade(dm, panel, cohort, year) if dm else float("nan"),
+                    # The ungated strategy ranks by prediction and trades every day. Ranking is
+                    # invariant to a per-day level shift, so this is immune to the prediction-bias
+                    # artifact BY CONSTRUCTION rather than by a demeaning preprocessing step --
+                    # which is why it, not ret_demeaned, is the headline trading column.
+                    "ret_ungated": trade(ens, panel, cohort, year, "daily_long_short_return"),
                     "gate_raw": g, "gate_days": nd,
                 }
             rows.append(rec)
@@ -141,19 +146,20 @@ def main():
         print(f"no complete paired cells at budget {a.budget} yet")
         return
 
-    hdr = f"{'cell':<18} {'yr':>5} | {'IC1 gp':>8} {'IC1 ex':>8} | {'ret_dm gp':>10} {'ret_dm ex':>10} | {'gate gp':>8} {'gate ex':>8}"
+    hdr = f"{'cell':<18} {'yr':>5} | {'IC1 gp':>8} {'IC1 ex':>8} | {'ungated gp':>11} {'ungated ex':>11} | {'gate gp':>8} {'gate ex':>8}"
     print("\n" + hdr)
     print("-" * len(hdr))
     for r in rows:
         gp, ex = r.get("exagpmin", {}), r.get("examm", {})
         print(f"{r['panel']+'/'+r['cohort'][7:11]:<18} {r['trade_year']:>5} | "
               f"{gp.get('ic1', float('nan')):>+8.4f} {ex.get('ic1', float('nan')):>+8.4f} | "
-              f"{gp.get('ret_demeaned', float('nan')):>+10.2f} {ex.get('ret_demeaned', float('nan')):>+10.2f} | "
+              f"{gp.get('ret_ungated', float('nan')):>+11.2f} {ex.get('ret_ungated', float('nan')):>+11.2f} | "
               f"{gp.get('gate_raw', -1):>4}/{gp.get('gate_days', 0):<3} {ex.get('gate_raw', -1):>4}/{ex.get('gate_days', 0):<3}")
 
     # Paired summary -- the form the claim should take, per-cell wins rather than a mean
     # dominated by whichever cell happened to be extreme.
-    for key, label in (("ic1", "rank IC h=1"), ("ret_demeaned", "return (demeaned)")):
+    for key, label in (("ic1", "rank IC h=1"), ("ret_ungated", "return (ungated)"),
+                       ("ret_demeaned", "return (gated+demeaned)")):
         w = sum(1 for r in rows
                 if np.isfinite(r.get("exagpmin", {}).get(key, np.nan))
                 and np.isfinite(r.get("examm", {}).get(key, np.nan))

@@ -10,6 +10,7 @@
       "mse": 0.00045325992405125047,
       "ret_raw": 1.86,
       "ret_demeaned": -18.59,
+      "ret_ungated": -18.59,
       "gate_raw": 1,
       "gate_days": 250
     },
@@ -20,6 +21,7 @@
       "mse": 0.00045661049384637946,
       "ret_raw": 36.71,
       "ret_demeaned": -17.92,
+      "ret_ungated": -17.92,
       "gate_raw": 29,
       "gate_days": 250
     }
@@ -35,6 +37,7 @@
       "mse": 0.0002920976614079375,
       "ret_raw": 19.22,
       "ret_demeaned": 26.32,
+      "ret_ungated": 26.32,
       "gate_raw": 178,
       "gate_days": 249
     },
@@ -45,6 +48,7 @@
       "mse": 0.00029220690264664795,
       "ret_raw": -1.74,
       "ret_demeaned": -2.29,
+      "ret_ungated": -4.24,
       "gate_raw": 64,
       "gate_days": 249
     }
@@ -60,6 +64,7 @@
       "mse": 0.0005349509215080991,
       "ret_raw": 0.0,
       "ret_demeaned": 1.43,
+      "ret_ungated": 2.32,
       "gate_raw": 0,
       "gate_days": 250
     },
@@ -70,6 +75,7 @@
       "mse": 0.0005399378409045473,
       "ret_raw": 4.82,
       "ret_demeaned": -16.08,
+      "ret_ungated": -16.08,
       "gate_raw": 22,
       "gate_days": 250
     }
@@ -85,6 +91,7 @@
       "mse": 0.0003226575822306369,
       "ret_raw": 0.0,
       "ret_demeaned": 14.67,
+      "ret_ungated": 14.67,
       "gate_raw": 0,
       "gate_days": 249
     },
@@ -95,6 +102,7 @@
       "mse": 0.0003226549480002208,
       "ret_raw": 13.16,
       "ret_demeaned": 14.35,
+      "ret_ungated": 14.35,
       "gate_raw": 205,
       "gate_days": 249
     }
@@ -110,6 +118,7 @@
       "mse": 0.00035403077659960073,
       "ret_raw": 0.0,
       "ret_demeaned": -11.25,
+      "ret_ungated": -11.25,
       "gate_raw": 0,
       "gate_days": 251
     },
@@ -120,8 +129,117 @@
       "mse": 0.0003556703554227357,
       "ret_raw": -21.19,
       "ret_demeaned": -20.52,
+      "ret_ungated": -20.52,
       "gate_raw": 23,
       "gate_days": 251
+    }
+  },
+  {
+    "panel": "set2",
+    "cohort": "cohort_2020_aligned",
+    "trade_year": 2022,
+    "exagpmin": {
+      "ic1": -0.005885275812475136,
+      "ic3": 0.004709754869689814,
+      "ic5": 0.0159142681462829,
+      "mse": 0.0005498351410382176,
+      "ret_raw": 0.0,
+      "ret_demeaned": -8.88,
+      "ret_ungated": -8.68,
+      "gate_raw": 0,
+      "gate_days": 250
+    },
+    "examm": {
+      "ic1": 0.009934469078458191,
+      "ic3": 0.029349804437904196,
+      "ic5": 0.02924994387999103,
+      "mse": 0.0005537890915026292,
+      "ret_raw": 25.55,
+      "ret_demeaned": -3.78,
+      "ret_ungated": -3.78,
+      "gate_raw": 20,
+      "gate_days": 250
+    }
+  },
+  {
+    "panel": "set2",
+    "cohort": "cohort_2021_aligned",
+    "trade_year": 2023,
+    "exagpmin": {
+      "ic1": 0.011909117151758313,
+      "ic3": 0.035128480542014374,
+      "ic5": 0.032165617267315094,
+      "mse": 0.00034505025250682227,
+      "ret_raw": 24.72,
+      "ret_demeaned": 28.28,
+      "ret_ungated": 27.96,
+      "gate_raw": 36,
+      "gate_days": 249
+    },
+    "examm": {
+      "ic1": 0.023980494255909167,
+      "ic3": 0.038912083051844217,
+      "ic5": 0.042841561114241616,
+      "mse": 0.0003450602105661691,
+      "ret_raw": 30.31,
+      "ret_demeaned": 24.33,
+      "ret_ungated": 24.04,
+      "gate_raw": 148,
+      "gate_days": 249
+    }
+  },
+  {
+    "panel": "set2",
+    "cohort": "cohort_2022_aligned",
+    "trade_year": 2024,
+    "exagpmin": {
+      "ic1": -0.004325903674005973,
+      "ic3": -0.005247978709556112,
+      "ic5": 0.0022736219994070497,
+      "mse": 0.00030106940008197,
+      "ret_raw": 0.0,
+      "ret_demeaned": -0.84,
+      "ret_ungated": -1.14,
+      "gate_raw": 0,
+      "gate_days": 251
+    },
+    "examm": {
+      "ic1": 0.0156410260514502,
+      "ic3": 0.01570189521591769,
+      "ic5": 0.01772764166395303,
+      "mse": 0.0003015746622384873,
+      "ret_raw": 12.16,
+      "ret_demeaned": 15.98,
+      "ret_ungated": 15.98,
+      "gate_raw": 4,
+      "gate_days": 251
+    }
+  },
+  {
+    "panel": "set3",
+    "cohort": "cohort_2020_aligned",
+    "trade_year": 2022,
+    "exagpmin": {
+      "ic1": -0.009555260302951871,
+      "ic3": -0.0005371180730356667,
+      "ic5": -0.0021249475399916077,
+      "mse": 0.0005581992675714585,
+      "ret_raw": -10.43,
+      "ret_demeaned": 3.42,
+      "ret_ungated": 3.45,
+      "gate_raw": 10,
+      "gate_days": 250
+    },
+    "examm": {
+      "ic1": 0.0019403421070938618,
+      "ic3": 0.01206714944042133,
+      "ic5": 0.0026410564225690276,
+      "mse": 0.0005621544553670348,
+      "ret_raw": 30.21,
+      "ret_demeaned": -16.54,
+      "ret_ungated": -16.54,
+      "gate_raw": 36,
+      "gate_days": 250
     }
   }
 ]
